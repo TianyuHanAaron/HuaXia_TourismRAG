@@ -112,3 +112,18 @@ def test_fresh_web_evidence_rows_are_gui_friendly():
             "链接": "https://www.gov.cn/example",
         }
     ]
+
+
+def test_pending_reply_uses_longer_timeout_floor():
+    assert streamlit_app._effective_timeout_seconds(
+        configured_timeout=300,
+        is_pending_reply=True,
+    ) == 900
+    assert streamlit_app._effective_timeout_seconds(
+        configured_timeout=600,
+        is_pending_reply=True,
+    ) == 900
+    assert streamlit_app._effective_timeout_seconds(
+        configured_timeout=300,
+        is_pending_reply=False,
+    ) == 300

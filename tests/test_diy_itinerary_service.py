@@ -46,6 +46,11 @@ class FakeInternalRAG:
         ]
 
 
+class FailingInternalRAG:
+    async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+        raise RuntimeError("embedding endpoint unavailable")
+
+
 class FakeWebSearch:
     def __init__(self) -> None:
         self.requests: list[tuple[str, int, SearchOptions | None]] = []
@@ -317,6 +322,86 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
         "https://example.com/diy/1",
         "https://example.com/diy/2",
         "https://example.com/diy/3",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_diy_answer_continues_with_web_evidence_when_internal_rag_is_unavailable(
+    monkeypatch,
+):
+    async def fake_create_diy_itinerary_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> DIYItineraryPlan:
+        task = TravelResearchTask(
+            task_type="attraction",
+            query="涿州 三国 官方",
+            reason="核验主题景点。",
+            max_results=1,
+        )
+        return DIYItineraryPlan(
+            original_question=question.question,
+            theme="三国历史巡礼",
+            origin="北京",
+            return_city="北京",
+            required_stops=["涿州", "许昌"],
+            proposed_route=["北京", "涿州", "许昌", "北京"],
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan=None,
+        diy_plan: DIYItineraryPlan | None = None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="ok",
+            highlights=[],
+            warnings=[],
+            citations=citation_lines,
+        )
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fake_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    web_search = FakeWebSearch()
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FailingInternalRAG(),
+            web_search=web_search,
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=1,
+        top_k=4,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(question="北京出发三国历史巡礼：涿州。")
+    )
+
+    assert web_search.requests[0][0] == "涿州 三国 官方"
+    assert answer.answer == "ok"
+    assert answer.warnings == [
+        "内部知识库向量检索暂不可用，已改用实时网页证据继续规划。"
     ]
 
 

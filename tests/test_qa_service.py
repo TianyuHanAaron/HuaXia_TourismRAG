@@ -45,6 +45,11 @@ class FakeInternalRAG:
         ]
 
 
+class FailingInternalRAG:
+    async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+        raise RuntimeError("embedding endpoint unavailable")
+
+
 class FakeWebSearch:
     def __init__(self) -> None:
         self.requests: list[tuple[str, int, SearchOptions | None]] = []
@@ -315,6 +320,80 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
     assert final_plan is not None
     assert final_plan.destination == "四川、云南"
     assert reranker.top_k_values == [4]
+
+
+@pytest.mark.asyncio
+async def test_answer_continues_with_web_evidence_when_internal_rag_is_unavailable(
+    monkeypatch,
+):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        task = TravelResearchTask(
+            task_type="route",
+            query="北京 三天 路线",
+            reason="规划路线。",
+            max_results=1,
+        )
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="北京",
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="ok",
+            highlights=[],
+            warnings=[],
+            citations=citation_lines,
+        )
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    web_search = FakeWebSearch()
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FailingInternalRAG(),
+            web_search=web_search,
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=1,
+        top_k=4,
+    )
+
+    answer = await service.answer(TravelQuestion(question="北京三天怎么玩？"))
+
+    assert web_search.requests[0][0] == "北京 三天 路线"
+    assert answer.answer == "ok"
+    assert answer.warnings == [
+        "内部知识库向量检索暂不可用，已改用实时网页证据继续规划。"
+    ]
 
 
 @pytest.mark.asyncio

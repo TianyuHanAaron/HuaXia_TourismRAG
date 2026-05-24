@@ -1,5 +1,7 @@
 """DIY itinerary service for user-defined thematic routes."""
 
+import logging
+
 from huaxia_tourismrag.agents.diy_itinerary_planner import create_diy_itinerary_plan
 from huaxia_tourismrag.agents.tourism_agent import TourismDeps, generate_answer_with_context
 from huaxia_tourismrag.agents.travel_checkpoints import (
@@ -52,6 +54,10 @@ POLICY_CONTENT_TYPES = {
     "tourism_safety",
     "scenic_quality",
 }
+INTERNAL_RAG_UNAVAILABLE_WARNING = (
+    "内部知识库向量检索暂不可用，已改用实时网页证据继续规划。"
+)
+logger = logging.getLogger(__name__)
 
 
 class DIYItineraryService:
@@ -130,14 +136,25 @@ class DIYItineraryService:
         web_chunks: list[TravelChunk] = []
         seen_urls: set[str] = set()
         pages_read = 0
+        internal_rag_available = True
+        internal_rag_warning: str | None = None
 
         for task in self._prioritize_tasks(diy_plan.tasks):
-            internal.extend(
-                await self.deps.internal_rag.retrieve(
-                    task.query,
-                    tenant_id=self.deps.tenant_id,
-                )
-            )
+            if internal_rag_available:
+                try:
+                    internal.extend(
+                        await self.deps.internal_rag.retrieve(
+                            task.query,
+                            tenant_id=self.deps.tenant_id,
+                        )
+                    )
+                except Exception:
+                    internal_rag_available = False
+                    internal_rag_warning = INTERNAL_RAG_UNAVAILABLE_WARNING
+                    logger.warning(
+                        "Internal RAG retrieval unavailable; continuing with web evidence.",
+                        exc_info=True,
+                    )
             hits = await self.deps.web_search.search_chinese_tourism(
                 task.query,
                 max_results=task.max_results,
@@ -188,6 +205,8 @@ class DIYItineraryService:
             detail_level=resolved_detail_level(question),
         )
         answer.service_enrichment = service_context
+        if internal_rag_warning and internal_rag_warning not in answer.warnings:
+            answer.warnings.append(internal_rag_warning)
         return answer
 
     def _prioritize_tasks(

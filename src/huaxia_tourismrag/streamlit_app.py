@@ -21,6 +21,8 @@ from huaxia_tourismrag.frontend.streamlit_client import (
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+DEFAULT_TIMEOUT_SECONDS = 900
+PENDING_REPLY_TIMEOUT_SECONDS = 900
 UI_STATE_VERSION = 2
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ASSET_ROOT = PROJECT_ROOT / "assets"
@@ -243,7 +245,7 @@ def _render_sidebar(copy: dict[str, Any]) -> None:
         copy["timeout"],
         min_value=30,
         max_value=900,
-        value=int(st.session_state.get("timeout_seconds", 300)),
+        value=int(st.session_state.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         step=30,
         help=copy["timeout_help"],
     )
@@ -595,11 +597,16 @@ def _submit_prompt(
     detail_level: DetailLevel,
     copy: dict[str, Any],
 ) -> None:
+    session_id = st.session_state.get("session_id") if st.session_state.get("needs_reply") else None
     client = TourismApiClient(
         base_url=st.session_state.get("api_base_url", DEFAULT_BASE_URL),
-        timeout_seconds=float(st.session_state.get("timeout_seconds", 300)),
+        timeout_seconds=_effective_timeout_seconds(
+            configured_timeout=float(
+                st.session_state.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
+            ),
+            is_pending_reply=bool(session_id),
+        ),
     )
-    session_id = st.session_state.get("session_id") if st.session_state.get("needs_reply") else None
 
     with st.status(copy["thinking"], expanded=False):
         try:
@@ -628,6 +635,15 @@ def _submit_prompt(
             "payload": payload,
         }
     )
+
+
+def _effective_timeout_seconds(
+    configured_timeout: float,
+    is_pending_reply: bool,
+) -> float:
+    if is_pending_reply:
+        return max(configured_timeout, PENDING_REPLY_TIMEOUT_SECONDS)
+    return configured_timeout
 
 
 def _run_health_check(copy: dict[str, Any]) -> None:
