@@ -322,6 +322,12 @@ Recommended path:
 data/internal/china_tourism_policy_transport_rules_60.jsonl
 ```
 
+The curated 60-source manifest lives at:
+
+```text
+data/internal/sources/china_tourism_policy_sources.json
+```
+
 The project includes an `InternalDocumentIndexer` for loading JSONL, chunking documents, embedding text, and upserting chunks into Qdrant.
 
 The expected JSONL rows map to the internal raw document DTO used by the indexer. Rows may use either `document_id` or `id`, and can include `content_type`, `published_at`, `retrieved_at`, and `location`.
@@ -330,6 +336,14 @@ Example:
 
 ```json
 {"id":"policy:railway-passenger-rules","title":"铁路旅客运输规程","source_name":"中国铁路12306","url":"https://mobile.12306.cn/otsmobile/h5/otsbussiness/info/transportationRules.html","content_type":"railway","text":"..."}
+```
+
+Build the JSONL corpus from the manifest:
+
+```bash
+uv run huaxia-tourismrag build-internal-corpus \
+  data/internal/sources/china_tourism_policy_sources.json \
+  --output data/internal/china_tourism_policy_transport_rules_60.jsonl
 ```
 
 Index the corpus:

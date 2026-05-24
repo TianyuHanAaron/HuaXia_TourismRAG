@@ -321,6 +321,12 @@ uv run huaxia-tourismrag health
 data/internal/china_tourism_policy_transport_rules_60.jsonl
 ```
 
+已整理的 60 个来源 manifest 位于：
+
+```text
+data/internal/sources/china_tourism_policy_sources.json
+```
+
 项目包含 `InternalDocumentIndexer`，用于加载 JSONL、切分文档、生成 embedding，并写入 Qdrant。
 
 JSONL 行可以使用 `document_id` 或 `id`，并可包含 `content_type`、`published_at`、`retrieved_at` 和 `location`。
@@ -329,6 +335,14 @@ JSONL 行可以使用 `document_id` 或 `id`，并可包含 `content_type`、`pu
 
 ```json
 {"id":"policy:railway-passenger-rules","title":"铁路旅客运输规程","source_name":"中国铁路12306","url":"https://mobile.12306.cn/otsmobile/h5/otsbussiness/info/transportationRules.html","content_type":"railway","text":"..."}
+```
+
+根据 manifest 生成 JSONL 语料：
+
+```bash
+uv run huaxia-tourismrag build-internal-corpus \
+  data/internal/sources/china_tourism_policy_sources.json \
+  --output data/internal/china_tourism_policy_transport_rules_60.jsonl
 ```
 
 索引内部语料：

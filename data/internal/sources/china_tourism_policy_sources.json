@@ -1,0 +1,422 @@
+[
+  {
+    "id": "policy:tourism-law",
+    "title": "中华人民共和国旅游法",
+    "source_name": "文化和旅游部",
+    "url": "https://zwgk.mct.gov.cn/zfxxgkml/zcfg/fl/202105/t20210526_924763.html",
+    "content_type": "legal"
+  },
+  {
+    "id": "policy:travel-agency-regulation",
+    "title": "旅行社条例",
+    "source_name": "司法部",
+    "url": "https://www.moj.gov.cn/pub/sfbgw/zcjd/200902/t20090227_389885.html",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:travel-agency-implementation-rules",
+    "title": "旅行社条例实施细则",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2016-12/12/content_5712515.htm",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:tourism-safety-management",
+    "title": "旅游安全管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/gongbao/content/2017/content_5183508.htm",
+    "content_type": "tourism_safety"
+  },
+  {
+    "id": "policy:tourism-complaint-handling-2026",
+    "title": "旅游投诉处理办法",
+    "source_name": "文化和旅游部",
+    "url": "https://zwgk.mct.gov.cn/zfxxgkml/zcfg/bmgz/202602/P020260211673176399426.pdf",
+    "content_type": "complaint"
+  },
+  {
+    "id": "policy:mct-online-complaint-system",
+    "title": "全国文化和旅游市场网上举报投诉处理系统",
+    "source_name": "文化和旅游部",
+    "url": "https://jbts.mct.gov.cn/",
+    "content_type": "complaint"
+  },
+  {
+    "id": "policy:online-tourism-service-rules",
+    "title": "在线旅游经营服务管理暂行规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/gongbao/content/2020/content_5554548.htm",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:culture-tourism-market-credit",
+    "title": "文化和旅游市场信用管理规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/gongbao/content/2022/content_5672670.htm",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:travel-agency-liability-insurance",
+    "title": "旅行社责任保险管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2022-09/26/content_5712541.htm",
+    "content_type": "insurance"
+  },
+  {
+    "id": "policy:tour-guide-management",
+    "title": "导游管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/gongbao/content/2018/content_5260808.htm",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:tour-guide-rating-management",
+    "title": "导游等级考核管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/gongbao/2025/issue_11826/202501/content_7001289.html",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:border-tourism-management",
+    "title": "边境旅游管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/202504/content_7021157.htm",
+    "content_type": "visa_exit_entry"
+  },
+  {
+    "id": "policy:tour-contract-2026-notice",
+    "title": "2026年版团队旅游合同通知",
+    "source_name": "文化和旅游部",
+    "url": "https://zwgk.mct.gov.cn/zfxxgkml/scgl/202601/t20260119_964189.html",
+    "content_type": "contract"
+  },
+  {
+    "id": "policy:domestic-tour-contract-template-2026",
+    "title": "团队境内旅游合同示范文本 GF-2026-2401",
+    "source_name": "市场监管总局",
+    "url": "https://www.samr.gov.cn/cms_files/filemanager/1647978232/attach/20261/49875950058141aebc064923056ae52c.pdf?fileName=%E9%99%84%E4%BB%B61%E5%9B%A2%E9%98%9F%E5%A2%83%E5%86%85%E6%97%85%E6%B8%B8%E5%90%88%E5%90%8C%EF%BC%88%E7%A4%BA%E8%8C%83%E6%96%87%E6%9C%AC%EF%BC%89.pdf",
+    "content_type": "contract"
+  },
+  {
+    "id": "policy:mct-enterprise-inspection-items",
+    "title": "文化和旅游部涉企行政检查事项",
+    "source_name": "文化和旅游部",
+    "url": "https://zwgk.mct.gov.cn/zfxxgkml/whsczhzf/202505/W020250603619205640837.pdf",
+    "content_type": "regulation"
+  },
+  {
+    "id": "policy:mainland-residents-taiwan-tourism",
+    "title": "大陆居民赴台湾地区旅游管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2017-04/25/content_5712514.htm",
+    "content_type": "visa_exit_entry"
+  },
+  {
+    "id": "policy:china-citizens-taiwan-travel-management",
+    "title": "中国公民往来台湾地区管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2015-06/18/content_2881273.htm",
+    "content_type": "visa_exit_entry"
+  },
+  {
+    "id": "policy:nia-government-service-platform",
+    "title": "国家移民管理局政务服务平台",
+    "source_name": "国家移民管理局",
+    "url": "https://s.nia.gov.cn/mps/bszy/",
+    "content_type": "visa_exit_entry"
+  },
+  {
+    "id": "policy:railway-passenger-rules-mobile",
+    "title": "铁路旅客运输规程",
+    "source_name": "中国铁路12306",
+    "url": "https://mobile.12306.cn/otsmobile/h5/otsbussiness/info/transportationRules.html",
+    "content_type": "railway"
+  },
+  {
+    "id": "policy:railway-12306-rules-faq",
+    "title": "12306相关规章",
+    "source_name": "中国铁路12306",
+    "url": "https://www.12306.cn/mwgweb/info/question_rules.jspx",
+    "content_type": "railway"
+  },
+  {
+    "id": "policy:railway-passenger-rules-gov",
+    "title": "铁路旅客运输规程",
+    "source_name": "中国政府网",
+    "url": "https://app.www.gov.cn/govdata/gov/202211/18/494430/article.html",
+    "content_type": "railway"
+  },
+  {
+    "id": "policy:railway-prohibited-items",
+    "title": "铁路旅客禁止、限制携带和托运物品目录",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/zhengceku/2022-05/31/content_5693212.htm",
+    "content_type": "railway"
+  },
+  {
+    "id": "policy:railway-security-check-management",
+    "title": "铁路旅客运输安全检查管理办法",
+    "source_name": "交通运输部",
+    "url": "https://xxgk.mot.gov.cn/2020/gz/202401/W020240104360622936011.pdf",
+    "content_type": "railway"
+  },
+  {
+    "id": "policy:air-passenger-service-management",
+    "title": "公共航空运输旅客服务管理规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2021-03/03/content_5711514.htm",
+    "content_type": "aviation"
+  },
+  {
+    "id": "policy:air-passenger-service-explainer",
+    "title": "公共航空运输旅客服务管理规定政策解读",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2021-03/16/content_5593254.htm",
+    "content_type": "aviation"
+  },
+  {
+    "id": "policy:air-prohibited-restricted-items",
+    "title": "民航旅客禁止、限制携带物品目录",
+    "source_name": "中国民用航空局",
+    "url": "https://www.caac.gov.cn/XXGK/XXGK/TZTG/201612/t20161213_41103.html",
+    "content_type": "aviation"
+  },
+  {
+    "id": "policy:air-power-bank-rules",
+    "title": "民航旅客携带充电宝乘机规定",
+    "source_name": "中国民用航空局",
+    "url": "https://www.caac.gov.cn/XXGK/XXGK/TZTG/201511/t20151105_11173.html",
+    "content_type": "aviation"
+  },
+  {
+    "id": "policy:air-power-bank-3c-2025",
+    "title": "民航旅客携带充电宝乘机相关提示",
+    "source_name": "中国民用航空局",
+    "url": "https://www.caac.gov.cn/XWZX/MHYW/202506/t20250626_227805.html",
+    "content_type": "aviation"
+  },
+  {
+    "id": "policy:road-passenger-transport-station-management",
+    "title": "道路旅客运输及客运站管理规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2022-10/08/content_5728971.htm",
+    "content_type": "road_transport"
+  },
+  {
+    "id": "policy:road-passenger-prohibited-items",
+    "title": "道路客运车辆禁止、限制携带和托运物品目录",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/zhengceku/2021-06/18/content_5618934.htm",
+    "content_type": "road_transport"
+  },
+  {
+    "id": "policy:small-car-rental-service-management",
+    "title": "小微型客车租赁经营服务管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2021-08/11/content_5711526.htm",
+    "content_type": "road_transport"
+  },
+  {
+    "id": "policy:ride-hailing-service-management",
+    "title": "网络预约出租汽车经营服务管理暂行办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2022-12/06/content_5730384.htm",
+    "content_type": "road_transport"
+  },
+  {
+    "id": "policy:consular-service",
+    "title": "中国领事服务网",
+    "source_name": "外交部",
+    "url": "https://cs.mfa.gov.cn/",
+    "content_type": "visa_exit_entry"
+  },
+  {
+    "id": "policy:outbound-travel-safety-alert",
+    "title": "外交部出境安全提醒",
+    "source_name": "外交部",
+    "url": "https://www.mfa.gov.cn/wjbzwfwpt/kzx/tzgg/202604/t20260430_11903029.html",
+    "content_type": "tourism_safety"
+  },
+  {
+    "id": "policy:customs-passenger-baggage-2025",
+    "title": "海关进出境行李物品监管办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/zhengceku/202502/content_7005697.htm",
+    "content_type": "customs"
+  },
+  {
+    "id": "policy:customs-passenger-clearance-rules",
+    "title": "海关旅客通关规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2010-11/26/content_5723483.htm",
+    "content_type": "customs"
+  },
+  {
+    "id": "policy:personal-foreign-exchange-management",
+    "title": "个人外汇管理办法",
+    "source_name": "国家外汇管理局",
+    "url": "https://www.safe.gov.cn/safe/2022/0818/21330.html",
+    "content_type": "finance"
+  },
+  {
+    "id": "policy:foreign-cash-entry-exit-rules",
+    "title": "携带外币现钞出入境管理相关规则",
+    "source_name": "国家外汇管理局",
+    "url": "https://www.safe.gov.cn/",
+    "content_type": "finance"
+  },
+  {
+    "id": "policy:cross-province-medical-filing-service",
+    "title": "跨省异地就医备案",
+    "source_name": "国家政务服务平台",
+    "url": "https://gjzwfw.www.gov.cn/col/col885/index.html",
+    "content_type": "medical"
+  },
+  {
+    "id": "policy:cross-province-medical-direct-settlement",
+    "title": "跨省异地就医直接结算通知",
+    "source_name": "中国政府网",
+    "url": "https://app.www.gov.cn/govdata/gov/202207/26/487780/article.html",
+    "content_type": "medical"
+  },
+  {
+    "id": "policy:cross-province-medical-online-filing-guide",
+    "title": "跨省异地就医线上备案指南",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/xinwen/2023-02/10/content_5741028.htm",
+    "content_type": "medical"
+  },
+  {
+    "id": "policy:china-cdc-health-tips",
+    "title": "中国疾控中心健康提示",
+    "source_name": "中国疾控中心",
+    "url": "https://www.chinacdc.cn/jkts/",
+    "content_type": "medical"
+  },
+  {
+    "id": "policy:holiday-health-tips",
+    "title": "节假日健康提示",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/yaowen/liebiao/202505/content_7026029.htm",
+    "content_type": "medical"
+  },
+  {
+    "id": "policy:flood-season-travel-safety",
+    "title": "文化和旅游部汛期旅游安全提示",
+    "source_name": "文化和旅游部",
+    "url": "https://www.mct.gov.cn/zxbs/cxts/202107/t20210709_926341.htm",
+    "content_type": "tourism_safety"
+  },
+  {
+    "id": "policy:summer-travel-safety",
+    "title": "汛期、暑期出游提示",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/lianbo/bumen/202407/content_6960331.htm",
+    "content_type": "tourism_safety"
+  },
+  {
+    "id": "policy:beijing-tourism-emergency-plan",
+    "title": "北京市旅游突发事件应急预案",
+    "source_name": "北京市人民政府",
+    "url": "https://www.beijing.gov.cn/zhengce/zhengcefagui/202309/t20230918_3261133.html",
+    "content_type": "tourism_safety"
+  },
+  {
+    "id": "policy:shanghai-tourism-emergency-plan",
+    "title": "上海市文化和旅游突发事件应急预案",
+    "source_name": "上海市人民政府",
+    "url": "https://www.shanghai.gov.cn/nw32024/20251225/36f08d2d27674916885ed6b533629f49.html",
+    "content_type": "tourism_safety"
+  },
+  {
+    "id": "policy:consumer-rights-protection-regulation",
+    "title": "消费者权益保护法实施条例",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/content/202403/content_6940158.htm",
+    "content_type": "consumer_protection"
+  },
+  {
+    "id": "policy:consumer-rights-protection-law",
+    "title": "消费者权益保护法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/banshi/2005-08/31/content_68770.htm",
+    "content_type": "consumer_protection"
+  },
+  {
+    "id": "policy:clearly-marked-price-anti-fraud",
+    "title": "明码标价和禁止价格欺诈规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2022-04/26/content_5728113.htm",
+    "content_type": "consumer_protection"
+  },
+  {
+    "id": "policy:price-violation-penalties",
+    "title": "价格违法行为行政处罚规定",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/gongbao/content/2010/content_1765275.htm",
+    "content_type": "consumer_protection"
+  },
+  {
+    "id": "policy:financial-consumer-protection",
+    "title": "金融消费者权益保护实施办法",
+    "source_name": "中国人民银行",
+    "url": "https://www.pbc.gov.cn/zhengwugongkai/attachDir/2025/11/2025111914422147275.pdf",
+    "content_type": "finance"
+  },
+  {
+    "id": "policy:bank-insurance-consumer-protection",
+    "title": "银行保险机构消费者权益保护管理办法",
+    "source_name": "国家金融监督管理总局",
+    "url": "https://www.nfra.gov.cn/cn/view/pages/rulesDetail.html?docId=1087524",
+    "content_type": "insurance"
+  },
+  {
+    "id": "policy:outbound-travel-insurance-tip",
+    "title": "出境旅游保险消费提示",
+    "source_name": "中国银行保险",
+    "url": "https://www.boc.cn/bocins/cusser/cs5/201808/t20180823_13408850.html",
+    "content_type": "insurance"
+  },
+  {
+    "id": "policy:tourism-insurance-overview",
+    "title": "旅游保险相关说明",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/banshi/2005-05/31/content_2569.htm",
+    "content_type": "insurance"
+  },
+  {
+    "id": "policy:national-tourism-resort-management",
+    "title": "国家级旅游度假区管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/zhengceku/2020-03/24/content_5494888.htm",
+    "content_type": "scenic_quality"
+  },
+  {
+    "id": "policy:national-cultural-ecological-protection-zone",
+    "title": "国家级文化生态保护区管理办法",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2018-12/10/content_5712507.htm",
+    "content_type": "scenic_quality"
+  },
+  {
+    "id": "policy:scenic-area-quality-rating",
+    "title": "旅游景区质量等级评定管理办法",
+    "source_name": "司法部",
+    "url": "https://www.moj.gov.cn/pub/sfbgw/flfggz/flfggzbmgz/200607/t20060705_144195.html",
+    "content_type": "scenic_quality"
+  },
+  {
+    "id": "policy:cultural-ecological-protection-zone-explainer",
+    "title": "国家级文化生态保护区管理办法解读",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/2018-12/27/content_5352525.htm",
+    "content_type": "scenic_quality"
+  },
+  {
+    "id": "policy:national-tourism-resort-application-notice",
+    "title": "国家级旅游度假区申报工作通知",
+    "source_name": "中国政府网",
+    "url": "https://www.gov.cn/zhengce/zhengceku/202307/content_6893702.htm",
+    "content_type": "scenic_quality"
+  }
+]

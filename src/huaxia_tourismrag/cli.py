@@ -14,6 +14,7 @@ from rich.json import JSON
 from rich.panel import Panel
 
 from huaxia_tourismrag.core.config import get_settings
+from huaxia_tourismrag.indexing.internal_corpus_builder import InternalCorpusBuilder
 from huaxia_tourismrag.indexing.internal_indexer import InternalCorpusIndexer
 from huaxia_tourismrag.rag.embeddings import SentenceTransformerEmbedder
 from huaxia_tourismrag.rag.hf_models import load_embedding_model
@@ -229,6 +230,39 @@ def health(
     _print_response(
         _get(base_url=base_url, path="/tourism/health", timeout=timeout),
         raw=raw,
+    )
+
+
+@app.command("build-internal-corpus")
+def build_internal_corpus(
+    manifest_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Source manifest JSON path, e.g. data/internal/sources/china_tourism_policy_sources.json.",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output JSONL corpus path.",
+        ),
+    ] = Path("data/internal/china_tourism_policy_transport_rules_60.jsonl"),
+) -> None:
+    """Download official sources and build an internal corpus JSONL file."""
+
+    if not manifest_path.exists():
+        console.print(f"[red]Source manifest not found:[/red] {manifest_path}")
+        raise typer.Exit(1)
+
+    count = InternalCorpusBuilder().build_jsonl(
+        manifest_path=manifest_path,
+        output_path=output_path,
+    )
+    console.print(
+        f"[green]Built {count} documents.[/green]\n"
+        f"Output: {output_path}"
     )
 
 

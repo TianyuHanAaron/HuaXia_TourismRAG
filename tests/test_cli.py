@@ -200,6 +200,39 @@ def test_cli_index_internal_indexes_jsonl(monkeypatch, tmp_path):
     assert "Indexed 7 chunks into Qdrant" in result.output
 
 
+def test_cli_build_internal_corpus_writes_jsonl(monkeypatch, tmp_path):
+    build_calls = []
+
+    class FakeBuilder:
+        def build_jsonl(self, manifest_path, output_path):
+            build_calls.append(
+                {"manifest_path": manifest_path, "output_path": output_path}
+            )
+            return 60
+
+    monkeypatch.setattr(cli, "InternalCorpusBuilder", FakeBuilder)
+    manifest_path = tmp_path / "sources.json"
+    output_path = tmp_path / "rules.jsonl"
+    manifest_path.write_text("[]", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "build-internal-corpus",
+            str(manifest_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert build_calls == [
+        {"manifest_path": manifest_path, "output_path": output_path}
+    ]
+    assert "Built 60 documents" in result.output
+
+
 def test_cli_reply_posts_to_session_reply_endpoint(monkeypatch):
     setup_fake_client(monkeypatch)
     runner = CliRunner()
