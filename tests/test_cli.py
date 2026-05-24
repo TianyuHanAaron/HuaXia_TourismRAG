@@ -364,8 +364,8 @@ def test_cli_chat_prints_warm_intro_and_posts_question(monkeypatch, tmp_path):
     assert "嗨，我是夏夏，华夏旅行社专属 AI 旅行顾问。" in result.output
     assert "把你的旅行想法丢给我吧" in result.output
     assert "路线、交通、住宿、美食和避坑点" in result.output
-    assert "普通旅行直接说" in result.output
-    assert "用 /diy 开头更准" in result.output
+    assert "想要成熟省心的旅行方案" in result.output
+    assert "想共创一条专属路线" in result.output
     assert FakeClient.calls == [
         {
             "method": "POST",
