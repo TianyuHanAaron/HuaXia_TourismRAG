@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
+from huaxia_tourismrag.schemas.service_enrichment import ServiceEnrichmentContext
+
 
 # =========================================================
 # Source Types
@@ -24,8 +26,10 @@ DetailLevel = Literal["concise", "standard", "deep"]
 ContentType = Literal[
     "destination",
     "attraction",
+    "heritage_site",
     "accommodation",
     "local_cuisine",
+    "local_specialty",
     "activity",
     "transport",
     "railway",
@@ -46,6 +50,7 @@ ContentType = Literal[
     "visa_exit_entry",
     "tourism_safety",
     "scenic_quality",
+    "time_honored_brand",
 ]
 
 
@@ -119,6 +124,20 @@ class TravelChunk(BaseModel):
     text: str = Field(min_length=1)
 
     location: str | None = None
+
+    province: str | None = None
+
+    city: str | None = None
+
+    district: str | None = None
+
+    level: str | None = None
+
+    tags: list[str] = Field(default_factory=list)
+
+    official_status: str | None = None
+
+    authority: str | None = None
 
     url: HttpUrl | None = None
 
@@ -269,6 +288,8 @@ class TravelAnswer(BaseModel):
     citations: list[str]
 
     generated_itinerary: TravelItinerary | None = None
+
+    service_enrichment: ServiceEnrichmentContext | None = None
 
     session_id: str | None = None
 

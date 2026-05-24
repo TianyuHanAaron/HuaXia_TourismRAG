@@ -13,6 +13,7 @@ from huaxia_tourismrag.schemas.evidence import (
 )
 from huaxia_tourismrag.schemas.research import TravelResearchTask
 from huaxia_tourismrag.schemas.search import SearchOptions
+from huaxia_tourismrag.schemas.service_enrichment import ServiceEnrichmentContext
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     ClarificationDecision,
     FeasibilityReport,
@@ -253,6 +254,7 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         nonlocal final_diy_plan
         final_diy_plan = diy_plan
@@ -550,6 +552,7 @@ async def test_diy_itinerary_service_filters_unrelated_evidence_before_citations
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -630,3 +633,95 @@ async def test_diy_itinerary_service_filters_unrelated_evidence_before_citations
         "xuchang-theme",
         "railway",
     ]
+
+
+@pytest.mark.asyncio
+async def test_diy_answer_attaches_service_enrichment_context(monkeypatch):
+    async def fake_create_diy_itinerary_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> DIYItineraryPlan:
+        task = TravelResearchTask(
+            task_type="route",
+            query="北京 涿州 许昌 三国 路线",
+            reason="规划路线。",
+        )
+        return DIYItineraryPlan(
+            original_question=question.question,
+            theme="三国历史巡礼",
+            origin="北京",
+            return_city="北京",
+            required_stops=["涿州", "许昌"],
+            proposed_route=["北京", "涿州", "许昌", "北京"],
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan=None,
+        diy_plan: DIYItineraryPlan | None = None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        assert service_enrichment == ServiceEnrichmentContext()
+        return TravelAnswer(
+            answer="ok",
+            highlights=[],
+            warnings=[],
+            citations=citation_lines,
+        )
+
+    class FakeServiceEnrichment:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def enrich(
+            self,
+            question: TravelQuestion,
+            diy_plan: DIYItineraryPlan | None,
+            research_plan,
+        ) -> ServiceEnrichmentContext:
+            self.calls.append((question, diy_plan, research_plan))
+            return ServiceEnrichmentContext()
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fake_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    enrichment = FakeServiceEnrichment()
+    deps = TourismDeps(
+        tenant_id="demo-tenant",
+        internal_rag=FakeInternalRAG(),
+        web_search=FakeWebSearch(),
+        webpage_reader=FakeWebpageReader(),
+        reranker=FakeReranker(),
+        citations=FakeCitationFormatter(),
+    )
+    service = DIYItineraryService(
+        deps=deps,
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        service_enrichment=enrichment,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(question="北京出发三国巡礼，涿州和许昌必须去。")
+    )
+
+    assert answer.service_enrichment == ServiceEnrichmentContext()
+    assert len(enrichment.calls) == 1
+    assert enrichment.calls[0][1].proposed_route == ["北京", "涿州", "许昌", "北京"]
+    assert enrichment.calls[0][2] is None

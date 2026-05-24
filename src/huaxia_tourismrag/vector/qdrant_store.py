@@ -21,6 +21,11 @@ PAYLOAD_KEYWORD_INDEXES = (
     "source_type",
     "content_type",
     "source_name",
+    "province",
+    "city",
+    "level",
+    "official_status",
+    "authority",
 )
 
 
@@ -85,6 +90,13 @@ class QdrantStore:
                         "location": chunk.location,
                         "url": str(chunk.url) if chunk.url else None,
                         "source_name": chunk.source_name,
+                        "province": chunk.province,
+                        "city": chunk.city,
+                        "district": chunk.district,
+                        "level": chunk.level,
+                        "tags": chunk.tags,
+                        "official_status": chunk.official_status,
+                        "authority": chunk.authority,
                         "published_at": chunk.published_at.isoformat() if chunk.published_at else None,
                         "retrieved_at": chunk.retrieved_at.isoformat(),
                         "rating": chunk.rating,
@@ -93,7 +105,11 @@ class QdrantStore:
                 )
             )
         for batch in self._batched_points(points):
-            await self.client.upsert(collection_name=self.collection, points=batch)
+            await self.client.upsert(
+                collection_name=self.collection,
+                points=batch,
+                wait=False,
+            )
 
     def _batched_points(self, points: list[PointStruct]) -> list[list[PointStruct]]:
         return [

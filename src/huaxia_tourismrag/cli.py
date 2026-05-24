@@ -14,10 +14,16 @@ from rich.json import JSON
 from rich.panel import Panel
 
 from huaxia_tourismrag.core.config import get_settings
+from huaxia_tourismrag.indexing.chunking import RawInternalDocument
 from huaxia_tourismrag.indexing.internal_corpus_builder import InternalCorpusBuilder
 from huaxia_tourismrag.indexing.internal_indexer import InternalCorpusIndexer
-from huaxia_tourismrag.rag.embeddings import SentenceTransformerEmbedder
-from huaxia_tourismrag.rag.hf_models import load_embedding_model
+from huaxia_tourismrag.indexing.source_registry import (
+    ProductionSourceRegistryManager,
+)
+from huaxia_tourismrag.indexing.structured_knowledge_builder import (
+    StructuredKnowledgeBuilder,
+)
+from huaxia_tourismrag.bootstrap import build_embedder
 from huaxia_tourismrag.vector.qdrant_store import QdrantStore
 
 
@@ -58,6 +64,28 @@ TimeoutOpt = Annotated[
     float,
     typer.Option("--timeout", help="HTTP timeout in seconds."),
 ]
+
+STRUCTURED_CORPUS_BUILDS = (
+    (
+        "china_scenic_area_sources.json",
+        "china_scenic_5a4a3a.jsonl",
+    ),
+    (
+        "china_heritage_sources.json",
+        "china_national_heritage_sites.jsonl",
+    ),
+    (
+        "china_food_specialty_sources.json",
+        "china_food_specialties_brands.jsonl",
+    ),
+)
+
+STANDARD_INTERNAL_CORPORA = (
+    "china_tourism_policy_transport_rules_60.jsonl",
+    "china_scenic_5a4a3a.jsonl",
+    "china_national_heritage_sites.jsonl",
+    "china_food_specialties_brands.jsonl",
+)
 
 
 @app.command()
@@ -248,7 +276,7 @@ def build_internal_corpus(
     manifest_path: Annotated[
         Path,
         typer.Argument(
-            help="Source manifest JSON path, e.g. data/internal/sources/china_tourism_policy_sources.json.",
+            help="Source manifest JSON path, e.g. data/internal/manifests/china_tourism_policy_sources.json.",
         ),
     ],
     output_path: Annotated[
@@ -258,7 +286,7 @@ def build_internal_corpus(
             "-o",
             help="Output JSONL corpus path.",
         ),
-    ] = Path("data/internal/china_tourism_policy_transport_rules_60.jsonl"),
+    ] = Path("data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl"),
 ) -> None:
     """Download official sources and build an internal corpus JSONL file."""
 
@@ -280,12 +308,220 @@ def build_internal_corpus(
             console.print(f"- {failed.source_id}: {failed.url} ({failed.error})")
 
 
+@app.command("build-structured-corpus")
+def build_structured_corpus(
+    manifest_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Structured source manifest JSON path, e.g. data/internal/manifests/china_scenic_area_sources.json.",
+        ),
+    ],
+    output_path: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output structured JSONL corpus path.",
+        ),
+    ],
+) -> None:
+    """Build a structured scenic, heritage, food, or brand JSONL corpus."""
+
+    if not manifest_path.exists():
+        console.print(f"[red]Source manifest not found:[/red] {manifest_path}")
+        raise typer.Exit(1)
+
+    result = StructuredKnowledgeBuilder().build_jsonl(
+        manifest_path=manifest_path,
+        output_path=output_path,
+    )
+    console.print(
+        f"[green]Built {result.written_count} structured documents.[/green]\n"
+        f"Skipped: {result.skipped_count}\n"
+        f"Output: {output_path}"
+    )
+    if result.skipped_rows:
+        console.print("\n[yellow]Skipped invalid rows:[/yellow]")
+        for skipped in result.skipped_rows:
+            console.print(f"- {skipped}")
+
+
+@app.command("build-all-structured-corpora")
+def build_all_structured_corpora(
+    manifests_dir: Annotated[
+        Path,
+        typer.Option(
+            "--manifests-dir",
+            "--sources-dir",
+            help="Directory containing structured source manifests.",
+        ),
+    ] = Path("data/internal/manifests"),
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            help="Directory for generated structured JSONL corpora.",
+        ),
+    ] = Path("data/internal/corpora"),
+) -> None:
+    """Build all standard structured corpora: scenic, heritage, and food."""
+
+    builder = StructuredKnowledgeBuilder()
+    total = 0
+    for manifest_name, output_name in STRUCTURED_CORPUS_BUILDS:
+        manifest_path = manifests_dir / manifest_name
+        output_path = output_dir / output_name
+        if not manifest_path.exists():
+            console.print(f"[red]Source manifest not found:[/red] {manifest_path}")
+            raise typer.Exit(1)
+
+        result = builder.build_jsonl(
+            manifest_path=manifest_path,
+            output_path=output_path,
+        )
+        total += result.written_count
+        console.print(
+            f"[green]{output_name}:[/green] {result.written_count} rows "
+            f"({result.skipped_count} skipped)"
+        )
+
+    console.print(f"[green]Built total structured documents:[/green] {total}")
+
+
+@app.command("inspect-structured-manifest")
+def inspect_structured_manifest(
+    manifest_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Structured source manifest JSON path to inspect.",
+        ),
+    ],
+) -> None:
+    """Inspect a structured source manifest and its referenced row files."""
+
+    if not manifest_path.exists():
+        console.print(f"[red]Source manifest not found:[/red] {manifest_path}")
+        raise typer.Exit(1)
+
+    result = StructuredKnowledgeBuilder().inspect_manifest(manifest_path)
+    console.print(f"[green]Sources:[/green] {result.source_count}")
+    console.print(f"Inline rows: {result.inline_row_count}")
+    console.print(f"Row files: {result.row_file_count}")
+    console.print(f"Rows from row files: {result.row_file_row_count}")
+    console.print(f"Missing row files: {len(result.missing_row_files)}")
+    if result.missing_row_files:
+        console.print("\n[red]Missing row file details:[/red]")
+        for path in result.missing_row_files:
+            console.print(f"- {path}")
+        raise typer.Exit(1)
+
+
+@app.command("inspect-source-registry")
+def inspect_source_registry(
+    registry_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Production source registry path.",
+        ),
+    ] = Path("data/internal/registries/china_structured_production_source_registry.json"),
+) -> None:
+    """Inspect the production structured-data source registry."""
+
+    if not registry_path.exists():
+        console.print(f"[red]Source registry not found:[/red] {registry_path}")
+        raise typer.Exit(1)
+
+    result = ProductionSourceRegistryManager().inspect(registry_path)
+    console.print(f"[green]Datasets:[/green] {result.dataset_count}")
+    console.print(f"Source candidates: {result.source_candidate_count}")
+    console.print(f"Existing target row files: {len(result.existing_target_files)}")
+    console.print(f"Missing target row files: {len(result.missing_target_files)}")
+    _print_counter("Priorities", result.priorities)
+    _print_counter("Corpus layers", result.corpus_layers)
+    if result.missing_target_files:
+        console.print("\n[yellow]Missing target row files:[/yellow]")
+        for path in result.missing_target_files:
+            console.print(f"- {path}")
+
+
+@app.command("scaffold-structured-row-files")
+def scaffold_structured_row_files(
+    registry_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Production source registry path.",
+        ),
+    ] = Path("data/internal/registries/china_structured_production_source_registry.json"),
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite existing target row files.",
+        ),
+    ] = False,
+) -> None:
+    """Create empty structured row files declared by the production source registry."""
+
+    if not registry_path.exists():
+        console.print(f"[red]Source registry not found:[/red] {registry_path}")
+        raise typer.Exit(1)
+
+    result = ProductionSourceRegistryManager().scaffold_row_files(
+        registry_path,
+        force=force,
+    )
+    console.print(f"[green]Created files:[/green] {len(result.created_files)}")
+    console.print(f"Existing files skipped: {len(result.existing_files)}")
+    for path in result.created_files:
+        console.print(f"- {path}")
+
+
+@app.command("import-structured-rows")
+def import_structured_rows(
+    registry_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Production source registry path.",
+        ),
+    ],
+    dataset_id: Annotated[
+        str,
+        typer.Argument(
+            help="Dataset ID from the production source registry.",
+        ),
+    ],
+    input_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Input CSV or JSON rows to import.",
+        ),
+    ],
+) -> None:
+    """Import CSV/JSON rows into the target row file declared by the registry."""
+
+    if not registry_path.exists():
+        console.print(f"[red]Source registry not found:[/red] {registry_path}")
+        raise typer.Exit(1)
+    if not input_path.exists():
+        console.print(f"[red]Input row file not found:[/red] {input_path}")
+        raise typer.Exit(1)
+
+    result = ProductionSourceRegistryManager().import_rows(
+        registry_path=registry_path,
+        dataset_id=dataset_id,
+        input_path=input_path,
+    )
+    console.print(f"[green]Imported rows:[/green] {result.imported_count}")
+    console.print(f"Skipped duplicates: {result.skipped_duplicate_count}")
+    console.print(f"Target row file: {result.target_row_file}")
+
+
 @app.command("index-internal")
 def index_internal(
     path: Annotated[
         Path,
         typer.Argument(
-            help="JSONL corpus path, e.g. data/internal/china_tourism_policy_transport_rules_60.jsonl.",
+            help="JSONL corpus path, e.g. data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl.",
         ),
     ],
     collection: Annotated[
@@ -317,6 +553,104 @@ def index_internal(
     )
 
 
+@app.command("index-all-internal")
+def index_all_internal(
+    corpus_dir: Annotated[
+        Path,
+        typer.Option(
+            "--corpus-dir",
+            help="Directory containing standard internal JSONL corpora.",
+        ),
+    ] = Path("data/internal/corpora"),
+    collection: Annotated[
+        str | None,
+        typer.Option(
+            "--collection",
+            "-c",
+            help="Qdrant collection override. Defaults to QDRANT_COLLECTION.",
+        ),
+    ] = None,
+    recreate: Annotated[
+        bool,
+        typer.Option(
+            "--recreate",
+            help="Delete and recreate the target collection before indexing the first corpus.",
+        ),
+    ] = False,
+) -> None:
+    """Index policy, scenic, heritage, and food corpora into Qdrant."""
+
+    total = 0
+    for index, filename in enumerate(STANDARD_INTERNAL_CORPORA):
+        path = corpus_dir / filename
+        if not path.exists():
+            console.print(f"[red]Corpus file not found:[/red] {path}")
+            raise typer.Exit(1)
+
+        indexed_count = asyncio.run(
+            _index_internal_corpus(
+                path=path,
+                collection=collection,
+                recreate=recreate and index == 0,
+            )
+        )
+        total += indexed_count
+        console.print(f"[green]{filename}:[/green] {indexed_count} chunks")
+
+    console.print(f"[green]Indexed total chunks into Qdrant:[/green] {total}")
+
+
+@app.command("inspect-internal-corpus")
+def inspect_internal_corpus(
+    path: Annotated[
+        Path,
+        typer.Argument(
+            help="JSONL corpus path to validate and summarize.",
+        ),
+    ],
+) -> None:
+    """Validate an internal JSONL corpus and print a compact coverage report."""
+
+    if not path.exists():
+        console.print(f"[red]Corpus file not found:[/red] {path}")
+        raise typer.Exit(1)
+
+    total = 0
+    invalid: list[str] = []
+    content_types: dict[str, int] = {}
+    provinces: dict[str, int] = {}
+    authorities: dict[str, int] = {}
+
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+
+        try:
+            document = RawInternalDocument.model_validate_json(line)
+        except Exception as exc:
+            invalid.append(f"line {line_number}: {exc}")
+            continue
+
+        total += 1
+        _increment(content_types, document.content_type)
+        if document.province:
+            _increment(provinces, document.province)
+        if document.authority:
+            _increment(authorities, document.authority)
+
+    console.print(f"[green]Valid documents:[/green] {total}")
+    console.print(f"[yellow]Invalid rows:[/yellow] {len(invalid)}")
+    _print_counter("Content types", content_types)
+    _print_counter("Top provinces", provinces, limit=10)
+    _print_counter("Authorities", authorities)
+
+    if invalid:
+        console.print("\n[red]Invalid row details:[/red]")
+        for error in invalid[:20]:
+            console.print(f"- {error}")
+        raise typer.Exit(1)
+
+
 async def _index_internal_corpus(
     path: Path, collection: str | None, recreate: bool
 ) -> int:
@@ -324,10 +658,11 @@ async def _index_internal_corpus(
     if not settings.qdrant_url:
         raise typer.BadParameter("QDRANT_URL is required to index internal documents.")
 
-    embedder = SentenceTransformerEmbedder(load_embedding_model())
+    embedder = build_embedder(settings)
     qdrant = AsyncQdrantClient(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,
+        timeout=settings.qdrant_timeout_seconds,
     )
     collection_name = collection or settings.internal_collection
     if recreate and await qdrant.collection_exists(collection_name):
@@ -342,6 +677,20 @@ async def _index_internal_corpus(
     indexer = InternalCorpusIndexer(embedder=embedder, store=store)
     indexer.embedding_batch_size = settings.embedding_batch_size
     return await indexer.index_jsonl(path)
+
+
+def _increment(counter: dict[str, int], key: str) -> None:
+    counter[key] = counter.get(key, 0) + 1
+
+
+def _print_counter(title: str, counter: dict[str, int], limit: int | None = None) -> None:
+    if not counter:
+        return
+
+    console.print(f"\n[bold]{title}[/bold]")
+    sorted_items = sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+    for key, count in sorted_items[:limit]:
+        console.print(f"- {key}: {count}")
 
 
 def _question_payload(

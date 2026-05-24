@@ -4,6 +4,15 @@ from typer.testing import CliRunner
 
 from huaxia_tourismrag import cli
 from huaxia_tourismrag.indexing.internal_corpus_builder import CorpusBuildResult
+from huaxia_tourismrag.indexing.structured_knowledge_builder import (
+    StructuredCorpusBuildResult,
+    StructuredManifestInspectResult,
+)
+from huaxia_tourismrag.indexing.source_registry import (
+    RegistryInspection,
+    RowImportResult,
+    ScaffoldResult,
+)
 
 
 class FakeResponse:
@@ -228,6 +237,63 @@ def test_cli_index_internal_indexes_jsonl(monkeypatch, tmp_path):
     assert "Indexed 7 chunks into Qdrant" in result.output
 
 
+def test_cli_index_all_internal_indexes_standard_corpora_in_order(monkeypatch, tmp_path):
+    indexed_paths = []
+
+    async def fake_index_internal_corpus(path, collection, recreate):
+        indexed_paths.append(
+            {"path": path, "collection": collection, "recreate": recreate}
+        )
+        return 10
+
+    monkeypatch.setattr(cli, "_index_internal_corpus", fake_index_internal_corpus)
+    for filename in [
+        "china_tourism_policy_transport_rules_60.jsonl",
+        "china_scenic_5a4a3a.jsonl",
+        "china_national_heritage_sites.jsonl",
+        "china_food_specialties_brands.jsonl",
+    ]:
+        (tmp_path / filename).write_text("{}", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "index-all-internal",
+            "--corpus-dir",
+            str(tmp_path),
+            "--collection",
+            "tourism_internal_docs",
+            "--recreate",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert indexed_paths == [
+        {
+            "path": tmp_path / "china_tourism_policy_transport_rules_60.jsonl",
+            "collection": "tourism_internal_docs",
+            "recreate": True,
+        },
+        {
+            "path": tmp_path / "china_scenic_5a4a3a.jsonl",
+            "collection": "tourism_internal_docs",
+            "recreate": False,
+        },
+        {
+            "path": tmp_path / "china_national_heritage_sites.jsonl",
+            "collection": "tourism_internal_docs",
+            "recreate": False,
+        },
+        {
+            "path": tmp_path / "china_food_specialties_brands.jsonl",
+            "collection": "tourism_internal_docs",
+            "recreate": False,
+        },
+    ]
+    assert "Indexed total chunks into Qdrant: 40" in result.output
+
+
 def test_cli_build_internal_corpus_writes_jsonl(monkeypatch, tmp_path):
     build_calls = []
 
@@ -259,6 +325,274 @@ def test_cli_build_internal_corpus_writes_jsonl(monkeypatch, tmp_path):
         {"manifest_path": manifest_path, "output_path": output_path}
     ]
     assert "Built 60 documents" in result.output
+
+
+def test_cli_build_structured_corpus_writes_jsonl(monkeypatch, tmp_path):
+    build_calls = []
+
+    class FakeBuilder:
+        def build_jsonl(self, manifest_path, output_path):
+            build_calls.append(
+                {"manifest_path": manifest_path, "output_path": output_path}
+            )
+            return StructuredCorpusBuildResult(
+                written_count=3,
+                skipped_count=1,
+                skipped_rows=["sample:1: text is required"],
+            )
+
+    monkeypatch.setattr(cli, "StructuredKnowledgeBuilder", FakeBuilder)
+    manifest_path = tmp_path / "structured_sources.json"
+    output_path = tmp_path / "structured.jsonl"
+    manifest_path.write_text("[]", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "build-structured-corpus",
+            str(manifest_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert build_calls == [
+        {"manifest_path": manifest_path, "output_path": output_path}
+    ]
+    assert "Built 3 structured documents" in result.output
+    assert "Skipped: 1" in result.output
+
+
+def test_cli_inspect_structured_manifest_reports_row_files(monkeypatch, tmp_path):
+    class FakeBuilder:
+        def inspect_manifest(self, manifest_path):
+            assert manifest_path == tmp_path / "sources.json"
+            return StructuredManifestInspectResult(
+                source_count=1,
+                inline_row_count=0,
+                row_file_count=1,
+                row_file_row_count=1,
+                missing_row_files=[],
+            )
+
+    manifest_path = tmp_path / "sources.json"
+    rows_dir = tmp_path / "rows"
+    rows_dir.mkdir()
+    (rows_dir / "rows.json").write_text(
+        '[{"name":"云冈石窟","text":"山西景点。"}]',
+        encoding="utf-8",
+    )
+    manifest_path.write_text(
+        json.dumps(
+            [
+                {
+                    "source_id": "scenic",
+                    "source_name": "官方景区名录",
+                    "default_content_type": "attraction",
+                    "row_file": "rows/rows.json",
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli, "StructuredKnowledgeBuilder", FakeBuilder)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        ["inspect-structured-manifest", str(manifest_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Sources: 1" in result.output
+    assert "Rows from row files: 1" in result.output
+
+
+def test_cli_inspect_source_registry_reports_missing_targets(monkeypatch, tmp_path):
+    class FakeRegistryManager:
+        def inspect(self, registry_path):
+            assert registry_path == tmp_path / "registry.json"
+            return RegistryInspection(
+                dataset_count=2,
+                source_candidate_count=5,
+                existing_target_files=[],
+                missing_target_files=[tmp_path / "rows" / "5a.csv"],
+                priorities={"p0": 1, "p1": 1},
+                corpus_layers={"structured_destinations": 2},
+            )
+
+    monkeypatch.setattr(cli, "ProductionSourceRegistryManager", FakeRegistryManager)
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text("{}", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["inspect-source-registry", str(registry_path)])
+
+    assert result.exit_code == 0
+    assert "Datasets: 2" in result.output
+    assert "Source candidates: 5" in result.output
+    assert "Missing target row files: 1" in result.output
+
+
+def test_cli_scaffold_structured_row_files_reports_created(monkeypatch, tmp_path):
+    class FakeRegistryManager:
+        def scaffold_row_files(self, registry_path, force=False):
+            assert registry_path == tmp_path / "registry.json"
+            assert force is True
+            return ScaffoldResult(
+                created_files=[tmp_path / "rows" / "5a.csv"],
+                existing_files=[],
+            )
+
+    monkeypatch.setattr(cli, "ProductionSourceRegistryManager", FakeRegistryManager)
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text("{}", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        ["scaffold-structured-row-files", str(registry_path), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "Created files: 1" in result.output
+
+
+def test_cli_import_structured_rows_reports_imported(monkeypatch, tmp_path):
+    class FakeRegistryManager:
+        def import_rows(self, registry_path, dataset_id, input_path):
+            assert registry_path == tmp_path / "registry.json"
+            assert dataset_id == "china_5a_scenic_areas"
+            assert input_path == tmp_path / "input.csv"
+            return RowImportResult(
+                target_row_file=tmp_path / "rows" / "5a.csv",
+                imported_count=12,
+                skipped_duplicate_count=2,
+            )
+
+    monkeypatch.setattr(cli, "ProductionSourceRegistryManager", FakeRegistryManager)
+    registry_path = tmp_path / "registry.json"
+    input_path = tmp_path / "input.csv"
+    registry_path.write_text("{}", encoding="utf-8")
+    input_path.write_text("name,text\n", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "import-structured-rows",
+            str(registry_path),
+            "china_5a_scenic_areas",
+            str(input_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Imported rows: 12" in result.output
+    assert "Skipped duplicates: 2" in result.output
+
+
+def test_cli_build_all_structured_corpora_runs_three_builds(monkeypatch, tmp_path):
+    build_calls = []
+
+    class FakeBuilder:
+        def build_jsonl(self, manifest_path, output_path):
+            build_calls.append(
+                {"manifest_path": manifest_path, "output_path": output_path}
+            )
+            return StructuredCorpusBuildResult(
+                written_count=1,
+                skipped_count=0,
+                skipped_rows=[],
+            )
+
+    monkeypatch.setattr(cli, "StructuredKnowledgeBuilder", FakeBuilder)
+    sources_dir = tmp_path / "sources"
+    output_dir = tmp_path / "output"
+    sources_dir.mkdir()
+    for filename in [
+        "china_scenic_area_sources.json",
+        "china_heritage_sources.json",
+        "china_food_specialty_sources.json",
+    ]:
+        (sources_dir / filename).write_text("[]", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.app,
+        [
+            "build-all-structured-corpora",
+            "--sources-dir",
+            str(sources_dir),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert len(build_calls) == 3
+    assert "Built total structured documents: 3" in result.output
+
+
+def test_cli_inspect_internal_corpus_reports_coverage(tmp_path):
+    corpus_path = tmp_path / "corpus.jsonl"
+    corpus_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "scenic:xuchang",
+                        "title": "许昌曹魏主题",
+                        "text": "许昌曹魏三国主题景点。",
+                        "source_name": "HuaXia",
+                        "content_type": "attraction",
+                        "province": "河南",
+                        "city": "许昌",
+                        "authority": "curated_agency",
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "id": "food:hanzhong",
+                        "title": "汉中面皮",
+                        "text": "汉中面皮是本地小吃。",
+                        "source_name": "HuaXia",
+                        "content_type": "local_cuisine",
+                        "province": "陕西",
+                        "city": "汉中",
+                        "authority": "curated_agency",
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["inspect-internal-corpus", str(corpus_path)])
+
+    assert result.exit_code == 0
+    assert "Valid documents: 2" in result.output
+    assert "attraction: 1" in result.output
+    assert "local_cuisine: 1" in result.output
+    assert "河南: 1" in result.output
+    assert "陕西: 1" in result.output
+
+
+def test_cli_inspect_internal_corpus_fails_on_invalid_rows(tmp_path):
+    corpus_path = tmp_path / "bad.jsonl"
+    corpus_path.write_text('{"title": "缺字段"}\n', encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["inspect-internal-corpus", str(corpus_path)])
+
+    assert result.exit_code == 1
+    assert "Invalid rows: 1" in result.output
 
 
 def test_cli_reply_posts_to_session_reply_endpoint(monkeypatch):

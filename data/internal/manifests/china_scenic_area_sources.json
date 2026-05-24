@@ -1,0 +1,37 @@
+{
+  "corpus_layer": "structured_destinations",
+  "description": "Structured scenic-area and theme-attraction source manifest. Source records describe authority and defaults; rows live in data/internal/rows so this manifest can scale to national 5A/4A/3A datasets.",
+  "production_target_rows": "5A all + 4A all available + selected high-signal 3A rows",
+  "sources": [
+    {
+      "source_id": "curated-scenic-theme-seed",
+      "source_name": "HuaXia Tourism Curated Scenic Seed",
+      "authority": "curated_agency",
+      "official_status": "curated_pending_official_url",
+      "default_content_type": "attraction",
+      "default_level": "theme_attraction",
+      "default_tags": ["主题路线", "历史人文"],
+      "row_file": "../rows/seed/scenic_theme_seed_rows.json"
+    },
+    {
+      "source_id": "china-5a-scenic-production",
+      "source_name": "National 5A Scenic Area Structured Rows",
+      "authority": "national_ministry",
+      "official_status": "official_pending_acquisition",
+      "default_content_type": "attraction",
+      "default_level": "5A",
+      "default_tags": ["5A景区", "国家级旅游景区"],
+      "row_file": "../rows/production/china_5a_scenic_rows.json"
+    },
+    {
+      "source_id": "china-4a-3a-scenic-production",
+      "source_name": "Provincial 4A and Selected 3A Scenic Area Structured Rows",
+      "authority": "provincial_culture_tourism",
+      "official_status": "official_pending_acquisition",
+      "default_content_type": "attraction",
+      "default_level": "4A_or_selected_3A",
+      "default_tags": ["A级景区", "国内旅游"],
+      "row_file": "../rows/production/china_4a_3a_selected_scenic_rows.json"
+    }
+  ]
+}

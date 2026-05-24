@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "xiaxia_avatar_3d",
+      "path": "assets/avatars/xiaxia-avatar-3d.jpg",
+      "role": "assistant_avatar",
+      "title": "Xiaxia anime-styled 3D avatar",
+      "source": "https://media.sketchfab.com/models/ec164c039241435e93a77f197e999c98/thumbnails/5d3ec472d19b478a8231991638cbd53a/576713d7048e4e879dc45a1bd7f9728c.jpeg",
+      "source_page": "https://sketchfab.com/3d-models/anime-girl-character-ec164c039241435e93a77f197e999c98",
+      "embed_url": "https://sketchfab.com/models/ec164c039241435e93a77f197e999c98/embed",
+      "license": "CC BY 4.0",
+      "attribution": "Anime Girl Character by ItsKrish7 via Sketchfab",
+      "notes": "Local file is a cropped preview thumbnail for prototype UI use; the original anime-styled Sketchfab model is downloadable under CC BY 4.0."
+    },
+    {
+      "id": "xiaxia_avatar_model_glb",
+      "path": "assets/models/xiaxia-avatar.glb",
+      "role": "assistant_avatar_model",
+      "title": "Xiaxia anime-styled interactive 3D avatar model",
+      "source_page": "https://sketchfab.com/3d-models/anime-girl-character-ec164c039241435e93a77f197e999c98",
+      "license": "CC BY 4.0",
+      "attribution": "Anime Girl Character by ItsKrish7 via Sketchfab",
+      "notes": "Downloaded locally through scripts/download_sketchfab_model.py when SKETCHFAB_API_TOKEN is available."
+    },
+    {
+      "id": "china_great_wall_hero",
+      "path": "assets/travel/china-great-wall-hero.jpg",
+      "role": "hero_background",
+      "title": "The Great Wall of China at Jinshanling",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/The%20Great%20Wall%20of%20China%20at%20Jinshanling.jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:The_Great_Wall_of_China_at_Jinshanling.jpg",
+      "license": "CC BY-SA 3.0",
+      "attribution": "Vincent Ndaku"
+    }
+  ]
+}

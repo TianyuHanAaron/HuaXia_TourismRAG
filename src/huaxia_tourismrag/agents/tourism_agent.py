@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from pydantic_ai import Agent, RunContext
 
+from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import (
@@ -14,6 +15,7 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelSearchHit,
 )
 from huaxia_tourismrag.schemas.research import TravelResearchPlan
+from huaxia_tourismrag.schemas.service_enrichment import ServiceEnrichmentContext
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     FeasibilityReport,
     PreferenceProfile,
@@ -130,6 +132,7 @@ def build_final_answer_prompt(
     diy_plan: DIYItineraryPlan | None = None,
     preference_profile: PreferenceProfile | None = None,
     feasibility_report: FeasibilityReport | None = None,
+    service_enrichment: ServiceEnrichmentContext | None = None,
     detail_level: DetailLevel = "standard",
 ) -> str:
     """Build the final evidence-grounded answer prompt."""
@@ -139,6 +142,7 @@ def build_final_answer_prompt(
     diy_plan_context = _format_diy_plan(diy_plan)
     preference_profile_context = _format_preference_profile(preference_profile)
     feasibility_context = _format_feasibility_report(feasibility_report)
+    service_enrichment_context = _format_service_enrichment(service_enrichment)
     return f"""
 用户问题：
 {question}
@@ -154,6 +158,9 @@ DIY 行程计划：
 
 可行性检查：
 {feasibility_context}
+
+服务能力校验：
+{service_enrichment_context}
 
 回答详细度：
 detail_level: {detail_level}
@@ -183,6 +190,11 @@ detail_level: {detail_level}
 - DIY 行程中每个必选目的地都要解释与主题的强相关、弱相关或争议点。
 - 如果提供了用户偏好画像，必须按其中的交通、节奏、景点类型、美食、住宿和主题严格程度来组织答案。
 - 如果提供了可行性检查，必须把 issues 和 recommended_adjustments 融入路线说明或 warnings。
+- 如果提供了服务能力校验，必须把地图、实时网页、商业产品和可操作入口用于增强可执行性。
+- 地图 MCP 结果只用于路线顺路性、每天车程是否合理、POI/天气影响判断；不要用它替代景区官方开放公告。
+- Firecrawl MCP 结果只用于当前网页证据；必须优先引用其返回的真实 title/url，不要编造网页或引用。
+- 途牛 MCP 结果只用于酒店、门票、交通、产品和预订链接；价格、库存、取消政策必须写明以途牛实时页面为准。
+- 如果服务能力校验里有 booking_actions，可以在答案末尾加入“可继续操作”小节，但不要声称已经完成预订或付款。
 - 不确定的信息要标注为待确认，不要假装确定。
 - 不要在每个活动里反复说“需核验”或“待确认”；相同类型的不确定项统一放入最后的待确认事项。
 - 如果没有检索到官方或近期来源，只在最后的待确认事项集中说明一次；不要把“缺少官方来源”重复写进每天行程。
@@ -307,6 +319,108 @@ def _format_feasibility_report(report: FeasibilityReport | None) -> str:
     return "\n".join(lines)
 
 
+def _format_service_enrichment(context: ServiceEnrichmentContext | None) -> str:
+    if context is None:
+        return "未提供外部 MCP 服务校验。"
+
+    lines: list[str] = []
+    if context.route_feasibility is not None:
+        lines.append(
+            f"{_provider_label(context.route_feasibility.provider)}路线校验: "
+            f"{context.route_feasibility.route_summary}"
+        )
+        for leg in context.route_feasibility.legs:
+            duration = (
+                f"{leg.estimated_duration_minutes}分钟"
+                if leg.estimated_duration_minutes is not None
+                else "时长未知"
+            )
+            distance = (
+                f"，{leg.distance_km:g}公里"
+                if leg.distance_km is not None
+                else ""
+            )
+            notes = f"，备注：{'；'.join(leg.notes)}" if leg.notes else ""
+            lines.append(
+                f"- {leg.origin} -> {leg.destination}: "
+                f"{leg.recommended_mode}，{duration}{distance}，"
+                f"可行性 {leg.feasibility_level}{notes}"
+            )
+        for warning in context.route_feasibility.warnings:
+            lines.append(f"- 路线提醒: {warning}")
+
+    for impact in context.weather_impacts:
+        date_label = f" {impact.date_label}" if impact.date_label else ""
+        temperature = (
+            f"，{impact.temperature_summary}"
+            if impact.temperature_summary
+            else ""
+        )
+        condition = impact.condition or "天气未知"
+        lines.append(
+            f"{_provider_label(impact.provider)}天气影响: "
+            f"{impact.city}{date_label} {condition}{temperature}，"
+            f"影响 {impact.impact_level}，建议：{impact.recommendation}"
+        )
+
+    for product in context.booking_products:
+        price = (
+            f"{product.price_cny:.0f}元起"
+            if product.price_cny is not None
+            else (product.price_note or "实时核价")
+        )
+        city = f"，城市：{product.city}" if product.city else ""
+        url = f"，链接：{product.booking_url}" if product.booking_url else ""
+        highlights = (
+            f"，亮点：{'；'.join(product.highlights)}"
+            if product.highlights
+            else ""
+        )
+        cancellation = (
+            f"，取消政策：{product.cancellation_note}"
+            if product.cancellation_note
+            else ""
+        )
+        lines.append(
+            f"{_provider_label(product.provider)}产品: "
+            f"[{product.product_type}] {product.title}{city}，"
+            f"{price}，库存 {product.availability_status}"
+            f"{highlights}{cancellation}{url}"
+        )
+
+    for action in context.booking_actions:
+        url = f"，链接：{action.url}" if action.url else ""
+        lines.append(
+            f"可操作入口: {action.label}{url}；{action.safety_note}"
+        )
+
+    for evidence in context.fresh_web_evidence:
+        url = f"，链接：{evidence.url}" if evidence.url else ""
+        lines.append(
+            f"{_provider_label(evidence.provider)}新鲜网页证据: "
+            f"[{evidence.source_authority}/{evidence.recency_label}] "
+            f"{evidence.title}，摘要：{evidence.summary}{url}"
+        )
+
+    for unavailable in context.unavailable_providers:
+        retryable = "可重试" if unavailable.retryable else "不可重试"
+        lines.append(
+            f"服务暂不可用: {unavailable.provider}，"
+            f"原因：{unavailable.reason}，{retryable}"
+        )
+
+    return "\n".join(lines) if lines else "服务校验未返回可用结果。"
+
+
+def _provider_label(provider: str) -> str:
+    return {
+        "baidu_maps": "百度地图",
+        "mapbox": "Mapbox",
+        "firecrawl": "Firecrawl",
+        "tuniu": "途牛",
+    }.get(provider, provider)
+
+
 async def generate_answer_with_context(
     question: str,
     citation_context: str,
@@ -316,10 +430,12 @@ async def generate_answer_with_context(
     diy_plan: DIYItineraryPlan | None = None,
     preference_profile: PreferenceProfile | None = None,
     feasibility_report: FeasibilityReport | None = None,
+    service_enrichment: ServiceEnrichmentContext | None = None,
     detail_level: DetailLevel = "standard",
 ) -> TravelAnswer:
     """Run the tourism agent against prepared citation context."""
 
+    ensure_agent_model_ready()
     prompt = build_final_answer_prompt(
         question=question,
         citation_context=citation_context,
@@ -328,6 +444,7 @@ async def generate_answer_with_context(
         diy_plan=diy_plan,
         preference_profile=preference_profile,
         feasibility_report=feasibility_report,
+        service_enrichment=service_enrichment,
         detail_level=detail_level,
     )
     result = await tourism_agent.run(prompt, deps=deps)

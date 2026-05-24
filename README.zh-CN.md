@@ -166,6 +166,8 @@ TOURISM_AGENT_MODEL=openai-chat:gpt-5.5
 APP_NAME="HuaXia Tourism RAG"
 
 TOURISM_AGENT_MODEL=openai-chat:gpt-5.5
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_ADMIN_KEY=
 
 SEARCH_PROVIDER=tavily
 TAVILY_API_KEY=your_tavily_api_key_here
@@ -177,11 +179,16 @@ QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=
 QDRANT_COLLECTION=tourism_internal_docs
 QDRANT_UPSERT_BATCH_SIZE=32
+QDRANT_TIMEOUT_SECONDS=120
 
 REDIS_URL=redis://localhost:6379/0
 SESSION_TTL_SECONDS=86400
 
-EMBEDDING_MODEL=BAAI/bge-m3
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
+EMBEDDING_DIMENSIONS=1024
+EMBEDDING_API_URL=
+EMBEDDING_API_KEY=
 EMBEDDING_BATCH_SIZE=4
 RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 ENABLE_MODEL_RERANKER=false
@@ -234,6 +241,16 @@ curl http://127.0.0.1:8000/tourism/health
 ```bash
 curl http://127.0.0.1:8000/tourism/capabilities
 ```
+
+## Streamlit 前端
+
+如果想先体验一个更接近真实用户界面的本地版本，先启动 FastAPI，再运行：
+
+```bash
+uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
+```
+
+这个 Streamlit 页面是夏夏当前的用户端原型，采用极简 kiosk 风格：用户打开后只需要选择“成熟旅行方案”或“专属路线共创”，输入旅行想法即可开始。页面支持 `concise`、`standard`、`deep` 三种回答深度，能继续多轮澄清会话，并用中文栏目展示回答、亮点、提醒、结构化行程、引用来源和服务校验。它调用现有 FastAPI 端点，因此后续切换 React 前端时可以沿用同一套后端 API 契约。
 
 ## API 使用示例
 
@@ -364,23 +381,59 @@ uv run huaxia-tourismrag health
 
 ## 内部资料与 Qdrant
 
-旧的演示种子文档已删除。当前推荐的内部资料方向是更严肃、可支撑真实咨询的旅行运营底座：官方政策、交通规则、安全提示、消费者保护、医疗、保险、海关、出入境、金融、法律和监管资料。
+旧的演示种子文档已删除。内部知识库现在分为三层，更适合华夏旅行社的真实咨询业务：
 
-推荐路径：
+- `policy_transport_rules`：旅游法律法规、铁路/民航/道路交通、安全、消费者保护、医疗、保险、海关、出入境、金融和监管资料。
+- `structured_destinations`：结构化景区、文保单位、目的地和主题景点，用于支撑行程中的景点和城市判断。
+- `food_specialties`：结构化本地美食、土特产、老字号资料，用于让行程更像真实旅行社顾问方案。
+
+政策语料路径：
 
 ```text
-data/internal/china_tourism_policy_transport_rules_60.jsonl
+data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl
 ```
 
 已整理的 60 个来源 manifest 位于：
 
 ```text
-data/internal/sources/china_tourism_policy_sources.json
+data/internal/manifests/china_tourism_policy_sources.json
 ```
 
-项目包含 `InternalDocumentIndexer`，用于加载 JSONL、切分文档、生成 embedding，并写入 Qdrant。索引过程支持 `EMBEDDING_BATCH_SIZE` 和 `QDRANT_UPSERT_BATCH_SIZE`，用于降低本地 MPS/GPU 内存压力和 Qdrant Cloud 写入超时风险。
+结构化 manifest 位于：
 
-JSONL 行可以使用 `document_id` 或 `id`，并可包含 `content_type`、`published_at`、`retrieved_at` 和 `location`。
+```text
+data/internal/manifests/china_scenic_area_sources.json
+data/internal/manifests/china_heritage_sources.json
+data/internal/manifests/china_food_specialty_sources.json
+```
+
+结构化行数据不放在 `manifests/` 中，而是单独放在：
+
+```text
+data/internal/rows/seed/scenic_theme_seed_rows.json
+data/internal/rows/seed/heritage_seed_rows.json
+data/internal/rows/seed/food_specialty_seed_rows.json
+```
+
+全国扩容所需的生产来源 registry 位于：
+
+```text
+data/internal/registries/china_structured_production_source_registry.json
+```
+
+它记录了 5A 景区、省级 4A/3A 景区、全国重点文物保护单位、中华老字号、农产品地理标志/地方特产等数据集的官方或高权威来源候选。
+
+生成后的结构化语料：
+
+```text
+data/internal/corpora/china_scenic_5a4a3a.jsonl
+data/internal/corpora/china_national_heritage_sites.jsonl
+data/internal/corpora/china_food_specialties_brands.jsonl
+```
+
+项目包含 `InternalCorpusIndexer`，用于加载 JSONL、切分文档、生成 embedding，并写入 Qdrant。索引过程支持 `EMBEDDING_BATCH_SIZE` 和 `QDRANT_UPSERT_BATCH_SIZE`，用于降低本地 MPS/GPU 内存压力和 Qdrant Cloud 写入超时风险。
+
+JSONL 行可以使用 `document_id` 或 `id`，并可包含 `content_type`、`published_at`、`retrieved_at`、`location`、`province`、`city`、`district`、`level`、`tags`、`official_status` 和 `authority`。
 
 示例：
 
@@ -392,27 +445,113 @@ JSONL 行可以使用 `document_id` 或 `id`，并可包含 `content_type`、`pu
 
 ```bash
 uv run huaxia-tourismrag build-internal-corpus \
-  data/internal/sources/china_tourism_policy_sources.json \
-  --output data/internal/china_tourism_policy_transport_rules_60.jsonl
+  data/internal/manifests/china_tourism_policy_sources.json \
+  --output data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl
+```
+
+生成结构化景区、文保和美食语料：
+
+```bash
+uv run huaxia-tourismrag build-structured-corpus \
+  data/internal/manifests/china_scenic_area_sources.json \
+  --output data/internal/corpora/china_scenic_5a4a3a.jsonl
+
+uv run huaxia-tourismrag build-structured-corpus \
+  data/internal/manifests/china_heritage_sources.json \
+  --output data/internal/corpora/china_national_heritage_sites.jsonl
+
+uv run huaxia-tourismrag build-structured-corpus \
+  data/internal/manifests/china_food_specialty_sources.json \
+  --output data/internal/corpora/china_food_specialties_brands.jsonl
+```
+
+索引前检查任意 JSONL 语料：
+
+```bash
+uv run huaxia-tourismrag inspect-internal-corpus data/internal/corpora/china_scenic_5a4a3a.jsonl
+```
+
+该命令会用 `RawInternalDocument` 校验每一行，并输出 content type、省份和 authority 覆盖情况。
+
+检查结构化 source manifest 及其引用的 row file 是否存在：
+
+```bash
+uv run huaxia-tourismrag inspect-structured-manifest data/internal/manifests/china_scenic_area_sources.json
+```
+
+检查全国扩容用的生产来源 registry：
+
+```bash
+uv run huaxia-tourismrag inspect-source-registry \
+  data/internal/registries/china_structured_production_source_registry.json
+```
+
+根据 registry 创建空的目标 row file：
+
+```bash
+uv run huaxia-tourismrag scaffold-structured-row-files \
+  data/internal/registries/china_structured_production_source_registry.json
+```
+
+该 scaffold 命令只用于创建采集工作模板。不要把空模板文件直接索引进 Qdrant；应先填入真实行数据并用检查命令验证。
+JSON 目标文件会创建为空数组 (`[]`)，CSV 目标文件只创建表头。
+
+把清洗后的 CSV/JSON 数据导入 registry 指定的目标 row file：
+
+```bash
+uv run huaxia-tourismrag import-structured-rows \
+  data/internal/registries/china_structured_production_source_registry.json \
+  china_5a_scenic_areas \
+  path/to/cleaned_5a_rows.csv
+```
+
+然后一键重新生成三类标准结构化语料：
+
+```bash
+uv run huaxia-tourismrag build-all-structured-corpora
 ```
 
 索引内部语料：
 
 ```bash
-uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl
+```
+
+按标准顺序索引所有语料层：先索引政策/规则，再索引景区、全国文保和美食特产。批量命令只会在第一份语料上应用 `--recreate`，后续语料会追加写入同一个重建后的 collection：
+
+```bash
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-all-internal --recreate
+```
+
+等价的手动命令如下：
+
+```bash
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl \
+  --recreate
+
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_scenic_5a4a3a.jsonl
+
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_national_heritage_sites.jsonl
+
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_food_specialties_brands.jsonl
 ```
 
 指定 Qdrant collection：
 
 ```bash
-uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl \
   --collection tourism_policy_rules
 ```
 
 先删除现有 collection，再重新索引：
 
 ```bash
-uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl \
   --recreate
 ```
 
@@ -438,7 +577,26 @@ Collection `tourism_internal_docs` doesn't exist
 
 说明 Qdrant collection 尚未创建或内部资料尚未完成索引。
 
-Qdrant store 会在 `ensure_collection()` 中创建 `tenant_id`、`source_type`、`content_type` 和 `source_name` 的 keyword payload index。
+Qdrant store 会在 `ensure_collection()` 中创建 `tenant_id`、`source_type`、`content_type`、`source_name`、`province`、`city`、`level`、`official_status` 和 `authority` 的 keyword payload index。
+
+推荐第一阶段规模：
+
+- MVP：约 10,000-12,000 条 Qdrant rows，覆盖政策、景区、文保和美食。
+- 更强国内覆盖：约 15,000-25,000 条 rows。
+
+当前结构化 manifest 是小型种子文件，用于验证管线。生产扩展应批量导入官方 5A/4A 景区列表、精选 3A 景区、全国重点文物保护单位、地方特产目录和中华老字号等资料。
+
+扩展种子数据时，把新的 JSON 或 CSV 行文件放到 `data/internal/rows/`，再在对应 source manifest 中用 `row_file` 引用。CSV 的 `tags` 支持用 `;`、`；`、`,`、`，`、`、` 或 `|` 分隔。
+
+以下生产目标 row files 已经接入 source manifest。后续只要把真实数据填入这些文件，再重新运行 `build-structured-corpus` 即可，不需要再改 manifest：
+
+```text
+data/internal/rows/production/china_5a_scenic_rows.json
+data/internal/rows/production/china_4a_3a_selected_scenic_rows.json
+data/internal/rows/production/china_national_heritage_rows.json
+data/internal/rows/production/china_time_honored_brand_rows.json
+data/internal/rows/production/china_agricultural_gi_specialty_rows.json
+```
 
 ## 引用策略
 

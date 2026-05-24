@@ -28,7 +28,11 @@ class InternalCorpusIndexer:
         all_chunks: list[TravelChunk] = []
 
         for doc in docs:
-            for index, text in enumerate(self.chunker.chunk(doc.text)):
+            chunk_texts = self.chunker.chunk(doc.text)
+            if not chunk_texts and doc.text.strip():
+                chunk_texts = [doc.text.strip()]
+
+            for index, text in enumerate(chunk_texts):
                 retrieved_at = doc.retrieved_at or datetime.now(timezone.utc)
                 all_chunks.append(
                     TravelChunk(
@@ -40,6 +44,13 @@ class InternalCorpusIndexer:
                         url=doc.url,
                         source_name=doc.source_name,
                         location=doc.location,
+                        province=doc.province,
+                        city=doc.city,
+                        district=doc.district,
+                        level=doc.level,
+                        tags=doc.tags,
+                        official_status=doc.official_status,
+                        authority=doc.authority,
                         published_at=doc.published_at,
                         retrieved_at=retrieved_at,
                     )
@@ -48,19 +59,29 @@ class InternalCorpusIndexer:
         if not all_chunks:
             return 0
 
-        vectors = self._embed_chunks(all_chunks)
-        await self.store.upsert_chunks(all_chunks, vectors)
+        for batch in self._chunk_batches(all_chunks):
+            vectors = self._embed_chunk_batch(batch)
+            await self.store.upsert_chunks(batch, vectors)
         return len(all_chunks)
 
-    def _embed_chunks(self, chunks: list[TravelChunk]) -> list[list[float]]:
-        vectors: list[list[float]] = []
+    def _embed_chunk_batch(self, batch: list[TravelChunk]) -> list[list[float]]:
+        try:
+            return self.embedder.embed_documents([chunk.text for chunk in batch])
+        except Exception:
+            if len(batch) == 1:
+                raise
+
+            midpoint = len(batch) // 2
+            return self._embed_chunk_batch(batch[:midpoint]) + self._embed_chunk_batch(
+                batch[midpoint:]
+            )
+
+    def _chunk_batches(self, chunks: list[TravelChunk]) -> list[list[TravelChunk]]:
         batch_size = max(1, self.embedding_batch_size)
-
-        for start in range(0, len(chunks), batch_size):
-            batch = chunks[start : start + batch_size]
-            vectors.extend(self.embedder.embed_documents([chunk.text for chunk in batch]))
-
-        return vectors
+        return [
+            chunks[start : start + batch_size]
+            for start in range(0, len(chunks), batch_size)
+        ]
 
     def _load_jsonl(self, path: Path) -> list[RawInternalDocument]:
         docs: list[RawInternalDocument] = []

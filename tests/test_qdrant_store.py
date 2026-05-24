@@ -48,10 +48,13 @@ class FakeQdrantClient:
             }
         )
 
-    async def upsert(self, collection_name: str, points: list) -> None:
+    async def upsert(
+        self, collection_name: str, points: list, wait: bool | None = None
+    ) -> None:
         self.upsert_args = {
             "collection_name": collection_name,
             "points": points,
+            "wait": wait,
         }
         self.upsert_calls.append(self.upsert_args)
 
@@ -76,6 +79,40 @@ async def test_upsert_chunks_uses_uuid_point_ids_and_keeps_chunk_id_payload():
     UUID(str(point.id))
     assert point.payload["chunk_id"] == chunk.id
     assert point.payload["tenant_id"] == "demo-tenant"
+
+
+@pytest.mark.asyncio
+async def test_upsert_chunks_keeps_structured_destination_payload():
+    client = FakeQdrantClient()
+    store = QdrantStore(client=client, collection="tourism_internal_docs", vector_size=3)
+    chunk = TravelChunk(
+        id="demo-tenant:scenic:henan:xuchang:0",
+        source_type="internal",
+        content_type="attraction",
+        title="曹丞相府",
+        text="曹丞相府适合用于许昌曹魏主题路线。",
+        source_name="许昌市文化广电和旅游局",
+        location="河南省许昌市",
+        province="河南",
+        city="许昌",
+        district="魏都区",
+        level="local_theme",
+        tags=["三国", "曹魏"],
+        official_status="official",
+        authority="municipal_culture_tourism",
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    await store.upsert_chunks([chunk], [[0.1, 0.2, 0.3]])
+
+    payload = client.upsert_args["points"][0].payload
+    assert payload["province"] == "河南"
+    assert payload["city"] == "许昌"
+    assert payload["district"] == "魏都区"
+    assert payload["level"] == "local_theme"
+    assert payload["tags"] == ["三国", "曹魏"]
+    assert payload["official_status"] == "official"
+    assert payload["authority"] == "municipal_culture_tourism"
 
 
 @pytest.mark.asyncio
@@ -106,6 +143,25 @@ async def test_upsert_chunks_batches_points_to_avoid_large_qdrant_requests():
 
 
 @pytest.mark.asyncio
+async def test_upsert_chunks_does_not_wait_for_cloud_write_completion():
+    client = FakeQdrantClient()
+    store = QdrantStore(client=client, collection="tourism_internal_docs", vector_size=3)
+    chunk = TravelChunk(
+        id="demo-tenant:doc:0",
+        source_type="internal",
+        content_type="travel_guide",
+        title="Document",
+        text="Document text",
+        source_name="Official Source",
+        retrieved_at=datetime.now(timezone.utc),
+    )
+
+    await store.upsert_chunks([chunk], [[0.1, 0.2, 0.3]])
+
+    assert client.upsert_args["wait"] is False
+
+
+@pytest.mark.asyncio
 async def test_ensure_collection_creates_tenant_id_payload_index():
     client = FakeQdrantClient()
     store = QdrantStore(client=client, collection="tourism_internal_docs", vector_size=3)
@@ -133,6 +189,31 @@ async def test_ensure_collection_creates_tenant_id_payload_index():
             "field_name": "source_name",
             "field_schema": PayloadSchemaType.KEYWORD,
         },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "province",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "city",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "level",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "official_status",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "authority",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
     ]
 
 
@@ -145,6 +226,11 @@ async def test_ensure_collection_skips_existing_payload_indexes():
             "source_type": PayloadSchemaType.KEYWORD,
             "content_type": PayloadSchemaType.KEYWORD,
             "source_name": PayloadSchemaType.KEYWORD,
+            "province": PayloadSchemaType.KEYWORD,
+            "city": PayloadSchemaType.KEYWORD,
+            "level": PayloadSchemaType.KEYWORD,
+            "official_status": PayloadSchemaType.KEYWORD,
+            "authority": PayloadSchemaType.KEYWORD,
         }
     )
     store = QdrantStore(client=client, collection="tourism_internal_docs", vector_size=3)

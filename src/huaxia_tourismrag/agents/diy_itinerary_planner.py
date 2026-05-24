@@ -2,6 +2,7 @@
 
 from pydantic_ai import Agent
 
+from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
@@ -54,6 +55,7 @@ async def create_diy_itinerary_plan(
 ) -> DIYItineraryPlan:
     """Create a structured DIY itinerary plan from a validated question."""
 
+    ensure_agent_model_ready()
     result = await diy_itinerary_planner_agent.run(
         _build_diy_planner_prompt(
             question=question,

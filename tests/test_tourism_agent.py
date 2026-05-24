@@ -7,6 +7,15 @@ from huaxia_tourismrag.agents.tourism_agent import (
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelAnswer
 from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
+from huaxia_tourismrag.schemas.service_enrichment import (
+    BookingAction,
+    BookingProduct,
+    FreshWebEvidence,
+    RouteFeasibilityReport,
+    RouteLegCheck,
+    ServiceEnrichmentContext,
+    WeatherImpact,
+)
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     FeasibilityIssue,
     FeasibilityReport,
@@ -177,6 +186,87 @@ def test_build_final_answer_prompt_includes_preference_and_feasibility_context()
     assert "可行性检查" in prompt
     assert "weak_theme_match" in prompt
     assert "每站标注主题强弱" in prompt
+
+
+def test_build_final_answer_prompt_includes_service_enrichment_context():
+    service_enrichment = ServiceEnrichmentContext(
+        route_feasibility=RouteFeasibilityReport(
+            provider="baidu_maps",
+            route_summary="百度地图 MCP 检查显示路线整体可执行。",
+            legs=[
+                RouteLegCheck(
+                    origin="北京",
+                    destination="涿州",
+                    recommended_mode="driving",
+                    estimated_duration_minutes=70,
+                    feasibility_level="reasonable",
+                )
+            ],
+        ),
+        weather_impacts=[
+            WeatherImpact(
+                provider="baidu_maps",
+                city="成都",
+                condition="小雨",
+                impact_level="medium",
+                recommendation="建议调整户外时段。",
+            )
+        ],
+        booking_products=[
+            BookingProduct(
+                provider="tuniu",
+                product_type="hotel",
+                title="成都武侯祠周边酒店",
+                city="成都",
+                price_cny=680,
+                availability_status="available",
+                booking_url="https://example.com/hotel",
+            )
+        ],
+        booking_actions=[
+            BookingAction(
+                provider="tuniu",
+                action_type="open_booking_link",
+                label="查看酒店实时价格",
+                url="https://example.com/hotel",
+                safety_note="以途牛实时页面为准。",
+            )
+        ],
+        fresh_web_evidence=[
+            FreshWebEvidence(
+                provider="firecrawl",
+                query="成都武侯祠 官方 开放 最新",
+                title="成都武侯祠官方参观信息",
+                url="https://www.example.com/wuhou",
+                summary="提供开放、预约和参观提示。",
+                source_authority="official",
+                recency_label="recent",
+            )
+        ],
+    )
+
+    prompt = build_final_answer_prompt(
+        question="北京出发三国历史巡礼。",
+        citation_context="[1] text=三国主题资料。",
+        citation_lines=["[1] 三国主题 - internal - internal"],
+        service_enrichment=service_enrichment,
+    )
+
+    assert "服务能力校验" in prompt
+    assert "百度地图路线校验" in prompt
+    assert "北京 -> 涿州" in prompt
+    assert "70分钟" in prompt
+    assert "成都 小雨" in prompt
+    assert "途牛产品" in prompt
+    assert "成都武侯祠周边酒店" in prompt
+    assert "可操作入口" in prompt
+    assert "查看酒店实时价格" in prompt
+    assert "Firecrawl新鲜网页证据" in prompt
+    assert "成都武侯祠官方参观信息" in prompt
+    assert "地图 MCP 结果只用于路线顺路性" in prompt
+    assert "途牛 MCP 结果只用于酒店、门票、交通、产品和预订链接" in prompt
+    assert "Firecrawl MCP 结果只用于当前网页证据" in prompt
+    assert "不要声称已经完成预订或付款" in prompt
 
 
 def test_tourism_agent_is_defined():

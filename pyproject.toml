@@ -23,6 +23,7 @@ dependencies = [
     "redis>=7.4.0",
     "sentence-transformers>=5.5.1",
     "sqlmodel>=0.0.38",
+    "streamlit>=1.41",
     "torch>=2.12.0",
     "trafilatura>=2.0.0",
     "transformers>=4.44.2,<5",

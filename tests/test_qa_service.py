@@ -12,6 +12,7 @@ from huaxia_tourismrag.schemas.evidence import (
 )
 from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
 from huaxia_tourismrag.schemas.search import SearchOptions
+from huaxia_tourismrag.schemas.service_enrichment import ServiceEnrichmentContext
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     ClarificationDecision,
     FeasibilityReport,
@@ -235,6 +236,7 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         nonlocal final_plan
         final_plan = research_plan
@@ -286,18 +288,13 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
     assert planner_inputs == [question]
     assert internal_rag.queries == [
         "四川云南十日游 成都 昆明 大理 丽江 路线 不赶路",
-        "成都 大理 丽江 住宿区域 推荐 第一次去",
         "成都 云南 十日游 代表美食 火锅 米线 菌菇 本地推荐",
+        "成都 大理 丽江 住宿区域 推荐 第一次去",
     ]
     assert web_search.requests == [
         (
             "四川云南十日游 成都 昆明 大理 丽江 路线 不赶路",
             4,
-            SearchOptions(source_preference="mixed"),
-        ),
-        (
-            "成都 大理 丽江 住宿区域 推荐 第一次去",
-            2,
             SearchOptions(source_preference="mixed"),
         ),
         (
@@ -307,6 +304,11 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
                 source_preference="local_experience",
                 recency_days=180,
             ),
+        ),
+        (
+            "成都 大理 丽江 住宿区域 推荐 第一次去",
+            2,
+            SearchOptions(source_preference="mixed"),
         ),
     ]
     assert webpage_reader.urls == ["https://example.com/1", "https://example.com/2"]
@@ -369,6 +371,7 @@ async def test_answer_prioritizes_core_task_types_when_page_budget_is_small(monk
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -409,9 +412,9 @@ async def test_answer_prioritizes_core_task_types_when_page_budget_is_small(monk
 
     assert [request[0] for request in web_search.requests[:4]] == [
         "山西十日游路线",
-        "山西豪华酒店 太原 大同 平遥",
-        "山西特色美食 高端餐厅",
         "云冈石窟 五台山 平遥古城",
+        "山西特色美食 高端餐厅",
+        "山西豪华酒店 太原 大同 平遥",
     ]
     assert webpage_reader.urls == [
         "https://example.com/1",
@@ -469,6 +472,7 @@ async def test_answer_passes_freshness_options_to_web_search(monkeypatch):
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -572,6 +576,7 @@ async def test_answer_prioritizes_fresh_official_tasks_before_general_tasks(
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -759,6 +764,7 @@ async def test_answer_filters_unrelated_evidence_and_prefers_web_citations(
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
         detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -860,3 +866,90 @@ async def test_answer_filters_unrelated_evidence_and_prefers_web_citations(
     assert answer.citations == [
         "[1] 海南东线七日游网页 - tavily - https://example.cn/hainan"
     ]
+
+
+@pytest.mark.asyncio
+async def test_answer_attaches_service_enrichment_context(monkeypatch):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        task = TravelResearchTask(
+            task_type="route",
+            query="上海 杭州 两日游 路线",
+            reason="核验路线。",
+        )
+        return TravelResearchPlan(
+            original_question=question.question,
+            origin="上海",
+            destination="杭州",
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        assert service_enrichment == ServiceEnrichmentContext()
+        return TravelAnswer(
+            answer="ok",
+            highlights=[],
+            warnings=[],
+            citations=citation_lines,
+        )
+
+    class FakeServiceEnrichment:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def enrich(
+            self,
+            question: TravelQuestion,
+            diy_plan,
+            research_plan: TravelResearchPlan | None,
+        ) -> ServiceEnrichmentContext:
+            self.calls.append((question, diy_plan, research_plan))
+            return ServiceEnrichmentContext()
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    enrichment = FakeServiceEnrichment()
+    deps = TourismDeps(
+        tenant_id="demo-tenant",
+        internal_rag=FakeInternalRAG(),
+        web_search=FakeWebSearch(),
+        webpage_reader=FakeWebpageReader(),
+        reranker=FakeReranker(),
+        citations=FakeCitationFormatter(),
+    )
+    service = TourismQAService(
+        deps=deps,
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        service_enrichment=enrichment,
+    )
+
+    answer = await service.answer(TravelQuestion(question="上海出发杭州两日游。"))
+
+    assert answer.service_enrichment == ServiceEnrichmentContext()
+    assert len(enrichment.calls) == 1
+    assert enrichment.calls[0][1] is None
+    assert enrichment.calls[0][2].destination == "杭州"

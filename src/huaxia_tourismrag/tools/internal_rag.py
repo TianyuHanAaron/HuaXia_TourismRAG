@@ -3,10 +3,8 @@
 from datetime import datetime, timezone
 
 from qdrant_client import AsyncQdrantClient
-from sentence_transformers import SentenceTransformer
 
 from huaxia_tourismrag.rag.embeddings import Embedder
-from huaxia_tourismrag.rag.embeddings import SentenceTransformerEmbedder
 from huaxia_tourismrag.schemas.evidence import TravelChunk
 from huaxia_tourismrag.vector.qdrant_store import QdrantStore
 
@@ -14,9 +12,9 @@ from huaxia_tourismrag.vector.qdrant_store import QdrantStore
 class InternalRAGTool:
 
     def __init__(
-        self, client: AsyncQdrantClient, embedding_model: SentenceTransformer, collection: str
+        self, client: AsyncQdrantClient, embedder: Embedder, collection: str
     ) -> None:
-        self.embedder: Embedder = SentenceTransformerEmbedder(embedding_model)
+        self.embedder = embedder
         self.store = QdrantStore(client, collection, self.embedder.dimensions())
 
     async def retrieve(
@@ -41,6 +39,13 @@ class InternalRAGTool:
                     url=payload.get("url"),
                     source_name=payload.get("source_name", ""),
                     location=payload.get("location"),
+                    province=payload.get("province"),
+                    city=payload.get("city"),
+                    district=payload.get("district"),
+                    level=payload.get("level"),
+                    tags=payload.get("tags") or [],
+                    official_status=payload.get("official_status"),
+                    authority=payload.get("authority"),
                     published_at=(
                         datetime.fromisoformat(payload["published_at"])
                         if payload.get("published_at")

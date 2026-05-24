@@ -1,0 +1,150 @@
+{
+  "description": "Production acquisition registry for HuaXia structured internal knowledge. This registry lists official or high-authority source entry points that should be transformed into row files under data/internal/rows before indexing into Qdrant.",
+  "target_scale": {
+    "mvp_rows": "10000-12000",
+    "strong_domestic_rows": "15000-25000"
+  },
+  "datasets": [
+    {
+      "dataset_id": "china_5a_scenic_areas",
+      "corpus_layer": "structured_destinations",
+      "target_row_file": "data/internal/rows/production/china_5a_scenic_rows.json",
+      "target_content_type": "attraction",
+      "target_level": "5A",
+      "priority": "p0",
+      "source_candidates": [
+        {
+          "name": "国家政务服务平台 - 文化和旅游部 5A级旅游景区查询",
+          "url": "https://app.gjzwfw.gov.cn/jmopen/webapp/html5/scenicspot/index.html",
+          "authority": "national_ministry",
+          "official_status": "official",
+          "notes": "Preferred official query entry. May require browser/API inspection because it is an app-style page."
+        },
+        {
+          "name": "中国政府网 - 文化和旅游部新增5A级景区公告",
+          "url": "https://www.gov.cn/lianbo/bumen/202402/content_6931274.htm",
+          "authority": "national_ministry",
+          "official_status": "official",
+          "notes": "Useful for recent additions and provenance."
+        }
+      ]
+    },
+    {
+      "dataset_id": "provincial_4a_3a_scenic_areas",
+      "corpus_layer": "structured_destinations",
+      "target_row_file": "data/internal/rows/production/china_4a_3a_selected_scenic_rows.json",
+      "target_content_type": "attraction",
+      "target_level": "4A_or_selected_3A",
+      "priority": "p1",
+      "source_candidates": [
+        {
+          "name": "江苏省文化和旅游厅 - A级旅游景区名单",
+          "url": "https://wlt.jiangsu.gov.cn/art/2024/2/29/art_48960_11161928.html",
+          "authority": "provincial_culture_tourism",
+          "official_status": "official",
+          "notes": "Province-level structured scenic list candidate."
+        },
+        {
+          "name": "四川省文化和旅游厅 - A级旅游景区相关页面",
+          "url": "https://wlt.sc.gov.cn/scwlt/c100297/introduce.shtml",
+          "authority": "provincial_culture_tourism",
+          "official_status": "official",
+          "notes": "Province-level scenic list/source entry candidate."
+        },
+        {
+          "name": "重庆市文化和旅游发展委员会 - A级景区相关资料",
+          "url": "https://whlyw.cq.gov.cn/hdjl_221/xzzq/202601/t20260106_15295212.html",
+          "authority": "provincial_culture_tourism",
+          "official_status": "official",
+          "notes": "Municipality scenic list/source entry candidate."
+        }
+      ]
+    },
+    {
+      "dataset_id": "national_protected_heritage_sites",
+      "corpus_layer": "structured_destinations",
+      "target_row_file": "data/internal/rows/production/china_national_heritage_rows.json",
+      "target_content_type": "heritage_site",
+      "target_level": "national_heritage",
+      "priority": "p0",
+      "source_candidates": [
+        {
+          "name": "中国政府网 - 国务院关于核定并公布第八批全国重点文物保护单位的通知",
+          "url": "https://app.www.gov.cn/govdata/gov/201910/16/449618/article.html",
+          "authority": "state_council",
+          "official_status": "official",
+          "notes": "Official eighth batch notice; use with prior batch sources for full national heritage coverage."
+        },
+        {
+          "name": "国家林业和草原局转载 - 第八批全国重点文物保护单位通知",
+          "url": "https://www.forestry.gov.cn/main/4815/20191016/173000319923859.html",
+          "authority": "state_council_reprint",
+          "official_status": "official_reprint",
+          "notes": "Alternative official mirror useful if source availability changes."
+        },
+        {
+          "name": "河北省文物局 - 河北省第一至八批全国重点文物保护单位名单",
+          "url": "https://wenwu.hebei.gov.cn/system/2023/10/16/030257946.shtml",
+          "authority": "provincial_cultural_heritage",
+          "official_status": "official",
+          "notes": "Province-level full-batch example for heritage extraction."
+        }
+      ]
+    },
+    {
+      "dataset_id": "china_time_honored_brands",
+      "corpus_layer": "food_specialties",
+      "target_row_file": "data/internal/rows/production/china_time_honored_brand_rows.json",
+      "target_content_type": "time_honored_brand",
+      "target_level": "china_time_honored_brand",
+      "priority": "p1",
+      "source_candidates": [
+        {
+          "name": "中华老字号信息管理平台",
+          "url": "https://zhlzh.mofcom.gov.cn/",
+          "authority": "national_ministry",
+          "official_status": "official",
+          "notes": "Preferred official old-brand source; may require app/API inspection."
+        },
+        {
+          "name": "中国政府网 - 第三批中华老字号382个品牌正式认定公布",
+          "url": "https://www.gov.cn/lianbo/bumen/202402/content_6929516.htm",
+          "authority": "national_ministry",
+          "official_status": "official",
+          "notes": "Official recent announcement and provenance."
+        }
+      ]
+    },
+    {
+      "dataset_id": "agricultural_gi_specialties",
+      "corpus_layer": "food_specialties",
+      "target_row_file": "data/internal/rows/production/china_agricultural_gi_specialty_rows.json",
+      "target_content_type": "local_specialty",
+      "target_level": "agricultural_gi_or_local_specialty",
+      "priority": "p2",
+      "source_candidates": [
+        {
+          "name": "农业农村部 - 地理标志农产品保护工程相关通知",
+          "url": "https://www.moa.gov.cn/nybgb/2020/202006/202007/t20200708_6348240.htm",
+          "authority": "national_ministry",
+          "official_status": "official",
+          "notes": "Policy and provenance source for agricultural GI products."
+        },
+        {
+          "name": "农业农村部公告 PDF - 农产品地理标志登记产品公告信息",
+          "url": "https://jgs.moa.gov.cn/rzde/202203/P020220310408416650420.pdf",
+          "authority": "national_ministry",
+          "official_status": "official",
+          "notes": "PDF source candidate for GI row extraction."
+        },
+        {
+          "name": "湖南省农业农村厅 - 湖南省农产品地理标志信息公告",
+          "url": "https://agri.hunan.gov.cn/agri/xxgk/tzgg/202203/t20220307_22496403.html",
+          "authority": "provincial_agriculture",
+          "official_status": "official",
+          "notes": "Province-level GI list candidate."
+        }
+      ]
+    }
+  ]
+}

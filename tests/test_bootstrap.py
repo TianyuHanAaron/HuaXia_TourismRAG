@@ -2,8 +2,14 @@ import pytest
 
 from huaxia_tourismrag import bootstrap
 from huaxia_tourismrag.core.config import Settings
+from huaxia_tourismrag.integrations.baidu_maps_mcp import BaiduMapsMCPAdapter
+from huaxia_tourismrag.integrations.firecrawl_mcp import FirecrawlMCPAdapter
+from huaxia_tourismrag.integrations.mapbox_mcp import MapboxMCPAdapter
+from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
+from huaxia_tourismrag.rag.embeddings import RemoteHttpEmbedder
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.qa_service import TourismQAService
+from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_store import RedisTravelSessionStore
 from huaxia_tourismrag.tools.web_search import ExaSearchProvider, TavilySearchProvider
 
@@ -37,6 +43,170 @@ def test_build_search_provider_requires_tavily_key(monkeypatch):
 
     with pytest.raises(RuntimeError, match="TAVILY_API_KEY"):
         bootstrap.build_search_provider()
+
+
+def test_build_embedder_uses_remote_provider():
+    settings = Settings(
+        EMBEDDING_PROVIDER="remote",
+        EMBEDDING_API_URL="https://example.endpoints.huggingface.cloud",
+        EMBEDDING_API_KEY="hf-test",
+        EMBEDDING_DIMENSIONS=1024,
+    )
+
+    embedder = bootstrap.build_embedder(settings)
+
+    assert isinstance(embedder, RemoteHttpEmbedder)
+    assert embedder.dimensions() == 1024
+
+
+def test_build_embedder_requires_remote_url():
+    settings = Settings(EMBEDDING_PROVIDER="remote", EMBEDDING_API_URL=None)
+
+    with pytest.raises(RuntimeError, match="EMBEDDING_API_URL"):
+        bootstrap.build_embedder(settings)
+
+
+def test_model_defaults_match_documented_local_testing_stack():
+    settings = Settings(_env_file=None)
+
+    assert settings.embedding_provider == "local"
+    assert settings.embedding_model == "Qwen/Qwen3-Embedding-0.6B"
+    assert settings.embedding_dimensions == 1024
+    assert settings.embedding_batch_size == 4
+    assert settings.reranker_model == "BAAI/bge-reranker-v2-m3"
+    assert settings.enable_model_reranker is False
+
+
+def test_mcp_provider_flags_default_to_disabled():
+    settings = Settings(_env_file=None)
+
+    assert settings.baidu_maps_mcp_enabled is False
+    assert settings.tuniu_mcp_enabled is False
+    assert settings.mapbox_mcp_enabled is False
+    assert settings.firecrawl_mcp_enabled is False
+    assert settings.baidu_maps_mcp_transport == "stdio"
+    assert settings.tuniu_mcp_transport == "stdio"
+    assert settings.mapbox_mcp_transport == "http"
+    assert settings.firecrawl_mcp_transport == "http"
+
+
+def test_build_service_enrichment_keeps_providers_disabled_by_default():
+    service = bootstrap.build_service_enrichment(Settings(_env_file=None))
+
+    assert isinstance(service, TravelServiceEnrichmentService)
+    assert service.maps is None
+    assert service.tuniu is None
+    assert service.fresh_web is None
+
+
+def test_build_service_enrichment_requires_baidu_transport_details():
+    settings = Settings(BAIDU_MAPS_MCP_ENABLED=True)
+
+    with pytest.raises(RuntimeError, match="BAIDU_MAPS_MCP_COMMAND"):
+        bootstrap.build_service_enrichment(settings)
+
+
+def test_build_service_enrichment_requires_tuniu_transport_details():
+    settings = Settings(TUNIU_MCP_ENABLED=True)
+
+    with pytest.raises(RuntimeError, match="TUNIU_MCP_COMMAND"):
+        bootstrap.build_service_enrichment(settings)
+
+
+def test_build_service_enrichment_requires_mapbox_key():
+    settings = Settings(MAPBOX_MCP_ENABLED=True, _env_file=None)
+
+    with pytest.raises(RuntimeError, match="MAPBOX_ACCESS_TOKEN"):
+        bootstrap.build_service_enrichment(settings)
+
+
+def test_build_service_enrichment_requires_firecrawl_key():
+    settings = Settings(
+        FIRECRAWL_MCP_ENABLED=True,
+        FIRECRAWL_API_KEY=None,
+        _env_file=None,
+    )
+
+    with pytest.raises(RuntimeError, match="FIRECRAWL_API_KEY"):
+        bootstrap.build_service_enrichment(settings)
+
+
+def test_build_service_enrichment_wires_baidu_http_adapter():
+    settings = Settings(
+        BAIDU_MAPS_MCP_ENABLED=True,
+        BAIDU_MAPS_MCP_TRANSPORT="http",
+        BAIDU_MAPS_MCP_URL="https://mcp.baidu.example/rpc",
+        BAIDU_MAPS_API_KEY="baidu-key",
+        _env_file=None,
+    )
+
+    service = bootstrap.build_service_enrichment(settings)
+
+    assert isinstance(service.maps, BaiduMapsMCPAdapter)
+    assert service.maps.client.provider == "baidu_maps"
+    assert service.maps.client.transport == "http"
+
+
+def test_build_service_enrichment_wires_mapbox_http_adapter():
+    settings = Settings(
+        MAPBOX_MCP_ENABLED=True,
+        MAPBOX_MCP_TRANSPORT="http",
+        MAPBOX_MCP_URL="https://mcp.mapbox.example/mcp",
+        MAPBOX_ACCESS_TOKEN="mapbox-key",
+    )
+
+    service = bootstrap.build_service_enrichment(settings)
+
+    assert isinstance(service.maps, MapboxMCPAdapter)
+    assert service.maps.client.provider == "mapbox"
+    assert service.maps.client.transport == "http"
+
+
+def test_build_service_enrichment_wires_firecrawl_http_adapter():
+    settings = Settings(
+        FIRECRAWL_MCP_ENABLED=True,
+        FIRECRAWL_MCP_TRANSPORT="http",
+        FIRECRAWL_MCP_URL="https://mcp.firecrawl.example/{FIRECRAWL_API_KEY}/v2/mcp",
+        FIRECRAWL_API_KEY="firecrawl-key",
+    )
+
+    service = bootstrap.build_service_enrichment(settings)
+
+    assert isinstance(service.fresh_web, FirecrawlMCPAdapter)
+    assert service.fresh_web.client.provider == "firecrawl"
+    assert service.fresh_web.client.transport == "http"
+    assert service.fresh_web.client.url == (
+        "https://mcp.firecrawl.example/firecrawl-key/v2/mcp"
+    )
+
+
+def test_build_service_enrichment_accepts_legacy_mapbox_api_key_alias():
+    settings = Settings(
+        MAPBOX_MCP_ENABLED=True,
+        MAPBOX_MCP_TRANSPORT="http",
+        MAPBOX_MCP_URL="https://mcp.mapbox.example/mcp",
+        MAPBOX_API_KEY="mapbox-key",
+    )
+
+    service = bootstrap.build_service_enrichment(settings)
+
+    assert isinstance(service.maps, MapboxMCPAdapter)
+    assert service.maps.client.api_key == "mapbox-key"
+
+
+def test_build_service_enrichment_wires_tuniu_http_adapter():
+    settings = Settings(
+        TUNIU_MCP_ENABLED=True,
+        TUNIU_MCP_TRANSPORT="http",
+        TUNIU_MCP_URL="https://mcp.tuniu.example/rpc",
+        TUNIU_API_KEY="tuniu-key",
+    )
+
+    service = bootstrap.build_service_enrichment(settings)
+
+    assert isinstance(service.tuniu, TuniuMCPAdapter)
+    assert service.tuniu.client.provider == "tuniu"
+    assert service.tuniu.client.transport == "http"
 
 
 def test_build_tourism_qa_service_wires_dependencies(monkeypatch):

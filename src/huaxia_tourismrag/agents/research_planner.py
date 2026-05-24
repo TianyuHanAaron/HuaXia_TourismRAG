@@ -2,6 +2,7 @@
 
 from pydantic_ai import Agent
 
+from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.schemas.research import TravelResearchPlan
@@ -49,6 +50,7 @@ async def create_research_plan(
 ) -> TravelResearchPlan:
     """Create a structured research plan from a validated travel question."""
 
+    ensure_agent_model_ready()
     result = await planner_agent.run(
         _build_research_planner_prompt(
             question=question,

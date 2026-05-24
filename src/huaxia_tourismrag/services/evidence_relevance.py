@@ -49,6 +49,34 @@ OPERATIONAL_HOSTS = {
     "www.12306.cn",
 }
 
+DESTINATION_CONTENT_TYPES = {
+    "heritage_site",
+    "attraction",
+    "destination",
+    "local_cuisine",
+    "local_specialty",
+    "time_honored_brand",
+}
+
+POLICY_SUPPORT_CONTENT_TYPES = {
+    "railway",
+    "aviation",
+    "road_transport",
+    "legal",
+    "regulation",
+    "contract",
+    "complaint",
+    "consumer_protection",
+    "finance",
+    "insurance",
+    "medical",
+    "customs",
+    "visa_exit_entry",
+    "tourism_safety",
+    "scenic_quality",
+    "transport",
+}
+
 
 class EvidenceRelevanceFilter:
     """Keep only evidence that is relevant to a DIY route or its operations."""
@@ -75,6 +103,40 @@ class EvidenceRelevanceFilter:
             if chunk.source_type == "web" and chunk.url is not None
         ]
         return web_chunks or chunks
+
+    def balance_itinerary_evidence(
+        self,
+        chunks: list[TravelChunk],
+        max_policy_chunks: int = 3,
+    ) -> list[TravelChunk]:
+        """Prefer place/food evidence while keeping limited operational support."""
+
+        destination_chunks: list[TravelChunk] = []
+        web_support_chunks: list[TravelChunk] = []
+        other_chunks: list[TravelChunk] = []
+        policy_chunks: list[TravelChunk] = []
+
+        for chunk in chunks:
+            if chunk.content_type in DESTINATION_CONTENT_TYPES:
+                destination_chunks.append(chunk)
+            elif chunk.content_type in POLICY_SUPPORT_CONTENT_TYPES:
+                policy_chunks.append(chunk)
+            elif chunk.source_type == "web" and chunk.url is not None:
+                web_support_chunks.append(chunk)
+            else:
+                other_chunks.append(chunk)
+
+        if web_support_chunks:
+            other_chunks = [
+                chunk for chunk in other_chunks if chunk.source_type != "internal"
+            ]
+
+        return [
+            *destination_chunks,
+            *web_support_chunks,
+            *other_chunks,
+            *policy_chunks[:max_policy_chunks],
+        ]
 
     def filter_for_diy_plan(
         self,

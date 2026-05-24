@@ -34,12 +34,11 @@ class TravelChunkMergeService:
         return merged
 
     def _dedupe_key(self, chunk: TravelChunk) -> str:
-        text_fingerprint = self._text_hash(chunk.text)
-
         if chunk.url:
             normalized_url = self._normalize_url(str(chunk.url))
-            return f"web:{normalized_url}:{text_fingerprint}"
+            return f"web:{normalized_url}"
 
+        text_fingerprint = self._text_hash(chunk.text)
         return f"internal:{text_fingerprint}"
 
     def _text_hash(self, text: str) -> str:

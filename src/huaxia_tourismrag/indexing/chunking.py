@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from huaxia_tourismrag.schemas.evidence import ContentType
 
@@ -20,6 +20,13 @@ class RawInternalDocument(BaseModel):
     url: HttpUrl | None = None
     content_type: ContentType = "travel_guide"
     location: str | None = None
+    province: str | None = None
+    city: str | None = None
+    district: str | None = None
+    level: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    official_status: str | None = None
+    authority: str | None = None
     published_at: datetime | None = None
     retrieved_at: datetime | None = None
     evidence_level: str = "official"
@@ -35,7 +42,7 @@ class RawInternalDocument(BaseModel):
 
 
 class ParagraphChunker:
-    def __init__(self, max_chars: int = 1200, min_chars: int = 100) -> None:
+    def __init__(self, max_chars: int = 900, min_chars: int = 100) -> None:
         self.max_chars = max_chars
         self.min_chars = min_chars
 
@@ -56,7 +63,37 @@ class ParagraphChunker:
         return chunks
 
     def _split_paragraphs(self, text: str) -> list[str]:
-        return [paragraph.strip() for paragraph in text.split("\n") if paragraph.strip()]
+        paragraphs: list[str] = []
+        for paragraph in (part.strip() for part in text.split("\n")):
+            if not paragraph:
+                continue
+            paragraphs.extend(self._split_long_paragraph(paragraph))
+        return paragraphs
+
+    def _split_long_paragraph(self, paragraph: str) -> list[str]:
+        if len(paragraph) <= self.max_chars:
+            return [paragraph]
+
+        segments: list[str] = []
+        remaining = paragraph
+        while len(remaining) > self.max_chars:
+            split_at = self._find_split_point(remaining)
+            segments.append(remaining[:split_at].strip())
+            remaining = remaining[split_at:].strip()
+
+        if remaining:
+            segments.append(remaining)
+        return [segment for segment in segments if segment]
+
+    def _find_split_point(self, text: str) -> int:
+        window = text[: self.max_chars]
+        split_at = max(
+            window.rfind(separator)
+            for separator in ("。", "；", "，", ";", ",", " ", "]", ")")
+        )
+        if split_at < self.min_chars:
+            return self.max_chars
+        return split_at + 1
 
     def _would_exceed_max_chars(self, current_chunk: str, paragraph: str) -> bool:
         if not current_chunk:

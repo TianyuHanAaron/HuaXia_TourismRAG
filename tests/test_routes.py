@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.api.routes import router
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
@@ -58,6 +59,14 @@ class FakeSessionReplyService:
         )
 
 
+class MisconfiguredTourismQAService:
+    def __init__(self, tenant_id: str) -> None:
+        self.tenant_id = tenant_id
+
+    async def answer(self, question: TravelQuestion) -> TravelAnswer:
+        raise AgentModelConfigurationError("OPENAI_API_KEY is required for testing")
+
+
 def make_client(configure_service: bool = True) -> TestClient:
     FakeTourismQAService.questions = []
     FakeDIYItineraryService.questions = []
@@ -67,6 +76,15 @@ def make_client(configure_service: bool = True) -> TestClient:
         app.state.tourism_qa_service_factory = FakeTourismQAService
         app.state.diy_itinerary_service_factory = FakeDIYItineraryService
         app.state.session_reply_service_factory = FakeSessionReplyService
+    app.include_router(router)
+    return TestClient(app)
+
+
+def make_misconfigured_client() -> TestClient:
+    app = FastAPI()
+    app.state.tourism_qa_service_factory = MisconfiguredTourismQAService
+    app.state.diy_itinerary_service_factory = FakeDIYItineraryService
+    app.state.session_reply_service_factory = FakeSessionReplyService
     app.include_router(router)
     return TestClient(app)
 
@@ -170,6 +188,18 @@ def test_tourism_questions_route_returns_503_when_service_not_configured():
 
     assert response.status_code == 503
     assert response.json()["detail"] == "tourism QA service is not configured"
+
+
+def test_tourism_questions_route_returns_503_for_agent_model_misconfiguration():
+    client = make_misconfigured_client()
+
+    response = client.post(
+        "/tourism/questions",
+        json={"question": "上海出发，山西历史人文十日深度游。"},
+    )
+
+    assert response.status_code == 503
+    assert "OPENAI_API_KEY" in response.json()["detail"]
 
 
 def test_diy_itinerary_route_returns_503_when_service_not_configured():

@@ -12,6 +12,7 @@ from huaxia_tourismrag.schemas.research import TravelResearchTask
 from huaxia_tourismrag.schemas.session import SessionEndpoint
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
 from huaxia_tourismrag.services.evidence_relevance import EvidenceRelevanceFilter
+from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_store import TravelSessionStore
 from huaxia_tourismrag.services.travel_checkpoints import (
     build_clarification_answer,
@@ -64,6 +65,7 @@ class DIYItineraryService:
         top_k: int,
         session_store: TravelSessionStore | None = None,
         create_pending_sessions: bool = True,
+        service_enrichment: TravelServiceEnrichmentService | None = None,
     ) -> None:
         self.deps = deps
         self.merger = merger
@@ -71,6 +73,7 @@ class DIYItineraryService:
         self.top_k = top_k
         self.session_store = session_store
         self.create_pending_sessions = create_pending_sessions
+        self.service_enrichment = service_enrichment
         self.relevance_filter = EvidenceRelevanceFilter()
 
     async def answer(self, question: TravelQuestion) -> TravelAnswer:
@@ -155,16 +158,25 @@ class DIYItineraryService:
 
         merged = self.merger.merge(self._cap_internal_policy_chunks(internal), web_chunks)
         relevant = self.relevance_filter.filter_for_diy_plan(merged, diy_plan)
+        relevant = self.relevance_filter.balance_itinerary_evidence(relevant)
         ranked = self.deps.reranker.rerank(
             retrieval_query,
             relevant,
             top_k=max(self.top_k, min(len(diy_plan.tasks), 12)),
         )
         pack = self.deps.citations.build(
-            self.relevance_filter.prefer_parsed_web_chunks(ranked)
+            self.relevance_filter.balance_itinerary_evidence(ranked)
         )
 
-        return await generate_answer_with_context(
+        service_context = None
+        if self.service_enrichment:
+            service_context = await self.service_enrichment.enrich(
+                question=question,
+                diy_plan=diy_plan,
+                research_plan=None,
+            )
+
+        answer = await generate_answer_with_context(
             question=retrieval_query,
             citation_context=pack.context_text,
             citation_lines=pack.citations,
@@ -172,8 +184,11 @@ class DIYItineraryService:
             diy_plan=diy_plan,
             preference_profile=preference_decision.profile,
             feasibility_report=feasibility_report,
+            service_enrichment=service_context,
             detail_level=resolved_detail_level(question),
         )
+        answer.service_enrichment = service_context
+        return answer
 
     def _prioritize_tasks(
         self, tasks: list[TravelResearchTask]

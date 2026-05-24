@@ -167,6 +167,8 @@ Important variables:
 APP_NAME="HuaXia Tourism RAG"
 
 TOURISM_AGENT_MODEL=openai-chat:gpt-5.5
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_ADMIN_KEY=
 
 SEARCH_PROVIDER=tavily
 TAVILY_API_KEY=your_tavily_api_key_here
@@ -178,11 +180,16 @@ QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=
 QDRANT_COLLECTION=tourism_internal_docs
 QDRANT_UPSERT_BATCH_SIZE=32
+QDRANT_TIMEOUT_SECONDS=120
 
 REDIS_URL=redis://localhost:6379/0
 SESSION_TTL_SECONDS=86400
 
-EMBEDDING_MODEL=BAAI/bge-m3
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
+EMBEDDING_DIMENSIONS=1024
+EMBEDDING_API_URL=
+EMBEDDING_API_KEY=
 EMBEDDING_BATCH_SIZE=4
 RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 ENABLE_MODEL_RERANKER=false
@@ -235,6 +242,16 @@ Capabilities:
 ```bash
 curl http://127.0.0.1:8000/tourism/capabilities
 ```
+
+## Streamlit Frontend
+
+For a polished local kiosk-style interface, start the FastAPI server first, then run:
+
+```bash
+uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
+```
+
+The Streamlit UI is designed as the current user-facing prototype for Xiaxia. It gives first-time users a simple mode choice between mature travel planning and custom route co-creation, supports `concise`, `standard`, and `deep` answer depth, handles pending clarification sessions, and renders answers with Chinese sections for highlights, warnings, itinerary, citations, and service checks. The UI calls the existing FastAPI endpoints, so it can later be replaced by a React frontend without changing the backend API contract.
 
 ## API Usage
 
@@ -365,23 +382,59 @@ uv run huaxia-tourismrag health
 
 ## Internal Documents and Qdrant
 
-The old demo seed file has been removed. The recommended internal corpus is now a serious operating baseline for travel-agency advice: official policy, transport, safety, consumer-protection, medical, insurance, customs, finance, legal, and regulatory material that can affect real travelers.
+The old demo seed file has been removed. The internal knowledge base is now split into three business-oriented layers:
 
-Recommended path:
+- `policy_transport_rules`: official policy, transport, safety, consumer-protection, medical, insurance, customs, finance, legal, and regulatory material that can affect real travelers.
+- `structured_destinations`: structured scenic-area, heritage-site, destination, and theme-attraction rows used to ground itinerary claims.
+- `food_specialties`: structured local cuisine, specialties, and time-honored-brand rows used to make plans feel more like real agency advice.
+
+Policy corpus path:
 
 ```text
-data/internal/china_tourism_policy_transport_rules_60.jsonl
+data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl
 ```
 
 The curated 60-source manifest lives at:
 
 ```text
-data/internal/sources/china_tourism_policy_sources.json
+data/internal/manifests/china_tourism_policy_sources.json
 ```
 
-The project includes an `InternalDocumentIndexer` for loading JSONL, chunking documents, embedding text, and upserting chunks into Qdrant. Local indexing is batched through `EMBEDDING_BATCH_SIZE` and `QDRANT_UPSERT_BATCH_SIZE` to reduce MPS/GPU memory pressure and Qdrant Cloud write timeouts.
+Structured manifests live at:
 
-The expected JSONL rows map to the internal raw document DTO used by the indexer. Rows may use either `document_id` or `id`, and can include `content_type`, `published_at`, `retrieved_at`, and `location`.
+```text
+data/internal/manifests/china_scenic_area_sources.json
+data/internal/manifests/china_heritage_sources.json
+data/internal/manifests/china_food_specialty_sources.json
+```
+
+Structured row files live outside `manifests/` so source manifests stay clean and scalable:
+
+```text
+data/internal/rows/seed/scenic_theme_seed_rows.json
+data/internal/rows/seed/heritage_seed_rows.json
+data/internal/rows/seed/food_specialty_seed_rows.json
+```
+
+A production acquisition registry tracks broader official source candidates for nationwide expansion:
+
+```text
+data/internal/registries/china_structured_production_source_registry.json
+```
+
+It currently covers source candidates for 5A scenic areas, provincial 4A/3A scenic rows, national protected heritage sites, Chinese time-honored brands, and agricultural GI/specialty products.
+
+Generated structured corpora:
+
+```text
+data/internal/corpora/china_scenic_5a4a3a.jsonl
+data/internal/corpora/china_national_heritage_sites.jsonl
+data/internal/corpora/china_food_specialties_brands.jsonl
+```
+
+The project includes an `InternalCorpusIndexer` for loading JSONL, chunking documents, embedding text, and upserting chunks into Qdrant. Local indexing is batched through `EMBEDDING_BATCH_SIZE` and `QDRANT_UPSERT_BATCH_SIZE` to reduce MPS/GPU memory pressure and Qdrant Cloud write timeouts.
+
+The expected JSONL rows map to the internal raw document DTO used by the indexer. Rows may use either `document_id` or `id`, and can include `content_type`, `published_at`, `retrieved_at`, `location`, `province`, `city`, `district`, `level`, `tags`, `official_status`, and `authority`.
 
 Example:
 
@@ -393,27 +446,113 @@ Build the JSONL corpus from the manifest:
 
 ```bash
 uv run huaxia-tourismrag build-internal-corpus \
-  data/internal/sources/china_tourism_policy_sources.json \
-  --output data/internal/china_tourism_policy_transport_rules_60.jsonl
+  data/internal/manifests/china_tourism_policy_sources.json \
+  --output data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl
+```
+
+Build structured destination, heritage, and food corpora:
+
+```bash
+uv run huaxia-tourismrag build-structured-corpus \
+  data/internal/manifests/china_scenic_area_sources.json \
+  --output data/internal/corpora/china_scenic_5a4a3a.jsonl
+
+uv run huaxia-tourismrag build-structured-corpus \
+  data/internal/manifests/china_heritage_sources.json \
+  --output data/internal/corpora/china_national_heritage_sites.jsonl
+
+uv run huaxia-tourismrag build-structured-corpus \
+  data/internal/manifests/china_food_specialty_sources.json \
+  --output data/internal/corpora/china_food_specialties_brands.jsonl
+```
+
+Inspect any JSONL corpus before indexing:
+
+```bash
+uv run huaxia-tourismrag inspect-internal-corpus data/internal/corpora/china_scenic_5a4a3a.jsonl
+```
+
+This validates every row against `RawInternalDocument` and reports content-type, province, and authority coverage.
+
+Inspect a structured source manifest and confirm its row files are present:
+
+```bash
+uv run huaxia-tourismrag inspect-structured-manifest data/internal/manifests/china_scenic_area_sources.json
+```
+
+Inspect the production acquisition registry:
+
+```bash
+uv run huaxia-tourismrag inspect-source-registry \
+  data/internal/registries/china_structured_production_source_registry.json
+```
+
+Scaffold empty target row files declared by the registry:
+
+```bash
+uv run huaxia-tourismrag scaffold-structured-row-files \
+  data/internal/registries/china_structured_production_source_registry.json
+```
+
+Use the scaffold command only to create empty targets for acquisition work. Do not index scaffolded empty/template files until real rows have been filled and checked.
+JSON targets are created as empty arrays (`[]`), and CSV targets are created with headers only.
+
+Import cleaned CSV/JSON rows into the registry-defined target row file:
+
+```bash
+uv run huaxia-tourismrag import-structured-rows \
+  data/internal/registries/china_structured_production_source_registry.json \
+  china_5a_scenic_areas \
+  path/to/cleaned_5a_rows.csv
+```
+
+Then rebuild all standard structured corpora in one step:
+
+```bash
+uv run huaxia-tourismrag build-all-structured-corpora
 ```
 
 Index the corpus:
 
 ```bash
-uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl
+```
+
+Index all corpus layers in the standard order: policy/rules first, then scenic areas, national heritage, and food/specialty documents. The batch command applies `--recreate` only to the first corpus, so the later layers append into the same rebuilt collection:
+
+```bash
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-all-internal --recreate
+```
+
+Equivalent manual sequence:
+
+```bash
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl \
+  --recreate
+
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_scenic_5a4a3a.jsonl
+
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_national_heritage_sites.jsonl
+
+EMBEDDING_BATCH_SIZE=1 QDRANT_UPSERT_BATCH_SIZE=8 \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_food_specialties_brands.jsonl
 ```
 
 Use a custom Qdrant collection:
 
 ```bash
-uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl \
   --collection tourism_policy_rules
 ```
 
 Delete the existing collection first, then rebuild it:
 
 ```bash
-uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+uv run huaxia-tourismrag index-internal data/internal/corpora/china_tourism_policy_transport_rules_60.jsonl \
   --recreate
 ```
 
@@ -427,7 +566,26 @@ Collection `tourism_internal_docs` doesn't exist
 
 then the internal documents have not been indexed yet.
 
-The Qdrant store now creates keyword payload indexes for `tenant_id`, `source_type`, `content_type`, and `source_name` when `ensure_collection()` runs.
+The Qdrant store creates keyword payload indexes for `tenant_id`, `source_type`, `content_type`, `source_name`, `province`, `city`, `level`, `official_status`, and `authority` when `ensure_collection()` runs.
+
+Recommended first target size:
+
+- MVP: 10,000-12,000 Qdrant rows across policy, scenic, heritage, and food corpora.
+- Stronger domestic coverage: 15,000-25,000 rows.
+
+The current structured manifests are intentionally small seed files that validate the pipeline. Production expansion should batch-import official 5A/4A scenic lists, selected 3A rows, national protected heritage sites, local specialty catalogs, and time-honored-brand lists.
+
+To expand beyond seed data, add new row files under `data/internal/rows/` and reference them from the relevant source manifest through `row_file`. Both JSON and CSV row files are supported. CSV `tags` can be separated by `;`, `；`, `,`, `，`, `、`, or `|`.
+
+The production target row files are already wired into the source manifests. Once real rows are added to these files, rerun `build-structured-corpus`; no manifest change is required:
+
+```text
+data/internal/rows/production/china_5a_scenic_rows.json
+data/internal/rows/production/china_4a_3a_selected_scenic_rows.json
+data/internal/rows/production/china_national_heritage_rows.json
+data/internal/rows/production/china_time_honored_brand_rows.json
+data/internal/rows/production/china_agricultural_gi_specialty_rows.json
+```
 
 ## Citations
 

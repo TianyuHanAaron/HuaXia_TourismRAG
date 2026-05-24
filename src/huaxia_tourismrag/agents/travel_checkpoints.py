@@ -3,6 +3,7 @@
 from pydantic_ai import Agent
 
 from huaxia_tourismrag.core.config import get_settings
+from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.schemas.research import TravelResearchPlan
@@ -88,6 +89,7 @@ async def create_intent_decision(
 ) -> IntentDecision:
     """Run the intent checkpoint."""
 
+    ensure_agent_model_ready()
     prompt = f"""
 request_mode: {request_mode}
 question:
@@ -104,6 +106,7 @@ async def create_preference_decision(
 ) -> ClarificationDecision:
     """Run the preference checkpoint."""
 
+    ensure_agent_model_ready()
     prompt = f"""
 request_mode: {request_mode}
 intent: {intent_decision.intent}
@@ -124,6 +127,7 @@ async def create_feasibility_report(
 ) -> FeasibilityReport:
     """Run the feasibility checkpoint."""
 
+    ensure_agent_model_ready()
     prompt = f"""
 request_mode: {request_mode}
 question:

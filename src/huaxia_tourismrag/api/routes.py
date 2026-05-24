@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
+from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
@@ -158,7 +159,10 @@ async def answer_tourism_question(
 
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
-    return await service.answer(body)
+    try:
+        return await service.answer(body)
+    except AgentModelConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/itineraries/diy", response_model=TravelAnswer)
@@ -172,7 +176,10 @@ async def answer_diy_itinerary_question(
 
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
-    return await service.answer(body)
+    try:
+        return await service.answer(body)
+    except AgentModelConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/sessions/{session_id}/reply", response_model=TravelAnswer)
@@ -192,3 +199,5 @@ async def reply_to_tourism_session(
         return await service.reply(session_id, body)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="session not found") from exc
+    except AgentModelConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

@@ -15,11 +15,12 @@ def _chunk(
     title: str,
     text: str,
     url: str | None = None,
+    content_type: str = "travel_guide",
 ) -> TravelChunk:
     return TravelChunk(
         id=chunk_id,
         source_type="web" if url else "internal",
-        content_type="travel_guide",
+        content_type=content_type,
         title=title,
         text=text,
         url=url,
@@ -212,3 +213,27 @@ def test_prefer_parsed_web_chunks_drops_internal_when_web_evidence_exists():
     preferred = EvidenceRelevanceFilter().prefer_parsed_web_chunks(chunks)
 
     assert [chunk.id for chunk in preferred] == ["web"]
+
+
+def test_balance_itinerary_evidence_prefers_destination_content_and_caps_policy():
+    chunks = [
+        _chunk("rail-1", "铁路规则1", "铁路购票规则。", content_type="railway"),
+        _chunk("legal", "旅游法", "旅游合同规则。", content_type="legal"),
+        _chunk("rail-2", "铁路规则2", "铁路退票规则。", content_type="railway"),
+        _chunk("xuchang", "许昌曹魏主题", "许昌曹魏三国景点。", content_type="attraction"),
+        _chunk("food", "汉中面皮", "汉中本地美食。", content_type="local_cuisine"),
+        _chunk("guide", "三国路线", "路线说明。", content_type="travel_guide"),
+    ]
+
+    balanced = EvidenceRelevanceFilter().balance_itinerary_evidence(
+        chunks,
+        max_policy_chunks=2,
+    )
+
+    assert [chunk.id for chunk in balanced] == [
+        "xuchang",
+        "food",
+        "guide",
+        "rail-1",
+        "legal",
+    ]

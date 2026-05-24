@@ -12,6 +12,7 @@ from huaxia_tourismrag.schemas.research import TravelResearchTask
 from huaxia_tourismrag.schemas.session import SessionEndpoint
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
 from huaxia_tourismrag.services.evidence_relevance import EvidenceRelevanceFilter
+from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_store import TravelSessionStore
 from huaxia_tourismrag.services.travel_checkpoints import (
     build_clarification_answer,
@@ -26,10 +27,10 @@ from huaxia_tourismrag.services.travel_checkpoints import (
 
 TASK_TYPE_PRIORITY = (
     "route",
-    "transport",
-    "accommodation",
-    "food",
     "attraction",
+    "food",
+    "accommodation",
+    "transport",
     "booking",
     "risk",
 )
@@ -45,6 +46,7 @@ class TourismQAService:
         top_k: int,
         session_store: TravelSessionStore | None = None,
         create_pending_sessions: bool = True,
+        service_enrichment: TravelServiceEnrichmentService | None = None,
     ) -> None:
         self.deps = deps
         self.merger = merger
@@ -52,6 +54,7 @@ class TourismQAService:
         self.top_k = top_k
         self.session_store = session_store
         self.create_pending_sessions = create_pending_sessions
+        self.service_enrichment = service_enrichment
         self.relevance_filter = EvidenceRelevanceFilter()
 
     async def answer(self, question: TravelQuestion) -> TravelAnswer:
@@ -141,15 +144,24 @@ class TourismQAService:
             merged,
             research_plan,
         )
+        relevant = self.relevance_filter.balance_itinerary_evidence(relevant)
         ranked = self.deps.reranker.rerank(
             retrieval_query,
             relevant,
             top_k=max(self.top_k, min(len(research_plan.tasks), 12)),
         )
         pack = self.deps.citations.build(
-            self.relevance_filter.prefer_parsed_web_chunks(ranked)
+            self.relevance_filter.balance_itinerary_evidence(ranked)
         )
-        return await generate_answer_with_context(
+        service_context = None
+        if self.service_enrichment:
+            service_context = await self.service_enrichment.enrich(
+                question=question,
+                diy_plan=None,
+                research_plan=research_plan,
+            )
+
+        answer = await generate_answer_with_context(
             question=retrieval_query,
             citation_context=pack.context_text,
             citation_lines=pack.citations,
@@ -157,8 +169,11 @@ class TourismQAService:
             research_plan=research_plan,
             preference_profile=preference_decision.profile,
             feasibility_report=feasibility_report,
+            service_enrichment=service_context,
             detail_level=resolved_detail_level(question),
         )
+        answer.service_enrichment = service_context
+        return answer
 
     def _prioritize_tasks(
         self, tasks: list[TravelResearchTask]
