@@ -16,8 +16,11 @@ from huaxia_tourismrag.schemas.travel_checkpoints import (
 )
 from huaxia_tourismrag.services.travel_checkpoints import (
     build_clarification_answer,
+    build_detail_level_answer,
     build_feasibility_answer,
     build_intent_redirect_answer,
+    infer_detail_level,
+    should_ask_detail_level,
     should_skip_clarification,
 )
 
@@ -75,6 +78,56 @@ def test_should_skip_clarification_when_user_delegates_preferences():
     question = TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，你来决定怎么安排。")
 
     assert should_skip_clarification(question) is True
+
+
+def test_detail_level_is_validated_on_question_dto():
+    question = TravelQuestion(question="北京三天怎么玩？", detail_level="concise")
+
+    assert question.detail_level == "concise"
+    assert "回答详细度: concise" in question.to_retrieval_query()
+
+
+def test_detail_level_inference_from_user_text():
+    assert infer_detail_level(TravelQuestion(question="北京三天怎么玩，简单说一下。")) == "concise"
+    assert infer_detail_level(TravelQuestion(question="山西十日深度旅行社级别规划。")) == "deep"
+    assert infer_detail_level(TravelQuestion(question="成都五天给我可执行版本。")) == "standard"
+
+
+def test_detail_level_checkpoint_asks_for_complex_diy_when_missing():
+    question = TravelQuestion(
+        question=(
+            "三国历史巡礼路线，从北京出发并回到北京，必须覆盖涿州、临漳、"
+            "许昌、南阳、咸宁、南京、成都、汉中，10到12天。"
+        )
+    )
+
+    decision = should_ask_detail_level(question, request_mode="diy")
+
+    assert decision.should_ask is True
+    assert "这条线可以写得很细" in decision.question
+    assert decision.profile.detail_level == "standard"
+
+
+def test_detail_level_checkpoint_skips_when_user_already_specifies_level():
+    question = TravelQuestion(question="三国历史巡礼，给我深度旅行社方案。")
+
+    decision = should_ask_detail_level(question, request_mode="diy")
+
+    assert decision.should_ask is False
+    assert decision.profile.detail_level == "deep"
+
+
+def test_build_detail_level_answer_uses_travel_answer_shape():
+    decision = should_ask_detail_level(
+        TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，10天。"),
+        request_mode="diy",
+    )
+
+    answer = build_detail_level_answer(decision)
+
+    assert answer.needs_reply is True
+    assert "先看大方向" in answer.answer
+    assert answer.citations == []
 
 
 def test_checkpoint_agent_instructions_cover_three_checkpoints():

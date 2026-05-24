@@ -9,6 +9,7 @@ from huaxia_tourismrag.schemas.evidence import TravelQuestion
 
 
 SessionEndpoint = Literal["questions", "diy"]
+PendingKind = Literal["preference", "feasibility", "detail_level"]
 
 
 class TravelSession(BaseModel):
@@ -25,6 +26,8 @@ class TravelSession(BaseModel):
     messages: list[str] = Field(default_factory=list, max_length=20)
 
     pending_reason: str | None = Field(default=None, max_length=500)
+
+    pending_kind: PendingKind = "preference"
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

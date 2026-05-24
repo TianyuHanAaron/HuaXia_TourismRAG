@@ -25,6 +25,7 @@ class TourismCapabilitiesResponse(BaseModel):
     session_reply_endpoint: str
     supported_languages: list[str]
     supported_budget_levels: list[str]
+    supported_detail_levels: list[str]
     optional_context_fields: list[str]
 
 
@@ -131,12 +132,14 @@ def get_capabilities() -> TourismCapabilitiesResponse:
         session_reply_endpoint="/tourism/sessions/{session_id}/reply",
         supported_languages=["zh-CN", "en"],
         supported_budget_levels=["budget", "mid_range", "luxury"],
+        supported_detail_levels=["concise", "standard", "deep"],
         optional_context_fields=[
             "destination",
             "start_date",
             "end_date",
             "travelers",
             "budget_level",
+            "detail_level",
             "interests",
             "language",
         ],

@@ -164,6 +164,16 @@ def patch_checkpoints(monkeypatch):
         "create_feasibility_report",
         fake_create_feasibility_report,
     )
+    monkeypatch.setattr(
+        diy_service_module,
+        "should_ask_detail_level",
+        lambda question, request_mode: ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="测试默认详细度。",
+            profile=PreferenceProfile(detail_level=question.detail_level or "standard"),
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -242,6 +252,7 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
         diy_plan: DIYItineraryPlan | None = None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         nonlocal final_diy_plan
         final_diy_plan = diy_plan
@@ -291,12 +302,12 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
     assert final_diy_plan.proposed_route[0] == "北京"
     assert final_diy_plan.proposed_route[-1] == "北京"
     assert internal_rag.queries[:3] == [
-        "南阳 到 汉中 交通 高铁 自驾",
         "许昌 曹魏 三国 遗址 博物馆 官方",
         "成都 三国 主题 本地美食 老字号",
+        "南阳 到 汉中 交通 高铁 自驾",
     ]
     assert web_search.requests[0] == (
-        "南阳 到 汉中 交通 高铁 自驾",
+        "许昌 曹魏 三国 遗址 博物馆 官方",
         4,
         SearchOptions(source_preference="mixed"),
     )
@@ -538,6 +549,7 @@ async def test_diy_itinerary_service_filters_unrelated_evidence_before_citations
         diy_plan: DIYItineraryPlan | None = None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",

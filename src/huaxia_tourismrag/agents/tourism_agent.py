@@ -8,6 +8,7 @@ from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import (
     CitationPack,
+    DetailLevel,
     TravelAnswer,
     TravelChunk,
     TravelSearchHit,
@@ -129,6 +130,7 @@ def build_final_answer_prompt(
     diy_plan: DIYItineraryPlan | None = None,
     preference_profile: PreferenceProfile | None = None,
     feasibility_report: FeasibilityReport | None = None,
+    detail_level: DetailLevel = "standard",
 ) -> str:
     """Build the final evidence-grounded answer prompt."""
 
@@ -152,6 +154,9 @@ DIY 行程计划：
 
 可行性检查：
 {feasibility_context}
+
+回答详细度：
+detail_level: {detail_level}
 
 已检索证据：
 {citation_context}
@@ -182,6 +187,11 @@ DIY 行程计划：
 - 不要在每个活动里反复说“需核验”或“待确认”；相同类型的不确定项统一放入最后的待确认事项。
 - 如果没有检索到官方或近期来源，只在最后的待确认事项集中说明一次；不要把“缺少官方来源”重复写进每天行程。
 - 如果检索证据已经包含近期官方公告或官方页面，可以直接给出结论并引用，不要额外加重复提醒。
+- 根据 detail_level 控制长度和信息密度：
+  - concise：简洁大纲。每一天最多一行核心安排，少写背景，重点给路线顺序、关键取舍和一个待确认清单。
+  - standard：标准可执行版。覆盖每日主题、交通逻辑、住宿区域、美食方向和关键提醒，避免过度展开。
+  - deep：深度旅行社方案。加入历史背景、交通推理、体力强度、住宿策略、餐饮建议、备选方案、风险和引用。
+- 政策、铁路、旅游法、安检等引用只用于对应规则或风险提醒，不要用政策引用支撑景点推荐。
 - 语气要友好、活泼、专业，适合旅游咨询场景。
 
 结构化输出要求：
@@ -306,6 +316,7 @@ async def generate_answer_with_context(
     diy_plan: DIYItineraryPlan | None = None,
     preference_profile: PreferenceProfile | None = None,
     feasibility_report: FeasibilityReport | None = None,
+    detail_level: DetailLevel = "standard",
 ) -> TravelAnswer:
     """Run the tourism agent against prepared citation context."""
 
@@ -317,6 +328,7 @@ async def generate_answer_with_context(
         diy_plan=diy_plan,
         preference_profile=preference_profile,
         feasibility_report=feasibility_report,
+        detail_level=detail_level,
     )
     result = await tourism_agent.run(prompt, deps=deps)
     return result.output

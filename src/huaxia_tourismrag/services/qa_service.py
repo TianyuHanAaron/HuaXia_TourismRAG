@@ -15,9 +15,12 @@ from huaxia_tourismrag.services.evidence_relevance import EvidenceRelevanceFilte
 from huaxia_tourismrag.services.session_store import TravelSessionStore
 from huaxia_tourismrag.services.travel_checkpoints import (
     build_clarification_answer,
+    build_detail_level_answer,
     build_feasibility_answer,
     build_intent_redirect_answer,
+    resolved_detail_level,
     should_skip_clarification,
+    should_ask_detail_level,
 )
 
 
@@ -68,6 +71,17 @@ class TourismQAService:
                 endpoint="questions",
                 question=question,
                 pending_reason=preference_decision.reason,
+                pending_kind="preference",
+            )
+
+        detail_decision = should_ask_detail_level(question, request_mode="general")
+        if detail_decision.should_ask:
+            return await self._with_pending_session(
+                answer=build_detail_level_answer(detail_decision),
+                endpoint="questions",
+                question=question,
+                pending_reason=detail_decision.reason,
+                pending_kind="detail_level",
             )
 
         research_plan = await create_research_plan(
@@ -87,6 +101,7 @@ class TourismQAService:
                 endpoint="questions",
                 question=question,
                 pending_reason="可行性检查需要用户确认。",
+                pending_kind="feasibility",
             )
 
         internal: list[TravelChunk] = []
@@ -142,6 +157,7 @@ class TourismQAService:
             research_plan=research_plan,
             preference_profile=preference_decision.profile,
             feasibility_report=feasibility_report,
+            detail_level=resolved_detail_level(question),
         )
 
     def _prioritize_tasks(
@@ -193,6 +209,7 @@ class TourismQAService:
         endpoint: SessionEndpoint,
         question: TravelQuestion,
         pending_reason: str | None,
+        pending_kind: str = "preference",
     ) -> TravelAnswer:
         if self.session_store is None or not self.create_pending_sessions:
             return answer
@@ -202,6 +219,7 @@ class TourismQAService:
             tenant_id=self.deps.tenant_id,
             original_question=question,
             pending_reason=pending_reason,
+            pending_kind=pending_kind,
         )
         answer.session_id = session.session_id
         answer.needs_reply = True

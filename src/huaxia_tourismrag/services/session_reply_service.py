@@ -6,6 +6,7 @@ from typing import Protocol
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.schemas.session import SessionReplyRequest, TravelSession
 from huaxia_tourismrag.services.session_store import TravelSessionStore
+from huaxia_tourismrag.services.travel_checkpoints import resolve_detail_level_reply
 
 
 class AnswerService(Protocol):
@@ -64,6 +65,11 @@ class SessionReplyService:
 
     def _combined_question(self, session: TravelSession) -> TravelQuestion:
         data = session.original_question.model_dump()
+        if session.pending_kind == "detail_level" and session.messages:
+            detail_level = resolve_detail_level_reply(session.messages[-1])
+            if detail_level:
+                data["detail_level"] = detail_level
+
         replies = "\n".join(
             f"{index}. {message}"
             for index, message in enumerate(session.messages, start=1)

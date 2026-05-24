@@ -114,6 +114,30 @@ def test_cli_diy_posts_to_diy_endpoint(monkeypatch):
     }
 
 
+def test_cli_diy_sends_detail_level(monkeypatch):
+    setup_fake_client(monkeypatch)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "diy",
+            "三国历史巡礼：涿州-许昌-成都。",
+            "--base-url",
+            "http://testserver/",
+            "--detail",
+            "deep",
+            "--raw",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert FakeClient.calls[0]["json"] == {
+        "question": "三国历史巡礼：涿州-许昌-成都。",
+        "detail_level": "deep",
+    }
+
+
 def test_cli_ask_sends_optional_context(monkeypatch):
     setup_fake_client(monkeypatch)
     runner = CliRunner()
@@ -131,6 +155,8 @@ def test_cli_ask_sends_optional_context(monkeypatch):
             "2",
             "--budget-level",
             "mid_range",
+            "--detail",
+            "concise",
             "--interest",
             "川菜",
             "--interest",
@@ -145,6 +171,7 @@ def test_cli_ask_sends_optional_context(monkeypatch):
         "destination": "成都",
         "travelers": 2,
         "budget_level": "mid_range",
+        "detail_level": "concise",
         "interests": ["川菜", "茶馆"],
     }
 

@@ -63,6 +63,7 @@ def test_build_final_answer_prompt_includes_question_context_and_citations():
         citation_context="[1] text=故宫建议提前预约。",
         citation_lines=["[1] 北京故宫 - official - https://example.com"],
         research_plan=research_plan,
+        detail_level="concise",
     )
 
     assert "北京三天怎么玩？" in prompt
@@ -81,6 +82,21 @@ def test_build_final_answer_prompt_includes_question_context_and_citations():
     assert "统一放入最后的待确认事项" in prompt
     assert "没有检索到官方或近期来源" in prompt
     assert "只在最后的待确认事项集中说明一次" in prompt
+    assert "detail_level: concise" in prompt
+    assert "每一天最多一行核心安排" in prompt
+
+
+def test_build_final_answer_prompt_includes_deep_detail_rules():
+    prompt = build_final_answer_prompt(
+        question="三国历史巡礼怎么安排？",
+        citation_context="[1] text=三国主题资料。",
+        citation_lines=["[1] 三国主题 - internal - internal"],
+        detail_level="deep",
+    )
+
+    assert "detail_level: deep" in prompt
+    assert "深度旅行社方案" in prompt
+    assert "历史背景" in prompt
 
 
 def test_build_final_answer_prompt_includes_diy_plan_rules():

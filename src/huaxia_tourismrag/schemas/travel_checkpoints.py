@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from huaxia_tourismrag.schemas.evidence import DetailLevel
+
 
 RequestMode = Literal["general", "diy"]
 IntentType = Literal[
@@ -59,6 +61,8 @@ class PreferenceProfile(BaseModel):
         "budget",
         "unknown",
     ] = "unknown"
+
+    detail_level: DetailLevel = "standard"
 
     theme_strictness: Literal[
         "theme_pure",

@@ -94,3 +94,34 @@ async def test_session_reply_service_keeps_session_open_if_more_reply_needed():
     assert answer.needs_reply is True
     updated = await store.get(session.session_id, tenant_id="tenant-a")
     assert updated.completed is False
+
+
+@pytest.mark.asyncio
+async def test_session_reply_service_maps_detail_level_reply_to_question_dto():
+    FakeQAService.questions = []
+    store = InMemoryTravelSessionStore()
+    session = await store.create(
+        endpoint="diy",
+        tenant_id="tenant-a",
+        original_question=TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，10天。"),
+        pending_reason="需要确认回答详细度。",
+        pending_kind="detail_level",
+    )
+    diy_service = FakeQAService(
+        TravelAnswer(answer="done", highlights=[], warnings=[], citations=[])
+    )
+    service = SessionReplyService(
+        tenant_id="tenant-a",
+        session_store=store,
+        tourism_qa_service_factory=lambda tenant_id: FakeQAService(
+            TravelAnswer(answer="wrong", highlights=[], warnings=[], citations=[])
+        ),
+        diy_itinerary_service_factory=lambda tenant_id: diy_service,
+    )
+
+    await service.reply(
+        session_id=session.session_id,
+        request=SessionReplyRequest(message="3"),
+    )
+
+    assert diy_service.questions[0].detail_level == "deep"

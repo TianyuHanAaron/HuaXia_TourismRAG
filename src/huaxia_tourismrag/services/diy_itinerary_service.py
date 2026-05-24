@@ -15,21 +15,42 @@ from huaxia_tourismrag.services.evidence_relevance import EvidenceRelevanceFilte
 from huaxia_tourismrag.services.session_store import TravelSessionStore
 from huaxia_tourismrag.services.travel_checkpoints import (
     build_clarification_answer,
+    build_detail_level_answer,
     build_feasibility_answer,
     build_intent_redirect_answer,
+    resolved_detail_level,
     should_skip_clarification,
+    should_ask_detail_level,
 )
 
 
 TASK_TYPE_PRIORITY = (
-    "route",
-    "transport",
     "attraction",
-    "accommodation",
+    "route",
     "food",
+    "accommodation",
+    "transport",
     "booking",
     "risk",
 )
+
+POLICY_CONTENT_TYPES = {
+    "railway",
+    "aviation",
+    "road_transport",
+    "legal",
+    "regulation",
+    "contract",
+    "complaint",
+    "consumer_protection",
+    "finance",
+    "insurance",
+    "medical",
+    "customs",
+    "visa_exit_entry",
+    "tourism_safety",
+    "scenic_quality",
+}
 
 
 class DIYItineraryService:
@@ -69,6 +90,17 @@ class DIYItineraryService:
                 endpoint="diy",
                 question=question,
                 pending_reason=preference_decision.reason,
+                pending_kind="preference",
+            )
+
+        detail_decision = should_ask_detail_level(question, request_mode="diy")
+        if detail_decision.should_ask:
+            return await self._with_pending_session(
+                answer=build_detail_level_answer(detail_decision),
+                endpoint="diy",
+                question=question,
+                pending_reason=detail_decision.reason,
+                pending_kind="detail_level",
             )
 
         diy_plan = await create_diy_itinerary_plan(
@@ -88,6 +120,7 @@ class DIYItineraryService:
                 endpoint="diy",
                 question=question,
                 pending_reason="可行性检查需要用户确认。",
+                pending_kind="feasibility",
             )
 
         internal: list[TravelChunk] = []
@@ -120,7 +153,7 @@ class DIYItineraryService:
                 web_chunks.extend(await self.deps.webpage_reader.read(hit))
                 pages_read += 1
 
-        merged = self.merger.merge(internal, web_chunks)
+        merged = self.merger.merge(self._cap_internal_policy_chunks(internal), web_chunks)
         relevant = self.relevance_filter.filter_for_diy_plan(merged, diy_plan)
         ranked = self.deps.reranker.rerank(
             retrieval_query,
@@ -139,20 +172,13 @@ class DIYItineraryService:
             diy_plan=diy_plan,
             preference_profile=preference_decision.profile,
             feasibility_report=feasibility_report,
+            detail_level=resolved_detail_level(question),
         )
 
     def _prioritize_tasks(
         self, tasks: list[TravelResearchTask]
     ) -> list[TravelResearchTask]:
-        official_tasks = [
-            task for task in tasks if self._needs_official_freshness(task)
-        ]
-        official_task_ids = {id(task) for task in official_tasks}
-        general_tasks = [
-            task for task in tasks if id(task) not in official_task_ids
-        ]
-
-        return official_tasks + self._prioritize_general_tasks(general_tasks)
+        return self._prioritize_general_tasks(tasks)
 
     def _prioritize_general_tasks(
         self, tasks: list[TravelResearchTask]
@@ -183,12 +209,31 @@ class DIYItineraryService:
             or task.source_preference == "official"
         )
 
+    def _cap_internal_policy_chunks(
+        self,
+        chunks: list[TravelChunk],
+        max_policy_chunks: int = 3,
+    ) -> list[TravelChunk]:
+        """Keep policy evidence useful without letting it dominate DIY itineraries."""
+
+        policy_chunks: list[TravelChunk] = []
+        other_chunks: list[TravelChunk] = []
+
+        for chunk in chunks:
+            if chunk.content_type in POLICY_CONTENT_TYPES:
+                policy_chunks.append(chunk)
+            else:
+                other_chunks.append(chunk)
+
+        return other_chunks + policy_chunks[:max_policy_chunks]
+
     async def _with_pending_session(
         self,
         answer: TravelAnswer,
         endpoint: SessionEndpoint,
         question: TravelQuestion,
         pending_reason: str | None,
+        pending_kind: str = "preference",
     ) -> TravelAnswer:
         if self.session_store is None or not self.create_pending_sessions:
             return answer
@@ -198,6 +243,7 @@ class DIYItineraryService:
             tenant_id=self.deps.tenant_id,
             original_question=question,
             pending_reason=pending_reason,
+            pending_kind=pending_kind,
         )
         answer.session_id = session.session_id
         answer.needs_reply = True

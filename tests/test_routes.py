@@ -205,3 +205,5 @@ def test_tourism_capabilities_route_describes_supported_features():
     assert response.json()["primary_endpoint"] == "/tourism/questions"
     assert response.json()["diy_itinerary_endpoint"] == "/tourism/itineraries/diy"
     assert "zh-CN" in response.json()["supported_languages"]
+    assert response.json()["supported_detail_levels"] == ["concise", "standard", "deep"]
+    assert "detail_level" in response.json()["optional_context_fields"]

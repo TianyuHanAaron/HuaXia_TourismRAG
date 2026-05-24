@@ -170,6 +170,16 @@ def patch_checkpoints(monkeypatch):
         "create_feasibility_report",
         fake_create_feasibility_report,
     )
+    monkeypatch.setattr(
+        qa_service_module,
+        "should_ask_detail_level",
+        lambda question, request_mode: ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="测试默认详细度。",
+            profile=PreferenceProfile(detail_level=question.detail_level or "standard"),
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -224,6 +234,7 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
         diy_plan=None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         nonlocal final_plan
         final_plan = research_plan
@@ -357,6 +368,7 @@ async def test_answer_prioritizes_core_task_types_when_page_budget_is_small(monk
         diy_plan=None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -456,6 +468,7 @@ async def test_answer_passes_freshness_options_to_web_search(monkeypatch):
         diy_plan=None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -558,6 +571,7 @@ async def test_answer_prioritizes_fresh_official_tasks_before_general_tasks(
         diy_plan=None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",
@@ -744,6 +758,7 @@ async def test_answer_filters_unrelated_evidence_and_prefers_web_citations(
         diy_plan=None,
         preference_profile: PreferenceProfile | None = None,
         feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
     ) -> TravelAnswer:
         return TravelAnswer(
             answer="ok",

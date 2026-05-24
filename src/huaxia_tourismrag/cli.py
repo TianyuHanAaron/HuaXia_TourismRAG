@@ -47,6 +47,13 @@ RawOpt = Annotated[
     bool,
     typer.Option("--raw", help="Print raw JSON instead of a compact rich summary."),
 ]
+DetailOpt = Annotated[
+    str | None,
+    typer.Option(
+        "--detail",
+        help="Answer depth: concise, standard, or deep.",
+    ),
+]
 TimeoutOpt = Annotated[
     float,
     typer.Option("--timeout", help="HTTP timeout in seconds."),
@@ -78,6 +85,7 @@ def ask(
         typer.Option("--interest", "-i", help="Repeatable interest tag."),
     ] = None,
     raw: RawOpt = False,
+    detail: DetailOpt = None,
     timeout: TimeoutOpt = 300.0,
 ) -> None:
     """Ask the conventional tourism question endpoint."""
@@ -88,6 +96,7 @@ def ask(
         travelers=travelers,
         budget_level=budget_level,
         interests=interest,
+        detail_level=detail,
     )
     response = _post(
         base_url=base_url,
@@ -103,6 +112,7 @@ def diy(
     question: QuestionArg,
     base_url: BaseUrlOpt = DEFAULT_BASE_URL,
     raw: RawOpt = False,
+    detail: DetailOpt = None,
     timeout: TimeoutOpt = 300.0,
 ) -> None:
     """Ask the DIY thematic itinerary endpoint."""
@@ -110,7 +120,7 @@ def diy(
     response = _post(
         base_url=base_url,
         path="/tourism/itineraries/diy",
-        payload={"question": question},
+        payload=_question_payload(question=question, detail_level=detail),
         timeout=timeout,
     )
     _print_response(response, raw=raw)
@@ -336,10 +346,11 @@ async def _index_internal_corpus(
 
 def _question_payload(
     question: str,
-    destination: str | None,
-    travelers: int | None,
-    budget_level: str | None,
-    interests: list[str] | None,
+    destination: str | None = None,
+    travelers: int | None = None,
+    budget_level: str | None = None,
+    interests: list[str] | None = None,
+    detail_level: str | None = None,
 ) -> dict:
     payload: dict = {"question": question}
 
@@ -349,6 +360,8 @@ def _question_payload(
         payload["travelers"] = travelers
     if budget_level:
         payload["budget_level"] = budget_level
+    if detail_level:
+        payload["detail_level"] = detail_level
     if interests:
         payload["interests"] = interests
 

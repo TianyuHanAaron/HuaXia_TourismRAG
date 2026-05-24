@@ -104,6 +104,7 @@ Both flows return the same `TravelAnswer` response format.
 - **Freshness-aware research:** Web search and page parsing are used for timely operational details, while stale or generic internal references should not override current official web evidence.
 - **Source authority control:** Official government, scenic-area, railway, airline, museum, and transport-provider sources should outrank blogs or OTA pages for operational facts.
 - **Business-ready session flow:** Redis-backed sessions support multi-hop clarification, so the system can ask only the most important missing question before generating a serious plan.
+- **Controllable answer depth:** Users or clients can request `concise`, `standard`, or `deep` answers, and complex routes can trigger a detail-level checkpoint before expensive research begins.
 - **Internal compliance base:** The 60-source policy corpus gives the agent a stronger baseline for transport, legal, safety, consumer-rights, and travel-risk guidance.
 - **Terminal UX for testing:** The CLI uses Chinese section titles and a branded 夏夏 greeting to better match the eventual user-facing assistant experience.
 
@@ -257,10 +258,17 @@ Optional structured context can also be supplied:
   "destination": "北京",
   "travelers": 2,
   "budget_level": "mid_range",
+  "detail_level": "standard",
   "interests": ["故宫", "胡同", "本地美食"],
   "language": "zh-CN"
 }
 ```
+
+Supported `detail_level` values:
+
+- `concise`: route order, one-line daily outline, key reminders, short citation list.
+- `standard`: practical daily route, transport logic, hotel area, food direction, key warnings.
+- `deep`: agency-grade plan with historical context, transport reasoning, pace, lodging strategy, alternatives, risks, and citations.
 
 ### DIY Itinerary Question
 
@@ -320,6 +328,13 @@ Print raw JSON:
 
 ```bash
 uv run huaxia-tourismrag ask "第一次去北京三天两晚怎么玩？" --raw --timeout 600
+```
+
+Control answer depth:
+
+```bash
+uv run huaxia-tourismrag ask "北京三天怎么玩？" --detail concise
+uv run huaxia-tourismrag diy "三国历史巡礼，从北京出发，经涿州、许昌、成都、汉中。" --detail deep
 ```
 
 ### Ask a DIY Route Question

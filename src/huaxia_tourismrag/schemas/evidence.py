@@ -18,6 +18,8 @@ SourceType = Literal[
     "review_site",
 ]
 
+DetailLevel = Literal["concise", "standard", "deep"]
+
 
 ContentType = Literal[
     "destination",
@@ -66,6 +68,8 @@ class TravelQuestion(BaseModel):
 
     budget_level: Literal["budget", "mid_range", "luxury"] | None = None
 
+    detail_level: DetailLevel | None = None
+
     interests: list[str] = Field(default_factory=list, max_length=12)
 
     language: Literal["zh-CN", "en"] = "zh-CN"
@@ -87,6 +91,7 @@ class TravelQuestion(BaseModel):
             f"结束日期: {self.end_date.isoformat()}" if self.end_date else None,
             f"出行人数: {self.travelers}" if self.travelers else None,
             f"预算等级: {self.budget_level}" if self.budget_level else None,
+            f"回答详细度: {self.detail_level}" if self.detail_level else None,
             f"兴趣: {', '.join(self.interests)}" if self.interests else None,
             f"回答语言: {self.language}",
         ]

@@ -7,7 +7,7 @@ from uuid import uuid4
 from redis.asyncio import Redis
 
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
-from huaxia_tourismrag.schemas.session import SessionEndpoint, TravelSession
+from huaxia_tourismrag.schemas.session import PendingKind, SessionEndpoint, TravelSession
 
 
 class SessionStoreError(RuntimeError):
@@ -27,6 +27,7 @@ class TravelSessionStore(Protocol):
         tenant_id: str,
         original_question: TravelQuestion,
         pending_reason: str | None,
+        pending_kind: PendingKind = "preference",
     ) -> TravelSession:
         """Create a new pending session."""
 
@@ -57,6 +58,7 @@ class InMemoryTravelSessionStore:
         tenant_id: str,
         original_question: TravelQuestion,
         pending_reason: str | None,
+        pending_kind: PendingKind = "preference",
     ) -> TravelSession:
         session = TravelSession(
             session_id=str(uuid4()),
@@ -64,6 +66,7 @@ class InMemoryTravelSessionStore:
             tenant_id=tenant_id,
             original_question=original_question,
             pending_reason=pending_reason,
+            pending_kind=pending_kind,
         )
         self._sessions[session.session_id] = session
         return session
@@ -108,6 +111,7 @@ class RedisTravelSessionStore:
         tenant_id: str,
         original_question: TravelQuestion,
         pending_reason: str | None,
+        pending_kind: PendingKind = "preference",
     ) -> TravelSession:
         session = TravelSession(
             session_id=str(uuid4()),
@@ -115,6 +119,7 @@ class RedisTravelSessionStore:
             tenant_id=tenant_id,
             original_question=original_question,
             pending_reason=pending_reason,
+            pending_kind=pending_kind,
         )
         await self._save(session)
         return session
