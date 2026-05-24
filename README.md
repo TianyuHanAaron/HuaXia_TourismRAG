@@ -1,5 +1,7 @@
 # HuaXia Tourism RAG
 
+**Language:** English | [简体中文](README.zh-CN.md)
+
 HuaXia Tourism RAG is a Chinese domestic-travel RAG service for itinerary planning, live travel research, and multi-turn clarification. It is designed around Chinese tourists, Chinese web sources, and travel-agency style planning: routes, transport logic, accommodation areas, local food, attraction tradeoffs, booking checks, and citation-backed answers.
 
 The assistant persona is "夏夏", the HuaXia travel agency AI consultant.
