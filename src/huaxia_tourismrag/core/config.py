@@ -28,6 +28,8 @@ class Settings (BaseSettings):
         default=6,
         alias="MAX_MODEL_RERANK_CANDIDATES",
     )
+    embedding_batch_size: int = Field(default=4, alias="EMBEDDING_BATCH_SIZE")
+    qdrant_upsert_batch_size: int = Field(default=32, alias="QDRANT_UPSERT_BATCH_SIZE")
     
     max_search_results: int = Field(default=8, alias="MAX_SEARCH_RESULTS")
     max_pages_to_read: int = Field(default=6, alias="MAX_PAGES_TO_READ")

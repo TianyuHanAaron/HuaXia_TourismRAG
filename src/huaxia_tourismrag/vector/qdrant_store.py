@@ -25,10 +25,17 @@ PAYLOAD_KEYWORD_INDEXES = (
 
 
 class QdrantStore:
-    def __init__(self, client: AsyncQdrantClient, collection: str, vector_size: int) -> None:
+    def __init__(
+        self,
+        client: AsyncQdrantClient,
+        collection: str,
+        vector_size: int,
+        upsert_batch_size: int = 64,
+    ) -> None:
         self.client = client
         self.collection = collection
         self.vector_size = vector_size
+        self.upsert_batch_size = max(1, upsert_batch_size)
 
     async def ensure_collection(self) -> None:
         exists = await self.client.collection_exists(self.collection)
@@ -85,7 +92,14 @@ class QdrantStore:
                     },
                 )
             )
-        await self.client.upsert(collection_name=self.collection, points=points)
+        for batch in self._batched_points(points):
+            await self.client.upsert(collection_name=self.collection, points=batch)
+
+    def _batched_points(self, points: list[PointStruct]) -> list[list[PointStruct]]:
+        return [
+            points[start : start + self.upsert_batch_size]
+            for start in range(0, len(points), self.upsert_batch_size)
+        ]
 
     async def search(
         self, query_vector: list[float], limit: int, tenant_id: str

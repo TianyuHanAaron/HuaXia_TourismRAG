@@ -327,8 +327,10 @@ async def _index_internal_corpus(
         client=qdrant,
         collection=collection_name,
         vector_size=embedder.dimensions(),
+        upsert_batch_size=settings.qdrant_upsert_batch_size,
     )
     indexer = InternalCorpusIndexer(embedder=embedder, store=store)
+    indexer.embedding_batch_size = settings.embedding_batch_size
     return await indexer.index_jsonl(path)
 
 

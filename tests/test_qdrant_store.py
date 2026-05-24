@@ -16,6 +16,7 @@ class FakeCollectionInfo:
 class FakeQdrantClient:
     def __init__(self) -> None:
         self.upsert_args = None
+        self.upsert_calls = []
         self.collection_exists_result = True
         self.created_collection = None
         self.created_payload_indexes = []
@@ -52,6 +53,7 @@ class FakeQdrantClient:
             "collection_name": collection_name,
             "points": points,
         }
+        self.upsert_calls.append(self.upsert_args)
 
 
 @pytest.mark.asyncio
@@ -74,6 +76,33 @@ async def test_upsert_chunks_uses_uuid_point_ids_and_keeps_chunk_id_payload():
     UUID(str(point.id))
     assert point.payload["chunk_id"] == chunk.id
     assert point.payload["tenant_id"] == "demo-tenant"
+
+
+@pytest.mark.asyncio
+async def test_upsert_chunks_batches_points_to_avoid_large_qdrant_requests():
+    client = FakeQdrantClient()
+    store = QdrantStore(
+        client=client,
+        collection="tourism_internal_docs",
+        vector_size=3,
+        upsert_batch_size=2,
+    )
+    chunks = [
+        TravelChunk(
+            id=f"demo-tenant:doc:{index}",
+            source_type="internal",
+            content_type="legal",
+            title=f"Document {index}",
+            text=f"Document text {index}",
+            source_name="Official Source",
+            retrieved_at=datetime.now(timezone.utc),
+        )
+        for index in range(5)
+    ]
+
+    await store.upsert_chunks(chunks, [[0.1, 0.2, 0.3] for _ in chunks])
+
+    assert [len(call["points"]) for call in client.upsert_calls] == [2, 2, 1]
 
 
 @pytest.mark.asyncio

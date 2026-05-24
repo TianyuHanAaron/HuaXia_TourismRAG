@@ -6,7 +6,11 @@ from huaxia_tourismrag.indexing.internal_indexer import InternalCorpusIndexer
 
 
 class FakeEmbedder:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(texts)
         return [[float(index), 1.0] for index, _ in enumerate(texts)]
 
 
@@ -77,3 +81,28 @@ async def test_index_jsonl_accepts_policy_document_metadata(tmp_path: Path):
     assert chunk.source_name == "中国铁路12306"
     assert chunk.published_at is not None
     assert chunk.retrieved_at.year == 2026
+
+
+@pytest.mark.asyncio
+async def test_index_jsonl_embeds_chunks_in_batches(tmp_path: Path):
+    corpus_path = tmp_path / "corpus.jsonl"
+    corpus_path.write_text(
+        (
+            '{"tenant_id":"tenant-a","document_id":"doc-1","title":"Batch Doc",'
+            '"text":"第一段足够长用于索引。\\n\\n第二段足够长用于索引。\\n\\n第三段足够长用于索引。",'
+            '"source_name":"internal-guide"}\n'
+        ),
+        encoding="utf-8",
+    )
+    store = FakeStore()
+    embedder = FakeEmbedder()
+    indexer = InternalCorpusIndexer(embedder=embedder, store=store, embedding_batch_size=2)
+    indexer.chunker.min_chars = 5
+    indexer.chunker.max_chars = 12
+
+    indexed_count = await indexer.index_jsonl(corpus_path)
+
+    assert indexed_count == 3
+    assert len(embedder.calls) == 2
+    assert [len(call) for call in embedder.calls] == [2, 1]
+    assert len(store.vectors) == 3
