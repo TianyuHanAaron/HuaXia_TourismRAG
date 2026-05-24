@@ -1,15 +1,23 @@
 """Command-line client for testing HuaXia Tourism RAG endpoints."""
 
+import asyncio
 import json
 import os
 from pathlib import Path
 from typing import Annotated
 
 import httpx
+from qdrant_client import AsyncQdrantClient
 import typer
 from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
+
+from huaxia_tourismrag.core.config import get_settings
+from huaxia_tourismrag.indexing.internal_indexer import InternalCorpusIndexer
+from huaxia_tourismrag.rag.embeddings import SentenceTransformerEmbedder
+from huaxia_tourismrag.rag.hf_models import load_embedding_model
+from huaxia_tourismrag.vector.qdrant_store import QdrantStore
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -222,6 +230,68 @@ def health(
         _get(base_url=base_url, path="/tourism/health", timeout=timeout),
         raw=raw,
     )
+
+
+@app.command("index-internal")
+def index_internal(
+    path: Annotated[
+        Path,
+        typer.Argument(
+            help="JSONL corpus path, e.g. data/internal/china_tourism_policy_transport_rules_60.jsonl.",
+        ),
+    ],
+    collection: Annotated[
+        str | None,
+        typer.Option(
+            "--collection",
+            "-c",
+            help="Qdrant collection override. Defaults to QDRANT_COLLECTION.",
+        ),
+    ] = None,
+    recreate: Annotated[
+        bool,
+        typer.Option(
+            "--recreate",
+            help="Delete and recreate the target Qdrant collection before indexing.",
+        ),
+    ] = False,
+) -> None:
+    """Index an internal JSONL corpus into Qdrant."""
+
+    if not path.exists():
+        console.print(f"[red]Corpus file not found:[/red] {path}")
+        raise typer.Exit(1)
+
+    indexed_count = asyncio.run(_index_internal_corpus(path, collection, recreate))
+    console.print(
+        f"[green]Indexed {indexed_count} chunks into Qdrant.[/green]\n"
+        f"Corpus: {path}"
+    )
+
+
+async def _index_internal_corpus(
+    path: Path, collection: str | None, recreate: bool
+) -> int:
+    settings = get_settings()
+    if not settings.qdrant_url:
+        raise typer.BadParameter("QDRANT_URL is required to index internal documents.")
+
+    embedder = SentenceTransformerEmbedder(load_embedding_model())
+    qdrant = AsyncQdrantClient(
+        url=settings.qdrant_url,
+        api_key=settings.qdrant_api_key,
+    )
+    collection_name = collection or settings.internal_collection
+    if recreate and await qdrant.collection_exists(collection_name):
+        await qdrant.delete_collection(collection_name)
+
+    store = QdrantStore(
+        client=qdrant,
+        collection=collection_name,
+        vector_size=embedder.dimensions(),
+    )
+    indexer = InternalCorpusIndexer(embedder=embedder, store=store)
+    return await indexer.index_jsonl(path)
 
 
 def _question_payload(

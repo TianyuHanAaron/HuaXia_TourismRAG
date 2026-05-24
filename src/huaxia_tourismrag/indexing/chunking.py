@@ -1,17 +1,37 @@
 """Document chunking utilities."""
 
-from dataclasses import dataclass
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, HttpUrl, model_validator
+
+from huaxia_tourismrag.schemas.evidence import ContentType
 
 
-@dataclass(frozen=True)
-class RawInternalDocument:
-    tenant_id: str
+class RawInternalDocument(BaseModel):
+    """One raw internal document before chunking and vector indexing."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    tenant_id: str = "demo-tenant"
     document_id: str
     title: str
     text: str
     source_name: str
-    url: str | None = None
-    evidence_level: str = "unknown"
+    url: HttpUrl | None = None
+    content_type: ContentType = "travel_guide"
+    location: str | None = None
+    published_at: datetime | None = None
+    retrieved_at: datetime | None = None
+    evidence_level: str = "official"
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_id_alias(cls, data: object) -> object:
+        """Accept compact JSONL rows that use `id` instead of `document_id`."""
+
+        if isinstance(data, dict) and "document_id" not in data and "id" in data:
+            data = {**data, "document_id": data["id"]}
+        return data
 
 
 class ParagraphChunker:

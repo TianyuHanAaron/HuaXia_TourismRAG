@@ -24,7 +24,7 @@
 ```text
 .
 ├── data/
-│   └── internal/verified_china_tourism_seed.jsonl
+│   └── internal/
 ├── src/huaxia_tourismrag/
 │   ├── agents/
 │   │   ├── diy_itinerary_planner.py
@@ -313,21 +313,54 @@ uv run huaxia-tourismrag health
 
 ## 内部资料与 Qdrant
 
-种子数据位于：
+旧的演示种子文档已删除。当前推荐的内部资料方向是官方政策、交通规则、安全提示、消费者保护、医疗、保险、海关、出入境和监管资料。
+
+推荐路径：
 
 ```text
-data/internal/verified_china_tourism_seed.jsonl
+data/internal/china_tourism_policy_transport_rules_60.jsonl
 ```
 
 项目包含 `InternalDocumentIndexer`，用于加载 JSONL、切分文档、生成 embedding，并写入 Qdrant。
 
+JSONL 行可以使用 `document_id` 或 `id`，并可包含 `content_type`、`published_at`、`retrieved_at` 和 `location`。
+
+示例：
+
+```json
+{"id":"policy:railway-passenger-rules","title":"铁路旅客运输规程","source_name":"中国铁路12306","url":"https://mobile.12306.cn/otsmobile/h5/otsbussiness/info/transportationRules.html","content_type":"railway","text":"..."}
+```
+
+索引内部语料：
+
+```bash
+uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl
+```
+
+指定 Qdrant collection：
+
+```bash
+uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+  --collection tourism_policy_rules
+```
+
+先删除现有 collection，再重新索引：
+
+```bash
+uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+  --recreate
+```
+
 生产环境中建议优先导入以下类型资料：
 
 - 官方文旅局资料
-- 景区官网与公告
-- 博物馆、遗址、公园官网
+- 旅游法、旅行社条例、合同范本和投诉处理规则
+- 铁路、民航、客运、租车和网约车规则
+- 海关、出入境、外汇和证件办理规则
+- 医疗、保险、消费者保护和价格监管资料
+- 旅游安全提示和突发事件应急规则
+- 景区官网、博物馆、遗址、公园公告
 - 铁路、机场、城市交通官方资料
-- 高可信中文旅行平台内容
 - 旅行社内部踩线记录和供应商资料
 
 如果请求时报错：
@@ -338,7 +371,7 @@ Collection `tourism_internal_docs` doesn't exist
 
 说明 Qdrant collection 尚未创建或内部资料尚未完成索引。
 
-如果 Qdrant 报 `tenant_id` 缺少索引，需要先创建 payload index，或在查询前执行 collection 初始化逻辑。
+Qdrant store 会在 `ensure_collection()` 中创建 `tenant_id`、`source_type`、`content_type` 和 `source_name` 的 keyword payload index。
 
 ## 引用策略
 

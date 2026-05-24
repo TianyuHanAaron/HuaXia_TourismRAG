@@ -49,3 +49,31 @@ async def test_index_jsonl_chunks_embeds_and_upserts_documents(tmp_path: Path):
     assert store.chunks[0].content_type == "travel_guide"
     assert store.chunks[0].title == "Beijing Guide"
     assert store.vectors == [[0.0, 1.0]]
+
+
+@pytest.mark.asyncio
+async def test_index_jsonl_accepts_policy_document_metadata(tmp_path: Path):
+    corpus_path = tmp_path / "policy.jsonl"
+    corpus_path.write_text(
+        (
+            '{"id":"policy:railway-rules","title":"铁路旅客运输规程",'
+            '"text":"铁路旅客运输规程用于说明旅客购票、乘车、改签和退票规则。",'
+            '"source_name":"中国铁路12306","url":"https://www.12306.cn/",'
+            '"content_type":"railway","published_at":"2022-11-18T00:00:00+08:00",'
+            '"retrieved_at":"2026-05-24T00:00:00+10:00"}\n'
+        ),
+        encoding="utf-8",
+    )
+    store = FakeStore()
+    indexer = InternalCorpusIndexer(embedder=FakeEmbedder(), store=store)
+    indexer.chunker.min_chars = 10
+
+    indexed_count = await indexer.index_jsonl(corpus_path)
+
+    assert indexed_count == 1
+    chunk = store.chunks[0]
+    assert chunk.id == "demo-tenant:policy:railway-rules:0"
+    assert chunk.content_type == "railway"
+    assert chunk.source_name == "中国铁路12306"
+    assert chunk.published_at is not None
+    assert chunk.retrieved_at.year == 2026

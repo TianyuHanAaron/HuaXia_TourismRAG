@@ -164,6 +164,42 @@ def test_cli_health_gets_health_endpoint(monkeypatch):
     assert '"status": "ok"' in result.output
 
 
+def test_cli_index_internal_indexes_jsonl(monkeypatch, tmp_path):
+    indexed_paths = []
+
+    async def fake_index_internal_corpus(path, collection, recreate):
+        indexed_paths.append(
+            {"path": path, "collection": collection, "recreate": recreate}
+        )
+        return 7
+
+    monkeypatch.setattr(cli, "_index_internal_corpus", fake_index_internal_corpus)
+    corpus_path = tmp_path / "corpus.jsonl"
+    corpus_path.write_text("{}", encoding="utf-8")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "index-internal",
+            str(corpus_path),
+            "--collection",
+            "tourism_policy_rules",
+            "--recreate",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert indexed_paths == [
+        {
+            "path": corpus_path,
+            "collection": "tourism_policy_rules",
+            "recreate": True,
+        }
+    ]
+    assert "Indexed 7 chunks into Qdrant" in result.output
+
+
 def test_cli_reply_posts_to_session_reply_endpoint(monkeypatch):
     setup_fake_client(monkeypatch)
     runner = CliRunner()

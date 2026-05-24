@@ -88,15 +88,35 @@ async def test_ensure_collection_creates_tenant_id_payload_index():
             "collection_name": "tourism_internal_docs",
             "field_name": "tenant_id",
             "field_schema": PayloadSchemaType.KEYWORD,
-        }
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "source_type",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "content_type",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
+        {
+            "collection_name": "tourism_internal_docs",
+            "field_name": "source_name",
+            "field_schema": PayloadSchemaType.KEYWORD,
+        },
     ]
 
 
 @pytest.mark.asyncio
-async def test_ensure_collection_skips_existing_tenant_id_payload_index():
+async def test_ensure_collection_skips_existing_payload_indexes():
     client = FakeQdrantClient()
     client.collection_info = FakeCollectionInfo(
-        payload_schema={"tenant_id": PayloadSchemaType.KEYWORD}
+        payload_schema={
+            "tenant_id": PayloadSchemaType.KEYWORD,
+            "source_type": PayloadSchemaType.KEYWORD,
+            "content_type": PayloadSchemaType.KEYWORD,
+            "source_name": PayloadSchemaType.KEYWORD,
+        }
     )
     store = QdrantStore(client=client, collection="tourism_internal_docs", vector_size=3)
 

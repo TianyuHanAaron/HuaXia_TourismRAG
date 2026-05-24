@@ -23,7 +23,7 @@ The assistant persona is "夏夏", the HuaXia travel agency AI consultant.
 ```text
 .
 ├── data/
-│   └── internal/verified_china_tourism_seed.jsonl
+│   └── internal/
 ├── src/huaxia_tourismrag/
 │   ├── agents/
 │   │   ├── diy_itinerary_planner.py
@@ -314,15 +314,45 @@ uv run huaxia-tourismrag health
 
 ## Internal Documents and Qdrant
 
-The seed file lives at:
+The old demo seed file has been removed. The recommended internal corpus is now an official policy, transport, safety, consumer-protection, medical, insurance, customs, and regulatory corpus.
+
+Recommended path:
 
 ```text
-data/internal/verified_china_tourism_seed.jsonl
+data/internal/china_tourism_policy_transport_rules_60.jsonl
 ```
 
 The project includes an `InternalDocumentIndexer` for loading JSONL, chunking documents, embedding text, and upserting chunks into Qdrant.
 
-The expected JSONL rows map to the internal raw document DTO used by the indexer. For production, prefer verified sources such as official tourism boards, scenic-area official sites, museum sites, transport authorities, and trusted Chinese travel platforms.
+The expected JSONL rows map to the internal raw document DTO used by the indexer. Rows may use either `document_id` or `id`, and can include `content_type`, `published_at`, `retrieved_at`, and `location`.
+
+Example:
+
+```json
+{"id":"policy:railway-passenger-rules","title":"铁路旅客运输规程","source_name":"中国铁路12306","url":"https://mobile.12306.cn/otsmobile/h5/otsbussiness/info/transportationRules.html","content_type":"railway","text":"..."}
+```
+
+Index the corpus:
+
+```bash
+uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl
+```
+
+Use a custom Qdrant collection:
+
+```bash
+uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+  --collection tourism_policy_rules
+```
+
+Delete the existing collection first, then rebuild it:
+
+```bash
+uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_transport_rules_60.jsonl \
+  --recreate
+```
+
+For production, prefer official sources such as national tourism law, agency compliance, railway and aviation rules, customs, consumer protection, medical reimbursement, safety notices, and insurance guidance.
 
 Before querying internal docs, the Qdrant collection must exist and be indexed. If Qdrant returns an error such as:
 
@@ -330,9 +360,9 @@ Before querying internal docs, the Qdrant collection must exist and be indexed. 
 Collection `tourism_internal_docs` doesn't exist
 ```
 
-then the internal seed documents have not been indexed yet.
+then the internal documents have not been indexed yet.
 
-If Qdrant returns an error about a missing `tenant_id` index, create the payload index in Qdrant or call the store's collection setup method before querying.
+The Qdrant store now creates keyword payload indexes for `tenant_id`, `source_type`, `content_type`, and `source_name` when `ensure_collection()` runs.
 
 ## Citations
 
