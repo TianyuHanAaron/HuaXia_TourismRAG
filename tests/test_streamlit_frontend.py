@@ -37,11 +37,11 @@ def test_hero_model_viewer_html_uses_local_model_uri():
     assert "camera-controls" in html
     assert "auto-rotate" not in html
     assert 'bounds="tight"' in html
-    assert 'camera-target="0m 0.42m 0m"' in html
-    assert 'camera-orbit="-8deg 78deg 46%"' in html
-    assert 'min-camera-orbit="-18deg 72deg 38%"' in html
-    assert 'max-camera-orbit="8deg 82deg 110%"' in html
-    assert 'field-of-view="24deg"' in html
+    assert 'camera-target="0m 0.50m 0m"' in html
+    assert 'camera-orbit="14deg 76deg 34%"' in html
+    assert 'min-camera-orbit="8deg 72deg 28%"' in html
+    assert 'max-camera-orbit="24deg 80deg 86%"' in html
+    assert 'field-of-view="20deg"' in html
 
 
 def test_endpoint_for_request_uses_explicit_mode_or_pending_session():
@@ -81,6 +81,20 @@ def test_normalize_base_url_removes_trailing_slash():
     assert normalize_base_url("http://127.0.0.1:8000/") == "http://127.0.0.1:8000"
 
 
+def test_default_api_base_url_uses_env(monkeypatch):
+    monkeypatch.setenv("STREAMLIT_API_BASE_URL", "https://api.huaxia.example/")
+
+    assert streamlit_app._default_api_base_url() == "https://api.huaxia.example"
+
+
+def test_default_api_base_url_falls_back_to_local(monkeypatch):
+    monkeypatch.delenv("STREAMLIT_API_BASE_URL", raising=False)
+    monkeypatch.delenv("TOURISM_API_BASE_URL", raising=False)
+    monkeypatch.setattr(streamlit_app, "_streamlit_secret", lambda key: None)
+
+    assert streamlit_app._default_api_base_url() == streamlit_app.LOCAL_DEFAULT_BASE_URL
+
+
 def test_response_error_detail_prefers_json_detail():
     response = httpx.Response(
         status_code=503,
@@ -112,6 +126,53 @@ def test_fresh_web_evidence_rows_are_gui_friendly():
             "链接": "https://www.gov.cn/example",
         }
     ]
+
+
+def test_quick_reply_options_keep_first_three_valid_options():
+    options = streamlit_app._quick_reply_options(
+        [
+            {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
+            {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
+            {"label": "默认偏好", "message": "按默认偏好继续"},
+            {"label": "额外", "message": "额外"},
+        ]
+    )
+
+    assert options == [
+        {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
+        {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
+        {"label": "默认偏好", "message": "按默认偏好继续"},
+    ]
+
+
+def test_quick_reply_options_falls_back_for_old_theme_checkpoint_payload():
+    options = streamlit_app._quick_reply_options(
+        [],
+        answer=(
+            "夏夏先帮您把关键偏好确认一下：你希望这条“三国历史巡礼”更偏哪一种："
+            "A 主题纯粹型；B 平衡城市旅行型？"
+        ),
+    )
+
+    assert options == [
+        {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
+        {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
+        {"label": "默认偏好", "message": "按默认偏好继续"},
+    ]
+
+
+def test_should_show_quick_replies_only_for_latest_pending_assistant(monkeypatch):
+    monkeypatch.setitem(streamlit_app.st.session_state, "needs_reply", True)
+    messages = [
+        {"role": "user", "content": "三国路线"},
+        {"role": "assistant", "payload": {"needs_reply": True}},
+    ]
+
+    assert streamlit_app._should_show_quick_replies(1, messages) is True
+    assert streamlit_app._should_show_quick_replies(0, messages) is False
+
+    monkeypatch.setitem(streamlit_app.st.session_state, "needs_reply", False)
+    assert streamlit_app._should_show_quick_replies(1, messages) is False
 
 
 def test_pending_reply_uses_longer_timeout_floor():

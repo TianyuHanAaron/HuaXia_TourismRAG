@@ -209,6 +209,18 @@ With Docker:
 docker compose up -d qdrant redis
 ```
 
+To run the full local stack with the containerized FastAPI backend and
+Streamlit frontend:
+
+```bash
+docker compose --profile app up --build
+```
+
+Then open:
+
+- FastAPI health: `http://127.0.0.1:8000/tourism/health`
+- Streamlit UI: `http://127.0.0.1:8501`
+
 If Docker is unavailable on macOS, Redis can be started with Homebrew:
 
 ```bash
@@ -252,6 +264,81 @@ uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
 ```
 
 The Streamlit UI is designed as the current user-facing prototype for Xiaxia. It gives first-time users a simple mode choice between mature travel planning and custom route co-creation, supports `concise`, `standard`, and `deep` answer depth, handles pending clarification sessions, and renders answers with Chinese sections for highlights, warnings, itinerary, citations, and service checks. The UI calls the existing FastAPI endpoints, so it can later be replaced by a React frontend without changing the backend API contract.
+
+## Deployment
+
+Deploy the product as two services:
+
+1. **FastAPI/RAG backend** on a backend host such as Render, Railway, Fly.io, Google Cloud Run, or another Python service platform.
+2. **Streamlit frontend** on Streamlit Community Cloud.
+
+### Backend Deployment
+
+The backend is container-ready through `Dockerfile`. Any host that can run a
+Docker web service can use the image directly. The service listens on
+`${PORT:-8000}` and exposes:
+
+```text
+/tourism/health
+/tourism/questions
+/tourism/itineraries/diy
+/tourism/sessions/{session_id}/reply
+```
+
+If your backend host deploys from source instead of Docker, use this start
+command:
+
+```bash
+uv run uvicorn huaxia_tourismrag.main:app --host 0.0.0.0 --port $PORT
+```
+
+Set backend secrets on the backend host, not in GitHub:
+
+- `OPENAI_API_KEY`
+- `TOURISM_AGENT_MODEL`
+- `SEARCH_PROVIDER`
+- `TAVILY_API_KEY` or `EXA_API_KEY`
+- `FIRECRAWL_API_KEY`
+- `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION`
+- `REDIS_URL`
+- `EMBEDDING_PROVIDER`, `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_DIMENSIONS`
+- Optional MCP keys such as `MAPBOX_ACCESS_TOKEN` and `FIRECRAWL_MCP_*`
+
+For production latency, prefer a remote embedding endpoint and keep local model
+reranking disabled unless you provision enough CPU/GPU memory:
+
+```env
+EMBEDDING_PROVIDER=remote
+ENABLE_MODEL_RERANKER=false
+MAX_SEARCH_RESULTS=4
+MAX_PAGES_TO_READ=2
+TOP_K_CONTEXTS=3
+```
+
+Redis is required for stateful multi-hop clarification. Qdrant is required for
+internal document retrieval; use Qdrant Cloud or a managed/self-hosted Qdrant
+instance and point `QDRANT_URL` at it.
+
+### Frontend Deployment
+
+For Streamlit Community Cloud:
+
+- Repository: `TianyuHanAaron/HuaXia_TourismRAG`
+- Branch: `main`
+- Main file path: `src/huaxia_tourismrag/streamlit_app.py`
+- Python version: `3.11`
+- Dependency file: `requirements.txt`
+
+Set the frontend secret:
+
+```toml
+STREAMLIT_API_BASE_URL = "https://your-fastapi-backend.example.com"
+```
+
+If this secret is not set, the UI falls back to `http://127.0.0.1:8000`, which is correct only for local development.
+
+The frontend can also run as a container with `Dockerfile.streamlit`. In that
+case set `STREAMLIT_API_BASE_URL` to the deployed FastAPI URL.
 
 ## API Usage
 

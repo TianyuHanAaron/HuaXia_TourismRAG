@@ -1,7 +1,7 @@
 [project]
 name = "huaxia-tourismrag"
 version = "0.1.0"
-description = "Add your description here"
+description = "HuaXia Travel Agency's agentic web-augmented RAG assistant for Chinese domestic tourism planning."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -16,8 +16,6 @@ dependencies = [
     "pydantic-ai-slim[openai]>=1.101.0",
     "pydantic-settings>=2.14.1",
     "pypdf>=6.12.1",
-    "pytest>=9.0.3",
-    "pytest-asyncio>=1.3.0",
     "qdrant-client>=1.18.0",
     "questionary>=2.1.0",
     "redis>=7.4.0",
@@ -38,6 +36,7 @@ huaxia-tourismrag = "huaxia_tourismrag.cli:app"
 dev = [
     "black>=26.5.1",
     "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
     "ruff>=0.15.14",
 ]
 

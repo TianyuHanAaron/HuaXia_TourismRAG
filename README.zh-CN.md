@@ -208,6 +208,17 @@ MIN_RERANKER_SCORE=0.05
 docker compose up -d qdrant redis
 ```
 
+如果想用容器一次启动完整本地栈，包括 FastAPI 后端和 Streamlit 前端：
+
+```bash
+docker compose --profile app up --build
+```
+
+启动后访问：
+
+- FastAPI 健康检查：`http://127.0.0.1:8000/tourism/health`
+- Streamlit 前端：`http://127.0.0.1:8501`
+
 如果 macOS 上无法使用 Docker，可以用 Homebrew 启动 Redis：
 
 ```bash
@@ -251,6 +262,78 @@ uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
 ```
 
 这个 Streamlit 页面是夏夏当前的用户端原型，采用极简 kiosk 风格：用户打开后只需要选择“成熟旅行方案”或“专属路线共创”，输入旅行想法即可开始。页面支持 `concise`、`standard`、`deep` 三种回答深度，能继续多轮澄清会话，并用中文栏目展示回答、亮点、提醒、结构化行程、引用来源和服务校验。它调用现有 FastAPI 端点，因此后续切换 React 前端时可以沿用同一套后端 API 契约。
+
+## 部署
+
+生产部署建议拆成两个服务：
+
+1. **FastAPI/RAG 后端**：部署到 Render、Railway、Fly.io、Google Cloud Run 或其他 Python 后端平台。
+2. **Streamlit 前端**：部署到 Streamlit Community Cloud。
+
+### 后端部署
+
+后端已经通过 `Dockerfile` 做好容器化准备。任何支持 Docker Web
+Service 的平台都可以直接构建运行。服务会监听 `${PORT:-8000}`，并暴露：
+
+```text
+/tourism/health
+/tourism/questions
+/tourism/itineraries/diy
+/tourism/sessions/{session_id}/reply
+```
+
+如果你的后端平台从源码部署，而不是直接使用 Docker，可以使用：
+
+```bash
+uv run uvicorn huaxia_tourismrag.main:app --host 0.0.0.0 --port $PORT
+```
+
+后端密钥应配置在后端平台的环境变量里，不要提交到 GitHub：
+
+- `OPENAI_API_KEY`
+- `TOURISM_AGENT_MODEL`
+- `SEARCH_PROVIDER`
+- `TAVILY_API_KEY` 或 `EXA_API_KEY`
+- `FIRECRAWL_API_KEY`
+- `QDRANT_URL`、`QDRANT_API_KEY`、`QDRANT_COLLECTION`
+- `REDIS_URL`
+- `EMBEDDING_PROVIDER`、`EMBEDDING_API_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_DIMENSIONS`
+- 可选 MCP 服务密钥，例如 `MAPBOX_ACCESS_TOKEN` 和 `FIRECRAWL_MCP_*`
+
+为了降低生产响应延迟，建议优先使用远程 embedding endpoint，并在没有足够
+CPU/GPU 内存前关闭本地模型 reranker：
+
+```env
+EMBEDDING_PROVIDER=remote
+ENABLE_MODEL_RERANKER=false
+MAX_SEARCH_RESULTS=4
+MAX_PAGES_TO_READ=2
+TOP_K_CONTEXTS=3
+```
+
+Redis 用于保存多轮澄清会话，Qdrant 用于内部知识库检索。生产环境可以使用
+Qdrant Cloud 或自托管 Qdrant，并通过 `QDRANT_URL` 指向对应实例。
+
+### 前端部署
+
+Streamlit Community Cloud 配置：
+
+- Repository: `TianyuHanAaron/HuaXia_TourismRAG`
+- Branch: `main`
+- Main file path: `src/huaxia_tourismrag/streamlit_app.py`
+- Python version: `3.11`
+- Dependency file: `requirements.txt`
+
+在 Streamlit secrets 中配置前端访问的后端地址：
+
+```toml
+STREAMLIT_API_BASE_URL = "https://your-fastapi-backend.example.com"
+```
+
+如果没有设置这个 secret，前端会默认访问 `http://127.0.0.1:8000`，这只适合本地开发。
+
+前端也可以通过 `Dockerfile.streamlit` 容器化运行。这种方式下需要把
+`STREAMLIT_API_BASE_URL` 设置为已部署的 FastAPI 后端地址。
 
 ## API 使用示例
 

@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import base64
 import html
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
-from huaxia_tourismrag.frontend.streamlit_client import (
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from huaxia_tourismrag.frontend.streamlit_client import (  # noqa: E402
     AnswerLanguage,
     DetailLevel,
     RequestMode,
@@ -20,7 +25,7 @@ from huaxia_tourismrag.frontend.streamlit_client import (
 )
 
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+LOCAL_DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_TIMEOUT_SECONDS = 900
 PENDING_REPLY_TIMEOUT_SECONDS = 900
 UI_STATE_VERSION = 2
@@ -70,7 +75,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "language_label": "界面语言",
         "settings": "运行设置",
         "api_base": "FastAPI 地址",
-        "api_help": "先启动 FastAPI，例如 uvicorn huaxia_tourismrag.main:app --reload。",
+        "api_help": "本地先启动 FastAPI；部署后填写后端 HTTPS 地址，或设置 STREAMLIT_API_BASE_URL。",
         "timeout": "请求超时",
         "timeout_help": "复杂 DIY 路线建议 600 秒以上。",
         "health": "健康检查",
@@ -129,7 +134,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "language_label": "Interface language",
         "settings": "Runtime settings",
         "api_base": "FastAPI base URL",
-        "api_help": "Start FastAPI first, for example: uvicorn huaxia_tourismrag.main:app --reload.",
+        "api_help": "Start FastAPI locally, or set STREAMLIT_API_BASE_URL for deployment.",
         "timeout": "Request timeout",
         "timeout_help": "Complex DIY routes may need 600 seconds or more.",
         "health": "Health check",
@@ -238,7 +243,7 @@ def _render_sidebar(copy: dict[str, Any]) -> None:
     st.markdown(f"### {copy['settings']}")
     st.session_state["api_base_url"] = st.text_input(
         copy["api_base"],
-        value=st.session_state.get("api_base_url", DEFAULT_BASE_URL),
+        value=st.session_state.get("api_base_url", _default_api_base_url()),
         help=copy["api_help"],
     )
     st.session_state["timeout_seconds"] = st.slider(
@@ -265,14 +270,13 @@ def _render_sidebar(copy: dict[str, Any]) -> None:
 
 def _render_hero(copy: dict[str, Any]) -> None:
     if MODEL_PATH.exists():
-        components.html(
+        st.iframe(
             _hero_model_viewer_html(
                 copy=copy,
                 model_uri=_asset_data_uri(MODEL_PATH),
                 poster_uri=_asset_data_uri(AVATAR_PATH),
             ),
             height=470,
-            scrolling=False,
         )
         return
 
@@ -463,11 +467,11 @@ def _hero_model_viewer_html(copy: dict[str, Any], model_uri: str, poster_uri: st
                 camera-controls
                 interaction-prompt="none"
                 bounds="tight"
-                camera-target="0m 0.42m 0m"
-                camera-orbit="-8deg 78deg 46%"
-                min-camera-orbit="-18deg 72deg 38%"
-                max-camera-orbit="8deg 82deg 110%"
-                field-of-view="24deg"
+                camera-target="0m 0.50m 0m"
+                camera-orbit="14deg 76deg 34%"
+                min-camera-orbit="8deg 72deg 28%"
+                max-camera-orbit="24deg 80deg 86%"
+                field-of-view="20deg"
                 exposure="1"
                 shadow-intensity="0.72"
               ></model-viewer>
@@ -561,11 +565,16 @@ def _render_examples(copy: dict[str, Any]) -> None:
 
 
 def _render_chat_history(copy: dict[str, Any]) -> None:
-    for message in st.session_state["messages"]:
+    messages = st.session_state["messages"]
+    for index, message in enumerate(messages):
         avatar = str(AVATAR_PATH) if message["role"] == "assistant" else None
         with st.chat_message(message["role"], avatar=avatar):
             if message["role"] == "assistant" and isinstance(message.get("payload"), dict):
-                _render_answer(message["payload"], copy)
+                _render_answer(
+                    message["payload"],
+                    copy,
+                    show_quick_replies=_should_show_quick_replies(index, messages),
+                )
             else:
                 st.markdown(str(message["content"]))
 
@@ -599,7 +608,7 @@ def _submit_prompt(
 ) -> None:
     session_id = st.session_state.get("session_id") if st.session_state.get("needs_reply") else None
     client = TourismApiClient(
-        base_url=st.session_state.get("api_base_url", DEFAULT_BASE_URL),
+        base_url=st.session_state.get("api_base_url", _default_api_base_url()),
         timeout_seconds=_effective_timeout_seconds(
             configured_timeout=float(
                 st.session_state.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
@@ -646,9 +655,34 @@ def _effective_timeout_seconds(
     return configured_timeout
 
 
+def _default_api_base_url() -> str:
+    """Return deploy-configured API URL, falling back to local FastAPI."""
+
+    for key in ("STREAMLIT_API_BASE_URL", "TOURISM_API_BASE_URL"):
+        value = os.getenv(key)
+        if value:
+            return value.strip().rstrip("/")
+
+    secret_value = _streamlit_secret(
+        "STREAMLIT_API_BASE_URL",
+    ) or _streamlit_secret("TOURISM_API_BASE_URL")
+    if secret_value:
+        return secret_value.strip().rstrip("/")
+
+    return LOCAL_DEFAULT_BASE_URL
+
+
+def _streamlit_secret(key: str) -> str | None:
+    try:
+        value = st.secrets.get(key)
+    except Exception:
+        return None
+    return str(value) if value else None
+
+
 def _run_health_check(copy: dict[str, Any]) -> None:
     client = TourismApiClient(
-        base_url=st.session_state.get("api_base_url", DEFAULT_BASE_URL),
+        base_url=st.session_state.get("api_base_url", _default_api_base_url()),
         timeout_seconds=20,
     )
     try:
@@ -673,8 +707,17 @@ def _reset_conversation() -> None:
     st.session_state["last_error"] = None
 
 
-def _render_answer(payload: dict[str, Any], copy: dict[str, Any]) -> None:
+def _render_answer(
+    payload: dict[str, Any],
+    copy: dict[str, Any],
+    show_quick_replies: bool = False,
+) -> None:
     st.markdown(payload.get("answer", ""))
+
+    if bool(payload.get("needs_reply")):
+        if show_quick_replies:
+            _render_quick_reply_buttons(payload, copy)
+        return
 
     highlights = payload.get("highlights") or []
     warnings = payload.get("warnings") or []
@@ -693,6 +736,102 @@ def _render_answer(payload: dict[str, Any], copy: dict[str, Any]) -> None:
         _render_list(citations, empty=copy["empty_citations"])
     with tabs[4]:
         _render_service_enrichment(service_enrichment, copy)
+
+
+def _should_show_quick_replies(index: int, messages: list[dict[str, Any]]) -> bool:
+    if index != len(messages) - 1:
+        return False
+    if not st.session_state.get("needs_reply"):
+        return False
+    message = messages[index]
+    return message.get("role") == "assistant" and isinstance(message.get("payload"), dict)
+
+
+def _render_quick_reply_buttons(
+    payload: dict[str, Any],
+    copy: dict[str, Any],
+) -> None:
+    options = _quick_reply_options(
+        payload.get("quick_replies") or [],
+        answer=str(payload.get("answer") or ""),
+    )
+    if not options:
+        return
+
+    columns = st.columns(len(options))
+    for index, option in enumerate(options):
+        label = str(option["label"])
+        message = str(option["message"])
+        with columns[index]:
+            if st.button(
+                label,
+                key=f"quick-reply-{index}-{label}",
+                use_container_width=True,
+            ):
+                _submit_quick_reply(message, copy)
+                st.rerun()
+
+
+def _quick_reply_options(
+    quick_replies: list[dict[str, Any]],
+    answer: str = "",
+) -> list[dict[str, str]]:
+    options = []
+    for item in quick_replies[:3]:
+        label = str(item.get("label", "")).strip()
+        message = str(item.get("message", "")).strip()
+        if label and message:
+            options.append({"label": label, "message": message})
+    if options:
+        return options
+
+    return _fallback_quick_reply_options(answer)
+
+
+def _fallback_quick_reply_options(answer: str) -> list[dict[str, str]]:
+    """Infer buttons for old checkpoint payloads that predate quick_replies."""
+
+    if not answer:
+        return []
+
+    if "主题纯粹" in answer and "平衡" in answer:
+        return [
+            {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
+            {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
+            {"label": "默认偏好", "message": "按默认偏好继续"},
+        ]
+
+    if "先看大方向" in answer and "深度旅行社" in answer:
+        return [
+            {"label": "先看大方向", "message": "先看大方向"},
+            {"label": "标准可执行版", "message": "标准可执行版"},
+            {"label": "深度旅行社版", "message": "深度旅行社版"},
+        ]
+
+    if "可执行性" in answer or "明显风险" in answer:
+        return [
+            {"label": "按建议调整", "message": "接受夏夏建议的调整方案"},
+            {"label": "保持原需求", "message": "保持原需求，请给出风险提示和压缩版"},
+            {"label": "默认偏好", "message": "按默认偏好继续"},
+        ]
+
+    if "A" in answer and "B" in answer:
+        return [
+            {"label": "选择 A", "message": "A"},
+            {"label": "选择 B", "message": "B"},
+            {"label": "默认偏好", "message": "按默认偏好继续"},
+        ]
+    return []
+
+
+def _submit_quick_reply(message: str, copy: dict[str, Any]) -> None:
+    st.session_state["messages"].append({"role": "user", "content": message})
+    _submit_prompt(
+        message,
+        mode=st.session_state.get("mode", "normal"),
+        detail_level=st.session_state.get("detail_level", "deep"),
+        copy=copy,
+    )
 
 
 def _render_list(values: list[Any], empty: str) -> None:

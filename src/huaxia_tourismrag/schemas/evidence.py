@@ -273,6 +273,14 @@ class CitationPack(BaseModel):
     citations: list[str]
 
 
+class QuickReplyOption(BaseModel):
+    """A typed UI quick reply for pending multi-hop checkpoints."""
+
+    label: str = Field(min_length=1, max_length=40)
+
+    message: str = Field(min_length=1, max_length=200)
+
+
 # =========================================================
 # Final RAG Response
 # =========================================================
@@ -290,6 +298,8 @@ class TravelAnswer(BaseModel):
     generated_itinerary: TravelItinerary | None = None
 
     service_enrichment: ServiceEnrichmentContext | None = None
+
+    quick_replies: list[QuickReplyOption] = Field(default_factory=list, max_length=6)
 
     session_id: str | None = None
 

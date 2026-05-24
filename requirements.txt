@@ -1,0 +1,4 @@
+# Streamlit Community Cloud frontend dependencies.
+# The FastAPI/RAG backend should be deployed from pyproject.toml/uv separately.
+streamlit>=1.41
+httpx>=0.28.1

@@ -50,6 +50,11 @@ def test_build_clarification_answer_uses_travel_answer_shape():
     assert "三国强相关" in answer.answer
     assert answer.citations == []
     assert answer.needs_reply is True
+    assert [option.label for option in answer.quick_replies] == [
+        "主题纯粹型",
+        "平衡城市旅行型",
+        "默认偏好",
+    ]
 
 
 def test_build_feasibility_answer_uses_travel_answer_shape():
@@ -72,10 +77,21 @@ def test_build_feasibility_answer_uses_travel_answer_shape():
     assert "10 天" in answer.answer
     assert any("跨省城市过多" in warning for warning in answer.warnings)
     assert answer.needs_reply is True
+    assert [option.label for option in answer.quick_replies] == [
+        "按建议调整",
+        "保持原需求",
+        "默认偏好",
+    ]
 
 
 def test_should_skip_clarification_when_user_delegates_preferences():
     question = TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，你来决定怎么安排。")
+
+    assert should_skip_clarification(question) is True
+
+
+def test_should_skip_clarification_when_user_chooses_default_preference():
+    question = TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，按默认偏好继续。")
 
     assert should_skip_clarification(question) is True
 
@@ -127,6 +143,11 @@ def test_build_detail_level_answer_uses_travel_answer_shape():
 
     assert answer.needs_reply is True
     assert "先看大方向" in answer.answer
+    assert [option.label for option in answer.quick_replies] == [
+        "先看大方向",
+        "标准可执行版",
+        "深度旅行社版",
+    ]
     assert answer.citations == []
 
 

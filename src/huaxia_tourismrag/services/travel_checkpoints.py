@@ -1,6 +1,11 @@
 """Deterministic helpers for travel planning checkpoints."""
 
-from huaxia_tourismrag.schemas.evidence import DetailLevel, TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import (
+    DetailLevel,
+    QuickReplyOption,
+    TravelAnswer,
+    TravelQuestion,
+)
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     ClarificationDecision,
     FeasibilityReport,
@@ -19,6 +24,9 @@ SKIP_CLARIFICATION_TERMS = (
     "都可以",
     "随便",
     "按你推荐",
+    "默认偏好",
+    "按默认偏好",
+    "按默认偏好继续",
 )
 
 CONCISE_DETAIL_TERMS = ("简洁", "简单", "大纲", "大方向", "轻量", "先看思路", "简单说")
@@ -130,6 +138,7 @@ def build_clarification_answer(decision: ClarificationDecision) -> TravelAnswer:
         highlights=["需要补充一个会显著影响行程质量的偏好。"],
         warnings=[decision.reason],
         citations=[],
+        quick_replies=_preference_quick_replies(decision),
         needs_reply=True,
     )
 
@@ -142,6 +151,11 @@ def build_detail_level_answer(decision: ClarificationDecision) -> TravelAnswer:
         highlights=["请选择想看的行程详细度。"],
         warnings=[decision.reason],
         citations=[],
+        quick_replies=[
+            QuickReplyOption(label="先看大方向", message="先看大方向"),
+            QuickReplyOption(label="标准可执行版", message="标准可执行版"),
+            QuickReplyOption(label="深度旅行社版", message="深度旅行社版"),
+        ],
         needs_reply=True,
     )
 
@@ -172,5 +186,51 @@ def build_feasibility_answer(report: FeasibilityReport) -> TravelAnswer:
         highlights=["当前路线需要先确认可行性。"],
         warnings=issue_lines,
         citations=[],
+        quick_replies=[
+            QuickReplyOption(label="按建议调整", message="接受夏夏建议的调整方案"),
+            QuickReplyOption(label="保持原需求", message="保持原需求，请给出风险提示和压缩版"),
+            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+        ],
         needs_reply=True,
     )
+
+
+def _preference_quick_replies(
+    decision: ClarificationDecision,
+) -> list[QuickReplyOption]:
+    """Build deterministic quick replies for preference checkpoints."""
+
+    question = decision.question or ""
+    if "主题纯粹" in question or "三国" in question and "平衡" in question:
+        return [
+            QuickReplyOption(label="主题纯粹型", message="A. 主题纯粹型"),
+            QuickReplyOption(label="平衡城市旅行型", message="B. 平衡城市旅行型"),
+            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+        ]
+
+    if "高铁" in question and ("自驾" in question or "包车" in question):
+        return [
+            QuickReplyOption(label="高铁优先", message="高铁优先，必要时包车"),
+            QuickReplyOption(label="自驾/包车优先", message="自驾或包车优先"),
+            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+        ]
+
+    if "自然" in question and ("历史" in question or "文化" in question):
+        return [
+            QuickReplyOption(label="自然风光", message="自然风光优先"),
+            QuickReplyOption(label="历史人文", message="历史人文优先"),
+            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+        ]
+
+    if "城市" in question and ("度假" in question or "放松" in question):
+        return [
+            QuickReplyOption(label="城市休闲", message="城市文化和美食休闲优先"),
+            QuickReplyOption(label="度假放松", message="自然风景和度假放松优先"),
+            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+        ]
+
+    return [
+        QuickReplyOption(label="选择 A", message="A"),
+        QuickReplyOption(label="选择 B", message="B"),
+        QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+    ]
