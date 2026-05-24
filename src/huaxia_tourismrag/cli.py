@@ -422,7 +422,8 @@ def _print_chat_intro() -> None:
     console.print(
         "[bold cyan]嗨，我是夏夏，华夏旅行社专属 AI 旅行顾问。[/bold cyan]\n"
         "把你的旅行想法丢给我吧：想去哪儿、玩几天、和谁去、预算大概多少，知道多少说多少。\n"
-        "还没定也没关系，我会帮你把路线、交通、住宿、美食和避坑点一步步理顺。"
+        "还没定也没关系，我会帮你把路线、交通、住宿、美食和避坑点一步步理顺。\n"
+        "普通旅行直接说；自己设计的特殊路线，用 /diy 开头更准。"
     )
     if _load_cached_session_id():
         console.print("上次规划还差一步，直接补充就能继续；想重新开始，输入 new。")
@@ -431,18 +432,33 @@ def _print_chat_intro() -> None:
 
 def _print_chat_help() -> None:
     console.print(
-        "\n[bold]开始：[/bold]\n"
-        "1. 直接说你的旅行想法\n"
-        "2. 继续上次规划\n"
-        "3. 检查运行环境\n\n"
-        "如果是自己设计的特殊路线，直接说城市顺序和主题就行。\n"
-        "例如：三国历史巡礼，从北京出发，经涿州、许昌、成都、汉中。"
+        "\n[bold]怎么说更准：[/bold]\n"
+        "普通旅行：直接说需求，例如「爸妈来北京，想轻松玩3天」。\n"
+        "特殊路线：用 /diy 开头，例如「/diy 三国历史巡礼，从北京出发，经涿州、许昌、成都、汉中」。\n\n"
+        "继续上次规划：直接补充信息\n"
+        "检查运行环境：输入 health\n"
+        "重新开始：输入 new\n"
+        "退出：输入 quit"
     )
 
 
 def _is_explicit_diy_message(message: str) -> bool:
     normalized = message.strip().lower()
-    return normalized.startswith("/diy ") or normalized.startswith("diy ")
+    if normalized.startswith("/diy ") or normalized.startswith("diy "):
+        return True
+
+    diy_signals = (
+        "特殊路线",
+        "自定义路线",
+        "自己设计",
+        "必须覆盖",
+        "可以根据交通合理调整顺序",
+        "主题巡礼",
+        "历史巡礼",
+        "路线必须包含",
+        "城市顺序",
+    )
+    return sum(signal in normalized for signal in diy_signals) >= 2
 
 
 def _strip_diy_prefix(message: str) -> str:

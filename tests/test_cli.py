@@ -364,11 +364,67 @@ def test_cli_chat_prints_warm_intro_and_posts_question(monkeypatch, tmp_path):
     assert "嗨，我是夏夏，华夏旅行社专属 AI 旅行顾问。" in result.output
     assert "把你的旅行想法丢给我吧" in result.output
     assert "路线、交通、住宿、美食和避坑点" in result.output
+    assert "普通旅行直接说" in result.output
+    assert "用 /diy 开头更准" in result.output
     assert FakeClient.calls == [
         {
             "method": "POST",
             "url": "http://testserver/tourism/questions",
             "json": {"question": "云南七天怎么玩？"},
+        }
+    ]
+
+
+def test_cli_chat_auto_routes_obvious_custom_route_to_diy(monkeypatch, tmp_path):
+    setup_fake_client(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    runner = CliRunner()
+
+    message = (
+        "我想做一条三国历史巡礼路线，从北京出发并回到北京，必须覆盖涿州、"
+        "临漳、许昌、南阳、咸宁、南京、成都、汉中。可以根据交通合理调整顺序。"
+    )
+    result = runner.invoke(
+        cli.app,
+        [
+            "chat",
+            "--base-url",
+            "http://testserver",
+        ],
+        input=f"{message}\nquit\n",
+    )
+
+    assert result.exit_code == 0
+    assert FakeClient.calls == [
+        {
+            "method": "POST",
+            "url": "http://testserver/tourism/itineraries/diy",
+            "json": {"question": message},
+        }
+    ]
+
+
+def test_cli_chat_routes_diy_prefix_to_diy_and_strips_prefix(monkeypatch, tmp_path):
+    setup_fake_client(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "chat",
+            "--base-url",
+            "http://testserver",
+        ],
+        input="/diy 三国历史巡礼，从北京出发，经涿州、许昌、成都、汉中。\nquit\n",
+    )
+
+    assert result.exit_code == 0
+    assert FakeClient.calls == [
+        {
+            "method": "POST",
+            "url": "http://testserver/tourism/itineraries/diy",
+            "json": {"question": "三国历史巡礼，从北京出发，经涿州、许昌、成都、汉中。"},
         }
     ]
 
@@ -474,8 +530,9 @@ def test_cli_chat_help_shows_compact_guidance(monkeypatch, tmp_path):
     )
 
     assert result.exit_code == 0
-    assert "开始：" in result.output
-    assert "直接说你的旅行想法" in result.output
+    assert "怎么说更准：" in result.output
+    assert "普通旅行：直接说需求" in result.output
+    assert "特殊路线：用 /diy 开头" in result.output
     assert "继续上次规划" in result.output
     assert "检查运行环境" in result.output
     assert "三国历史巡礼" in result.output
