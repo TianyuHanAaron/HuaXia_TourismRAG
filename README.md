@@ -2,19 +2,33 @@
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
-HuaXia Tourism RAG is a Chinese domestic-travel RAG service for itinerary planning, live travel research, and multi-turn clarification. It is designed around Chinese tourists, Chinese web sources, and travel-agency style planning: routes, transport logic, accommodation areas, local food, attraction tradeoffs, booking checks, and citation-backed answers.
+HuaXia Tourism RAG is a proprietary agentic, web-augmented RAG platform designed for **HuaXia Travel Agency**. It turns open-ended Chinese domestic-travel requests into structured, citation-aware itinerary advice that can support online consultation, pre-sales planning, lead qualification, and future handoff to human travel consultants.
 
-The assistant persona is "夏夏", the HuaXia travel agency AI consultant.
+The product is built around Chinese tourists and China-specific travel operations: route logic, transport feasibility, hotel-area recommendations, local food, attraction tradeoffs, policy constraints, booking checks, risk reminders, and agency-style itinerary communication.
+
+The assistant persona is **夏夏**, HuaXia Travel Agency's branded AI travel consultant. 夏夏 is intentionally warmer than a generic chatbot: friendly enough for younger users, but still professional enough for travel-agency service scenarios.
+
+## Business Positioning
+
+This project is not only a generic travel Q&A bot. It is intended to become HuaXia Travel Agency's owned AI consultation layer:
+
+- **Pre-sales advisor:** Help users clarify where to go, how long to travel, who is traveling, budget level, transport preference, hotel style, food interests, and risk constraints.
+- **Custom itinerary engine:** Generate conventional trips and unusual self-designed routes that standard travel products do not cover well.
+- **Web-augmented research assistant:** Search and parse current web pages for attraction status, official rules, transport references, food/area hints, and hidden-gem inspiration.
+- **Internal policy memory:** Retrieve tourism law, transport rules, consumer protection, insurance, medical, customs, safety, and regulatory documents from Qdrant.
+- **Citation-aware planning:** Keep answer claims grounded in parsed web pages or indexed internal documents, reducing unsupported travel advice.
+- **Agency workflow foundation:** Prepare for future official website redirects, email/CRM lead capture, consultant handoff, and booking workflow integration.
 
 ## What It Does
 
 - Answers conventional Chinese tourism questions through `POST /tourism/questions`.
 - Generates highly customized DIY routes through `POST /tourism/itineraries/diy`.
 - Supports multi-hop clarification sessions when a request is too ambiguous to answer well.
+- Provides a branded assistant tone through 夏夏, HuaXia Travel Agency's AI travel consultant persona.
 - Searches the web with Tavily or Exa, then parses pages with Firecrawl or a trafilatura fallback.
-- Retrieves internal curated travel documents from Qdrant.
+- Retrieves the agency's internal indexed corpus from Qdrant, currently focused on official Chinese tourism, transport, legal, regulatory, safety, consumer-protection, medical, insurance, customs, and finance-related travel rules.
 - Uses Redis to persist pending clarification sessions.
-- Provides a Typer CLI for fast local testing.
+- Provides a Typer CLI for local testing, stateful continuation, corpus building, and Qdrant indexing.
 - Uses strict Pydantic DTOs for request/response shape.
 - Filters evidence relevance so citations are tied to parsed web or internal source material rather than unrelated filler.
 
@@ -74,12 +88,24 @@ Tourism answer agent
 TravelAnswer DTO
 ```
 
+The architecture is intentionally agentic but controlled. A planner agent converts user intent into research tasks, retrieval tools collect evidence from internal and web sources, checkpoint logic asks for missing high-impact preferences, and the final answer agent writes within the strict `TravelAnswer` DTO.
+
 There are two main answer flows:
 
 - **Conventional question flow:** For normal travel requests, from short prompts to detailed requests such as family trips, province-level deep travel, budget planning, attraction selection, and route advice.
 - **DIY itinerary flow:** For unusual user-defined routes or themes that are not commonly sold as standard travel-agency products, such as a self-designed 三国历史巡礼 route across many cities.
 
 Both flows return the same `TravelAnswer` response format.
+
+## Current Product Differentiators
+
+- **Chinese domestic-tourism focus:** The default audience is Chinese domestic tourists, not foreign visitors unless the user explicitly says otherwise.
+- **Custom route moat:** The DIY endpoint is designed for uncommon, user-defined thematic routes that mature travel websites may not offer as standard products.
+- **Freshness-aware research:** Web search and page parsing are used for timely operational details, while stale or generic internal references should not override current official web evidence.
+- **Source authority control:** Official government, scenic-area, railway, airline, museum, and transport-provider sources should outrank blogs or OTA pages for operational facts.
+- **Business-ready session flow:** Redis-backed sessions support multi-hop clarification, so the system can ask only the most important missing question before generating a serious plan.
+- **Internal compliance base:** The 60-source policy corpus gives the agent a stronger baseline for transport, legal, safety, consumer-rights, and travel-risk guidance.
+- **Terminal UX for testing:** The CLI uses Chinese section titles and a branded 夏夏 greeting to better match the eventual user-facing assistant experience.
 
 ## Requirements
 
@@ -274,7 +300,15 @@ uv run huaxia-tourismrag --help
 uv run huaxia-tourismrag chat
 ```
 
-The CLI caches the latest pending `session_id`, so if 夏夏 asks a follow-up question, you can reply naturally without copying the ID.
+The interactive CLI starts with the branded Xiaxia assistant tone:
+
+```text
+嗨，我是夏夏，华夏旅行社专属 AI 旅行顾问。
+把你的旅行想法丢给我吧：想去哪儿、玩几天、和谁去、预算大概多少，知道多少说多少。
+还没定也没关系，我会帮你把路线、交通、住宿、美食和避坑点一步步理顺。
+```
+
+The CLI prints Chinese section titles such as `回答`, `亮点`, `提醒`, and `引用来源`. It also caches the latest pending `session_id`, so if 夏夏 asks a follow-up question, you can reply naturally without copying the ID.
 
 ### Ask a Normal Travel Question
 
@@ -316,7 +350,7 @@ uv run huaxia-tourismrag health
 
 ## Internal Documents and Qdrant
 
-The old demo seed file has been removed. The recommended internal corpus is now an official policy, transport, safety, consumer-protection, medical, insurance, customs, and regulatory corpus.
+The old demo seed file has been removed. The recommended internal corpus is now a serious operating baseline for travel-agency advice: official policy, transport, safety, consumer-protection, medical, insurance, customs, finance, legal, and regulatory material that can affect real travelers.
 
 Recommended path:
 
@@ -330,7 +364,7 @@ The curated 60-source manifest lives at:
 data/internal/sources/china_tourism_policy_sources.json
 ```
 
-The project includes an `InternalDocumentIndexer` for loading JSONL, chunking documents, embedding text, and upserting chunks into Qdrant.
+The project includes an `InternalDocumentIndexer` for loading JSONL, chunking documents, embedding text, and upserting chunks into Qdrant. Local indexing is batched through `EMBEDDING_BATCH_SIZE` and `QDRANT_UPSERT_BATCH_SIZE` to reduce MPS/GPU memory pressure and Qdrant Cloud write timeouts.
 
 The expected JSONL rows map to the internal raw document DTO used by the indexer. Rows may use either `document_id` or `id`, and can include `content_type`, `published_at`, `retrieved_at`, and `location`.
 
@@ -368,7 +402,7 @@ uv run huaxia-tourismrag index-internal data/internal/china_tourism_policy_trans
   --recreate
 ```
 
-For production, prefer official sources such as national tourism law, agency compliance, railway and aviation rules, customs, consumer protection, medical reimbursement, safety notices, and insurance guidance.
+For production, prefer official sources such as national tourism law, agency compliance, railway and aviation rules, customs, consumer protection, medical reimbursement, safety notices, and insurance guidance. Once HuaXia Travel Agency has proprietary business data, this corpus can be extended with negotiated supplier notes, hotel inspection notes, guide feedback, route SOPs, group-tour risk playbooks, and CRM conversion insights.
 
 Before querying internal docs, the Qdrant collection must exist and be indexed. If Qdrant returns an error such as:
 
@@ -509,4 +543,6 @@ Recommended next steps:
 - Add cache for parsed web pages and official status checks.
 - Add observability for search cost, parse failure rate, latency, and citation quality.
 - Add a frontend chat interface with stateful session continuation.
+- Add business analytics for high-intent routes, repeated destinations, unresolved questions, and consultant handoff outcomes.
+- Add agency inventory and product matching once package tours, hotels, guides, transport vendors, or negotiated rates are available.
 - Consider a company MCP server only when other AI clients or internal tools need standardized access to agency inventory, CRM, lead creation, booking status, or itinerary templates.
