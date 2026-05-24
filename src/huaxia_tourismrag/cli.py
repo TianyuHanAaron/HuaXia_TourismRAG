@@ -256,14 +256,18 @@ def build_internal_corpus(
         console.print(f"[red]Source manifest not found:[/red] {manifest_path}")
         raise typer.Exit(1)
 
-    count = InternalCorpusBuilder().build_jsonl(
+    result = InternalCorpusBuilder().build_jsonl(
         manifest_path=manifest_path,
         output_path=output_path,
     )
     console.print(
-        f"[green]Built {count} documents.[/green]\n"
+        f"[green]Built {result.written_count} documents.[/green]\n"
         f"Output: {output_path}"
     )
+    if result.failed_sources:
+        console.print("\n[yellow]Skipped failed sources:[/yellow]")
+        for failed in result.failed_sources:
+            console.print(f"- {failed.source_id}: {failed.url} ({failed.error})")
 
 
 @app.command("index-internal")

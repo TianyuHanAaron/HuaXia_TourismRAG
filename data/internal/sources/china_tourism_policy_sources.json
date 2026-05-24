@@ -59,7 +59,7 @@
     "id": "policy:travel-agency-liability-insurance",
     "title": "旅行社责任保险管理办法",
     "source_name": "中国政府网",
-    "url": "https://www.gov.cn/zhengce/2022-09/26/content_5712541.htm",
+    "url": "https://www.gov.cn/zhengce/2011-05/26/content_5712541.htm",
     "content_type": "insurance"
   },
   {
@@ -281,9 +281,9 @@
   },
   {
     "id": "policy:cross-province-medical-online-filing-guide",
-    "title": "跨省异地就医线上备案指南",
+    "title": "跨省异地看病医保全流程办理指南",
     "source_name": "中国政府网",
-    "url": "https://www.gov.cn/xinwen/2023-02/10/content_5741028.htm",
+    "url": "https://app.www.gov.cn/govdata/gov/202311/13/509283/article.html",
     "content_type": "medical"
   },
   {
@@ -338,8 +338,8 @@
   {
     "id": "policy:consumer-rights-protection-law",
     "title": "消费者权益保护法",
-    "source_name": "中国政府网",
-    "url": "https://www.gov.cn/banshi/2005-08/31/content_68770.htm",
+    "source_name": "市场监管总局",
+    "url": "https://www.samr.gov.cn/zfjcj/tzgg/art/2023/art_615af9ed6bcd4974bf853dd2e02bc663.html",
     "content_type": "consumer_protection"
   },
   {
@@ -379,9 +379,9 @@
   },
   {
     "id": "policy:tourism-insurance-overview",
-    "title": "旅游保险相关说明",
-    "source_name": "中国政府网",
-    "url": "https://www.gov.cn/banshi/2005-05/31/content_2569.htm",
+    "title": "中华人民共和国保险法",
+    "source_name": "中银保险",
+    "url": "https://www.boc.cn/bocins/aboutus/if3/201110/t20111021_1885308.html",
     "content_type": "insurance"
   },
   {

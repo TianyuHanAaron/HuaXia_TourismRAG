@@ -4,8 +4,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import BytesIO
+from html.parser import HTMLParser
 import json
 from pathlib import Path
+import re
 from urllib.parse import urlsplit
 
 import httpx
@@ -23,6 +25,24 @@ class DownloadedSource:
     url: str
     content: bytes
     content_type: str
+
+
+@dataclass(frozen=True)
+class FailedSource:
+    """One source that failed during corpus building."""
+
+    source_id: str
+    title: str
+    url: str
+    error: str
+
+
+@dataclass(frozen=True)
+class CorpusBuildResult:
+    """Summary of a corpus build run."""
+
+    written_count: int
+    failed_sources: list[FailedSource]
 
 
 class InternalSource(BaseModel):
@@ -51,17 +71,30 @@ class InternalCorpusBuilder:
         self.parse = parse or self._parse
         self.timeout = timeout
 
-    def build_jsonl(self, manifest_path: Path, output_path: Path) -> int:
+    def build_jsonl(self, manifest_path: Path, output_path: Path) -> CorpusBuildResult:
         """Build an internal corpus JSONL from a manifest file."""
 
         sources = self.load_manifest(manifest_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         written_count = 0
+        failed_sources: list[FailedSource] = []
         with output_path.open("w", encoding="utf-8") as file:
             for source in sources:
-                downloaded = self.fetch(str(source.url))
-                text = self._normalize_text(self.parse(downloaded))
+                try:
+                    downloaded = self.fetch(str(source.url))
+                    text = self._normalize_text(self.parse(downloaded))
+                except Exception as exc:
+                    failed_sources.append(
+                        FailedSource(
+                            source_id=source.id,
+                            title=source.title,
+                            url=str(source.url),
+                            error=str(exc),
+                        )
+                    )
+                    continue
+
                 if not text:
                     continue
 
@@ -89,7 +122,10 @@ class InternalCorpusBuilder:
                 )
                 written_count += 1
 
-        return written_count
+        return CorpusBuildResult(
+            written_count=written_count,
+            failed_sources=failed_sources,
+        )
 
     def load_manifest(self, manifest_path: Path) -> list[InternalSource]:
         """Load and validate a JSON source manifest."""
@@ -149,8 +185,46 @@ class InternalCorpusBuilder:
             include_comments=False,
             include_tables=True,
         )
-        return extracted or ""
+        return extracted or self._strip_html(html)
 
     def _normalize_text(self, text: str) -> str:
         lines = [line.strip() for line in text.splitlines()]
+        return "\n".join(line for line in lines if line)
+
+    def _strip_html(self, html: str) -> str:
+        parser = _TextOnlyHTMLParser()
+        parser.feed(html)
+        return parser.text()
+
+
+class _TextOnlyHTMLParser(HTMLParser):
+    """Small stdlib fallback for official pages trafilatura cannot read."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._skip_depth = 0
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in {"script", "style", "noscript"}:
+            self._skip_depth += 1
+        if tag in {"p", "br", "div", "li", "tr", "h1", "h2", "h3", "h4"}:
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style", "noscript"} and self._skip_depth:
+            self._skip_depth -= 1
+        if tag in {"p", "div", "li", "tr", "h1", "h2", "h3", "h4"}:
+            self._parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth:
+            return
+        text = data.strip()
+        if text:
+            self._parts.append(text)
+
+    def text(self) -> str:
+        raw_text = " ".join(self._parts)
+        lines = [re.sub(r"\s+", " ", line).strip() for line in raw_text.splitlines()]
         return "\n".join(line for line in lines if line)

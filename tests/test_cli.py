@@ -3,6 +3,7 @@ import json
 from typer.testing import CliRunner
 
 from huaxia_tourismrag import cli
+from huaxia_tourismrag.indexing.internal_corpus_builder import CorpusBuildResult
 
 
 class FakeResponse:
@@ -208,7 +209,7 @@ def test_cli_build_internal_corpus_writes_jsonl(monkeypatch, tmp_path):
             build_calls.append(
                 {"manifest_path": manifest_path, "output_path": output_path}
             )
-            return 60
+            return CorpusBuildResult(written_count=60, failed_sources=[])
 
     monkeypatch.setattr(cli, "InternalCorpusBuilder", FakeBuilder)
     manifest_path = tmp_path / "sources.json"
