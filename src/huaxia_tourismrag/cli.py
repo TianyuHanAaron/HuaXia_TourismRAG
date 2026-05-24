@@ -396,17 +396,17 @@ def _print_response(payload: dict, raw: bool) -> None:
 
     answer = payload.get("answer")
     if answer:
-        console.print(Panel(str(answer), title="Answer", border_style="cyan"))
+        console.print(Panel(str(answer), title="回答", border_style="cyan"))
 
     if payload.get("needs_reply") and payload.get("session_id"):
         console.print(
-            f"\n[bold yellow]Needs reply[/bold yellow] "
+            f"\n[bold yellow]需要补充[/bold yellow] "
             f"session_id={payload['session_id']}"
         )
 
-    _print_list("Highlights", payload.get("highlights"))
-    _print_list("Warnings", payload.get("warnings"))
-    _print_list("Citations", payload.get("citations"))
+    _print_list("亮点", payload.get("highlights"))
+    _print_list("提醒", payload.get("warnings"))
+    _print_list("引用来源", payload.get("citations"))
 
 
 def _print_list(title: str, values: list | None) -> None:
@@ -420,12 +420,13 @@ def _print_list(title: str, values: list | None) -> None:
 
 def _print_chat_intro() -> None:
     console.print(
-        "[bold cyan]你好，我是夏夏。[/bold cyan]\n"
-        "说说你的旅行想法吧。目的地、天数、同行人、预算，知道多少说多少。"
+        "[bold cyan]你好，我是夏夏，华夏旅行社专属 AI 旅行顾问。[/bold cyan]\n"
+        "想去哪儿玩？把目的地、天数、同行人、预算随便说一点就行。\n"
+        "信息还没想全也没关系，我会帮你把路线、交通、住宿和吃什么慢慢理清楚。"
     )
     if _load_cached_session_id():
-        console.print("上次规划还差一步。你可以直接补充，也可以输入 new 开始新的。")
-    console.print("输入 help 看示例，输入 quit 退出。")
+        console.print("上次规划还差一步，直接补一句就能继续；想换个灵感，输入 new。")
+    console.print("想看示例输入 help，想结束输入 quit。")
 
 
 def _print_chat_help() -> None:

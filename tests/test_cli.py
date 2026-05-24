@@ -361,8 +361,9 @@ def test_cli_chat_prints_warm_intro_and_posts_question(monkeypatch, tmp_path):
     )
 
     assert result.exit_code == 0
-    assert "你好，我是夏夏。" in result.output
-    assert "目的地、天数、同行人、预算，知道多少说多少" in result.output
+    assert "你好，我是夏夏，华夏旅行社专属 AI 旅行顾问。" in result.output
+    assert "信息还没想全也没关系" in result.output
+    assert "路线、交通、住宿和吃什么" in result.output
     assert FakeClient.calls == [
         {
             "method": "POST",
@@ -370,6 +371,38 @@ def test_cli_chat_prints_warm_intro_and_posts_question(monkeypatch, tmp_path):
             "json": {"question": "云南七天怎么玩？"},
         }
     ]
+
+
+def test_cli_prints_chinese_section_titles(monkeypatch):
+    setup_fake_client(monkeypatch)
+    FakeClient.next_response = FakeResponse(
+        {
+            "answer": "夏夏已生成行程。",
+            "highlights": ["路线顺"],
+            "warnings": ["提前订票"],
+            "citations": ["[1] 官方来源"],
+        }
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "ask",
+            "北京三天怎么玩？",
+            "--base-url",
+            "http://testserver",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "回答" in result.output
+    assert "亮点" in result.output
+    assert "提醒" in result.output
+    assert "引用来源" in result.output
+    assert "Highlights" not in result.output
+    assert "Warnings" not in result.output
+    assert "Citations" not in result.output
 
 
 def test_cli_chat_uses_cached_session_for_reply(monkeypatch, tmp_path):
