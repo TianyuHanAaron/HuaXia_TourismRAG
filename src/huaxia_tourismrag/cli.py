@@ -420,13 +420,13 @@ def _print_list(title: str, values: list | None) -> None:
 
 def _print_chat_intro() -> None:
     console.print(
-        "[bold cyan]你好，我是夏夏，华夏旅行社专属 AI 旅行顾问。[/bold cyan]\n"
-        "想去哪儿玩？把目的地、天数、同行人、预算随便说一点就行。\n"
-        "信息还没想全也没关系，我会帮你把路线、交通、住宿和吃什么慢慢理清楚。"
+        "[bold cyan]嗨，我是夏夏，华夏旅行社专属 AI 旅行顾问。[/bold cyan]\n"
+        "把你的旅行想法丢给我吧：想去哪儿、玩几天、和谁去、预算大概多少，知道多少说多少。\n"
+        "还没定也没关系，我会帮你把路线、交通、住宿、美食和避坑点一步步理顺。"
     )
     if _load_cached_session_id():
-        console.print("上次规划还差一步，直接补一句就能继续；想换个灵感，输入 new。")
-    console.print("想看示例输入 help，想结束输入 quit。")
+        console.print("上次规划还差一步，直接补充就能继续；想重新开始，输入 new。")
+    console.print("想看示例输入 help，想退出输入 quit。")
 
 
 def _print_chat_help() -> None:

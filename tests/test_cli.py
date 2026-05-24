@@ -361,9 +361,9 @@ def test_cli_chat_prints_warm_intro_and_posts_question(monkeypatch, tmp_path):
     )
 
     assert result.exit_code == 0
-    assert "你好，我是夏夏，华夏旅行社专属 AI 旅行顾问。" in result.output
-    assert "信息还没想全也没关系" in result.output
-    assert "路线、交通、住宿和吃什么" in result.output
+    assert "嗨，我是夏夏，华夏旅行社专属 AI 旅行顾问。" in result.output
+    assert "把你的旅行想法丢给我吧" in result.output
+    assert "路线、交通、住宿、美食和避坑点" in result.output
     assert FakeClient.calls == [
         {
             "method": "POST",
