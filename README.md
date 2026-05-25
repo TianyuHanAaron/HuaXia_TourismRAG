@@ -263,7 +263,7 @@ For a polished local kiosk-style interface, start the FastAPI server first, then
 uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
 ```
 
-The Streamlit UI is designed as the current user-facing prototype for Xiaxia. It gives first-time users a simple mode choice between mature travel planning and custom route co-creation, supports `concise`, `standard`, and `deep` answer depth, handles pending clarification sessions, and renders answers with Chinese sections for highlights, warnings, itinerary, citations, and service checks. The UI calls the existing FastAPI endpoints, so it can later be replaced by a React frontend without changing the backend API contract.
+The Streamlit UI is designed as the current user-facing prototype for Xiaxia. It gives first-time users a simple mode choice between mature travel planning and custom route co-creation, supports `concise`, `standard`, and `deep` answer depth, handles pending clarification sessions, and renders answers with Chinese sections for highlights, warnings, itinerary, citations, and service checks. The shell randomly rotates China travel backgrounds from local assets on fresh sessions. The UI calls the existing FastAPI endpoints, so it can later be replaced by a React frontend without changing the backend API contract.
 
 ## Deployment
 
@@ -285,11 +285,12 @@ Docker web service can use the image directly. The service listens on
 /tourism/sessions/{session_id}/reply
 ```
 
-If your backend host deploys from source instead of Docker, use this start
-command:
+If your backend host deploys from source instead of Docker, use a no-sync start
+command so the host does not reinstall dependencies or compile bytecode at
+runtime:
 
 ```bash
-uv run uvicorn huaxia_tourismrag.main:app --host 0.0.0.0 --port $PORT
+uv run --no-sync uvicorn huaxia_tourismrag.main:app --host 0.0.0.0 --port $PORT
 ```
 
 Set backend secrets on the backend host, not in GitHub:
@@ -304,8 +305,9 @@ Set backend secrets on the backend host, not in GitHub:
 - `EMBEDDING_PROVIDER`, `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_DIMENSIONS`
 - Optional MCP keys such as `MAPBOX_ACCESS_TOKEN` and `FIRECRAWL_MCP_*`
 
-For production latency, prefer a remote embedding endpoint and keep local model
-reranking disabled unless you provision enough CPU/GPU memory:
+For production latency and low-memory hosts such as 512 MiB Render instances,
+prefer a remote embedding endpoint and keep local model reranking disabled
+unless you provision enough CPU/GPU memory:
 
 ```env
 EMBEDDING_PROVIDER=remote

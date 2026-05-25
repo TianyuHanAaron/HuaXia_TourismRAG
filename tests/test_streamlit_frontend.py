@@ -17,6 +17,33 @@ def test_streamlit_assets_exist():
     assert streamlit_app.MODEL_PATH.parent.exists()
 
 
+def test_streamlit_background_assets_exist():
+    assert len(streamlit_app.BACKGROUND_IMAGE_PATHS) == 9
+    for path in streamlit_app.BACKGROUND_IMAGE_PATHS:
+        assert path.is_file(), path
+
+    assert set(streamlit_app._available_background_images()) == set(
+        streamlit_app.BACKGROUND_IMAGE_PATHS
+    )
+
+
+def test_selected_background_repairs_empty_directory_path(monkeypatch):
+    monkeypatch.setitem(streamlit_app.st.session_state, "background_image_path", "")
+
+    selected = streamlit_app._selected_background_image()
+
+    assert selected.is_file()
+    assert selected in streamlit_app.BACKGROUND_IMAGE_PATHS
+    assert streamlit_app.st.session_state["background_image_path"] == str(selected)
+
+
+def test_streamlit_input_uses_inline_form_not_sticky_chat_input():
+    source = streamlit_app.Path(streamlit_app.__file__).read_text()
+
+    assert "st.chat_input" not in source
+    assert 'st.form("travel-composer-form"' in source
+
+
 def test_asset_mime_supports_glb_model():
     assert streamlit_app._asset_mime(streamlit_app.MODEL_PATH) == "model/gltf-binary"
 

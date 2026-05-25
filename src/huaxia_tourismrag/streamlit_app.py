@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import html
 import os
+import random
 import sys
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,17 @@ ASSET_ROOT = PROJECT_ROOT / "assets"
 AVATAR_PATH = ASSET_ROOT / "avatars" / "xiaxia-avatar-3d.jpg"
 MODEL_PATH = ASSET_ROOT / "models" / "xiaxia-avatar.glb"
 HERO_IMAGE_PATH = ASSET_ROOT / "travel" / "china-great-wall-hero.jpg"
+BACKGROUND_IMAGE_PATHS = (
+    HERO_IMAGE_PATH,
+    ASSET_ROOT / "travel" / "shanghai-bund-architecture.jpg",
+    ASSET_ROOT / "travel" / "potala-palace-distant.jpg",
+    ASSET_ROOT / "travel" / "longmen-lushena-buddha.jpg",
+    ASSET_ROOT / "travel" / "yingxian-wooden-pagoda.jpg",
+    ASSET_ROOT / "travel" / "fujian-tulou-overlook.jpg",
+    ASSET_ROOT / "travel" / "chongqing-qiansimen-hongya-view.jpg",
+    ASSET_ROOT / "travel" / "beijing-forbidden-city.jpg",
+    ASSET_ROOT / "travel" / "hangzhou-west-lake.jpg",
+)
 
 UI_TEXT: dict[str, dict[str, Any]] = {
     "zh": {
@@ -84,6 +96,8 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "pending": "上次规划还差一步。你可以直接补充信息；如果想重新开始，请点侧边栏「清空会话」。",
         "examples_title": "可以这样开始",
         "sample_button": "填入这个想法",
+        "input_label": "旅行想法",
+        "send": "发送给夏夏",
         "placeholder": "说说你的旅行想法，比如目的地、天数、同行人、预算；特殊路线可以写城市清单和主题。",
         "thinking": "夏夏正在整理路线和证据...",
         "health_ok": "服务状态",
@@ -143,6 +157,8 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "pending": "The last plan needs one more detail. Reply directly, or clear the chat to start over.",
         "examples_title": "Try one of these",
         "sample_button": "Use this idea",
+        "input_label": "Trip idea",
+        "send": "Send to Xiaxia",
         "placeholder": "Tell me your trip idea: destination, days, travelers, budget, or a custom theme and city list.",
         "thinking": "Xiaxia is organizing route logic and evidence...",
         "health_ok": "Service status",
@@ -213,6 +229,9 @@ def _ensure_state() -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+    if not st.session_state.get("background_image_path"):
+        st.session_state["background_image_path"] = str(_random_background_image())
 
 
 def _render_shell() -> None:
@@ -584,17 +603,38 @@ def _render_input(
     detail_level: DetailLevel,
     copy: dict[str, Any],
 ) -> None:
-    prompt = st.chat_input(copy["placeholder"])
-
     draft = st.session_state.get("draft_prompt")
     if draft:
         st.session_state["draft_prompt"] = ""
-        prompt = draft
-
-    if not prompt:
+        _submit_user_prompt(draft, mode=mode, detail_level=detail_level, copy=copy)
         return
 
-    clean_prompt = strip_diy_prefix(prompt)
+    with st.form("travel-composer-form", clear_on_submit=True, border=False):
+        prompt = st.text_area(
+            copy["input_label"],
+            placeholder=copy["placeholder"],
+            label_visibility="collapsed",
+            height=96,
+            key="travel_prompt_input",
+        )
+        submitted = st.form_submit_button(copy["send"], use_container_width=True)
+
+    if not submitted:
+        return
+
+    _submit_user_prompt(prompt, mode=mode, detail_level=detail_level, copy=copy)
+
+
+def _submit_user_prompt(
+    prompt: str,
+    mode: RequestMode,
+    detail_level: DetailLevel,
+    copy: dict[str, Any],
+) -> None:
+    clean_prompt = strip_diy_prefix(prompt).strip()
+    if not clean_prompt:
+        return
+
     st.session_state["messages"].append({"role": "user", "content": clean_prompt})
     _submit_prompt(clean_prompt, mode=mode, detail_level=detail_level, copy=copy)
     st.rerun()
@@ -988,8 +1028,33 @@ def _asset_data_uri(path: Path) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
+def _available_background_images() -> tuple[Path, ...]:
+    """Return existing travel background images for the Streamlit shell."""
+
+    existing = tuple(path for path in BACKGROUND_IMAGE_PATHS if path.is_file())
+    return existing or (HERO_IMAGE_PATH,)
+
+
+def _random_background_image() -> Path:
+    """Choose one destination background for a fresh Streamlit session."""
+
+    return random.choice(_available_background_images())
+
+
+def _selected_background_image() -> Path:
+    """Return the session's background image, repairing stale paths if needed."""
+
+    selected = Path(str(st.session_state.get("background_image_path") or ""))
+    if selected.is_file():
+        return selected
+
+    selected = _random_background_image()
+    st.session_state["background_image_path"] = str(selected)
+    return selected
+
+
 def _css() -> str:
-    hero_image = _asset_data_uri(HERO_IMAGE_PATH)
+    hero_image = _asset_data_uri(_selected_background_image())
     return """
     <style>
       :root {
@@ -1004,11 +1069,32 @@ def _css() -> str:
         --hx-panel: rgba(255, 255, 255, 0.92);
       }
       .stApp {
-        background:
-          linear-gradient(90deg, rgba(247, 250, 248, 0.76), rgba(247, 250, 248, 0.56)),
-          url('HERO_IMAGE_URI') center top / cover fixed,
-          linear-gradient(135deg, #f7faf8 0%, #eef6f1 48%, #f9f4ef 100%);
+        position: relative;
+        background: linear-gradient(135deg, #f7faf8 0%, #eef6f1 48%, #f9f4ef 100%);
         color: var(--hx-ink);
+      }
+      .stApp::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: url('HERO_IMAGE_URI') center top / cover fixed;
+        filter: blur(1.2px) saturate(0.86) contrast(0.92);
+        transform: scale(1.018);
+        opacity: 0.78;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .stApp::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(247, 250, 248, 0.82), rgba(247, 250, 248, 0.66));
+        pointer-events: none;
+        z-index: 0;
+      }
+      .stApp > * {
+        position: relative;
+        z-index: 1;
       }
       .stMarkdown,
       .stMarkdown p,
@@ -1185,6 +1271,29 @@ def _css() -> str:
       }
       [data-testid="stChatMessage"] {
         border-radius: 8px;
+      }
+      div[data-testid="stForm"] {
+        margin: 28px 0 36px 0;
+        padding: 16px;
+        border: 1px solid rgba(7, 26, 51, 0.10);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.90);
+        box-shadow: 0 18px 42px rgba(7, 26, 51, 0.07);
+        backdrop-filter: blur(8px);
+      }
+      div[data-testid="stForm"] textarea {
+        color: var(--hx-ink) !important;
+        -webkit-text-fill-color: var(--hx-ink) !important;
+        font-weight: 650;
+        background: rgba(255, 255, 255, 0.94) !important;
+        border-radius: 8px !important;
+        border-color: rgba(7, 26, 51, 0.18) !important;
+        box-shadow: none !important;
+      }
+      div[data-testid="stForm"] textarea::placeholder {
+        color: rgba(7, 26, 51, 0.62) !important;
+        -webkit-text-fill-color: rgba(7, 26, 51, 0.62) !important;
+        opacity: 1 !important;
       }
       @media (max-width: 760px) {
         .hero {

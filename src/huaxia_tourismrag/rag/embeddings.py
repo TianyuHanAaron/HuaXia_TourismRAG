@@ -1,9 +1,8 @@
 """Embedding generation helpers."""
 
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
-from sentence_transformers import SentenceTransformer
 
 
 class Embedder(Protocol):
@@ -15,7 +14,7 @@ class Embedder(Protocol):
 
 
 class SentenceTransformerEmbedder:
-    def __init__(self, model: SentenceTransformer) -> None:
+    def __init__(self, model: Any) -> None:
         self.model = model
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
