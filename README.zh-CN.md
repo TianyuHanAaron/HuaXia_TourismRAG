@@ -2,6 +2,57 @@
 
 **语言:** [English](README.md) | 简体中文
 
+## 在线体验
+
+**立即体验夏夏：** <https://huaxiatourismrag-tx26tmcms8raaogz828jga.streamlit.app/>
+
+打开 Streamlit 页面即可试用当前面向用户的华夏旅行社 AI
+旅行顾问原型。生产环境需要单独部署后端，并通过 `STREAMLIT_API_BASE_URL`
+连接到对应的 FastAPI 服务。
+
+## 产品预览
+
+夏夏被设计为华夏旅行社的 AI 前台顾问：用户可以从一个很随意的旅行想法开始，
+在成熟旅行方案和专属路线共创之间选择，按需回答关键澄清问题，并逐步生成可交给
+旅行顾问继续报价和落地执行的行程方案。
+
+<p align="center">
+  <a href="docs/assets/product/xiaxia-demo.mp4">
+    <img src="docs/assets/product/xiaxia-home-cn.png" alt="夏夏中文首页" width="92%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="docs/assets/product/xiaxia-demo.mp4"><strong>观看 60 秒产品演示视频</strong></a>
+</p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>多轮澄清</strong><br>
+      <sub>当用户意图还不完整时，夏夏会先追问关键问题，而不是直接生成低质量行程。</sub><br><br>
+      <img src="docs/assets/product/xiaxia-clarification-cn.png" alt="夏夏多轮澄清流程">
+    </td>
+    <td width="50%">
+      <strong>专属路线共创</strong><br>
+      <sub>DIY 路线会保留用户指定城市和主题，同时允许系统根据交通逻辑优化顺序。</sub><br><br>
+      <img src="docs/assets/product/xiaxia-diy-cn.png" alt="夏夏 DIY 路线共创流程">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>中英双语界面</strong><br>
+      <sub>前端默认服务中文用户，同时保留英文模式，为后续入境游或海外用户场景打基础。</sub><br><br>
+      <img src="docs/assets/product/xiaxia-home-en.png" alt="夏夏英文界面">
+    </td>
+    <td width="50%">
+      <strong>面向业务的 AI 前台</strong><br>
+      <sub>界面围绕旅行咨询、回答深度控制、专属路线和未来顾问交接设计。</sub><br><br>
+      <img src="docs/assets/product/xiaxia-home-cn.png" alt="夏夏旅行社 AI 前台">
+    </td>
+  </tr>
+</table>
+
 华夏旅游 RAG 是面向 **华夏旅行社** 打造的专属 Agentic Web-Augmented RAG 平台。它不是一个普通旅游问答 Demo，而是一个面向旅行咨询、售前规划、线索筛选、人工顾问交接和未来预订转化的智能旅行顾问底座。
 
 系统围绕中国国内游客和中国旅游运营场景设计，重点处理路线逻辑、交通可行性、住宿区域、本地美食、景点取舍、政策约束、预订核验、风险提醒和旅行社式行程表达。

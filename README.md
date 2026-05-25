@@ -2,6 +2,58 @@
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
+## Live Demo
+
+**Try Xiaxia now:** <https://huaxiatourismrag-tx26tmcms8raaogz828jga.streamlit.app/>
+
+Open the Streamlit app to test the current public-facing prototype for HuaXia
+Travel Agency's AI travel consultant. The backend should be deployed separately
+and configured through `STREAMLIT_API_BASE_URL` for production use.
+
+## Product Preview
+
+Xiaxia is designed as a polished AI front desk for HuaXia Travel Agency: users can
+start with a casual travel idea, choose between mature trip planning and custom
+route co-creation, answer clarification checkpoints, and continue toward a
+consultant-ready itinerary.
+
+<p align="center">
+  <a href="docs/assets/product/xiaxia-demo.mp4">
+    <img src="docs/assets/product/xiaxia-home-cn.png" alt="Xiaxia Chinese home screen" width="92%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="docs/assets/product/xiaxia-demo.mp4"><strong>Watch the 60-second product walkthrough</strong></a>
+</p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Multi-hop clarification</strong><br>
+      <sub>When user intent is incomplete, Xiaxia asks focused follow-up questions before generating a weak itinerary.</sub><br><br>
+      <img src="docs/assets/product/xiaxia-clarification-cn.png" alt="Xiaxia multi-hop clarification flow">
+    </td>
+    <td width="50%">
+      <strong>Custom route co-creation</strong><br>
+      <sub>DIY routes preserve user-defined cities and themes while still allowing route optimization.</sub><br><br>
+      <img src="docs/assets/product/xiaxia-diy-cn.png" alt="Xiaxia DIY route co-creation flow">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Bilingual product surface</strong><br>
+      <sub>The same frontend supports Chinese-first service and an English-facing mode for future inbound use cases.</sub><br><br>
+      <img src="docs/assets/product/xiaxia-home-en.png" alt="Xiaxia English interface">
+    </td>
+    <td width="50%">
+      <strong>Business-ready front desk</strong><br>
+      <sub>The UI is built around travel consultation, answer depth control, custom routes, and future consultant handoff.</sub><br><br>
+      <img src="docs/assets/product/xiaxia-home-cn.png" alt="Xiaxia business-ready AI travel front desk">
+    </td>
+  </tr>
+</table>
+
 HuaXia Tourism RAG is a proprietary agentic, web-augmented RAG platform designed for **HuaXia Travel Agency**. It turns open-ended Chinese domestic-travel requests into structured, citation-aware itinerary advice that can support online consultation, pre-sales planning, lead qualification, and future handoff to human travel consultants.
 
 The product is built around Chinese tourists and China-specific travel operations: route logic, transport feasibility, hotel-area recommendations, local food, attraction tradeoffs, policy constraints, booking checks, risk reminders, and agency-style itinerary communication.
