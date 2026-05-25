@@ -325,6 +325,7 @@ instance and point `QDRANT_URL` at it.
 
 For Streamlit Community Cloud:
 
+- Public app: <https://huaxiatourismrag-tx26tmcms8raaogz828jga.streamlit.app/>
 - Repository: `TianyuHanAaron/HuaXia_TourismRAG`
 - Branch: `main`
 - Main file path: `src/huaxia_tourismrag/streamlit_app.py`

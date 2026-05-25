@@ -319,6 +319,7 @@ Qdrant Cloud 或自托管 Qdrant，并通过 `QDRANT_URL` 指向对应实例。
 
 Streamlit Community Cloud 配置：
 
+- 公网页面：<https://huaxiatourismrag-tx26tmcms8raaogz828jga.streamlit.app/>
 - Repository: `TianyuHanAaron/HuaXia_TourismRAG`
 - Branch: `main`
 - Main file path: `src/huaxia_tourismrag/streamlit_app.py`
