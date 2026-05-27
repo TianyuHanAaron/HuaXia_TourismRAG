@@ -272,7 +272,7 @@ class ChineseTourismSearchTool:
         if options.source_preference == "official":
             terms.extend(["官方网站", "官方公告", "文旅局", "景区官网"])
         elif options.source_preference == "local_experience":
-            terms.extend(["近期", "本地人推荐", "真实体验", "老字号", "小众"])
+            terms.extend(["近期", "本地人推荐", "真实体验", "特色小吃", "小众"])
 
         return f"{question} {' '.join(dict.fromkeys(terms))}"
 

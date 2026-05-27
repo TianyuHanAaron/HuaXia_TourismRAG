@@ -155,6 +155,29 @@ def test_fresh_web_evidence_rows_are_gui_friendly():
     ]
 
 
+def test_performance_rows_are_gui_friendly():
+    rows = streamlit_app._performance_rows(
+        {
+            "total_ms": 123.4,
+            "stages": [
+                {
+                    "name": "web_search",
+                    "duration_ms": 45.6,
+                    "metadata": {"task_type": "attraction", "pages": 3},
+                }
+            ],
+        }
+    )
+
+    assert rows == [
+        {
+            "阶段": "web_search",
+            "耗时 ms": 45.6,
+            "元数据": "task_type=attraction, pages=3",
+        }
+    ]
+
+
 def test_quick_reply_options_keep_first_three_valid_options():
     options = streamlit_app._quick_reply_options(
         [
@@ -215,3 +238,10 @@ def test_pending_reply_uses_longer_timeout_floor():
         configured_timeout=300,
         is_pending_reply=False,
     ) == 300
+
+
+def test_deep_diy_uses_async_job_path_only_for_first_turn():
+    assert streamlit_app._should_use_async_job("diy", "deep", None) is True
+    assert streamlit_app._should_use_async_job("normal", "deep", None) is False
+    assert streamlit_app._should_use_async_job("diy", "standard", None) is False
+    assert streamlit_app._should_use_async_job("diy", "deep", "session-1") is False

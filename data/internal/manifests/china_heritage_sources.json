@@ -4,20 +4,10 @@
   "production_target_rows": "All national protected heritage sites, then selected provincial/municipal heritage rows useful for travel planning",
   "sources": [
     {
-      "source_id": "curated-heritage-seed",
-      "source_name": "HuaXia Tourism Curated Heritage Seed",
-      "authority": "curated_agency",
-      "official_status": "curated_pending_official_url",
-      "default_content_type": "heritage_site",
-      "default_level": "national_or_local_heritage",
-      "default_tags": ["文保", "历史人文"],
-      "row_file": "../rows/seed/heritage_seed_rows.json"
-    },
-    {
       "source_id": "china-national-heritage-production",
       "source_name": "National Protected Heritage Site Structured Rows",
       "authority": "state_council",
-      "official_status": "official_pending_acquisition",
+      "official_status": "official_parsed",
       "default_content_type": "heritage_site",
       "default_level": "national_heritage",
       "default_tags": ["全国重点文物保护单位", "文保", "历史人文"],

@@ -528,7 +528,7 @@ The old demo seed file has been removed. The internal knowledge base is now spli
 
 - `policy_transport_rules`: official policy, transport, safety, consumer-protection, medical, insurance, customs, finance, legal, and regulatory material that can affect real travelers.
 - `structured_destinations`: structured scenic-area, heritage-site, destination, and theme-attraction rows used to ground itinerary claims.
-- `food_specialties`: structured local cuisine, specialties, and time-honored-brand rows used to make plans feel more like real agency advice.
+- `food_specialties`: structured local cuisine and specialty rows used to make plans feel more like real agency advice.
 
 Policy corpus path:
 
@@ -564,7 +564,7 @@ A production acquisition registry tracks broader official source candidates for 
 data/internal/registries/china_structured_production_source_registry.json
 ```
 
-It currently covers source candidates for 5A scenic areas, provincial 4A/3A scenic rows, national protected heritage sites, Chinese time-honored brands, and agricultural GI/specialty products.
+It currently covers source candidates for 5A scenic areas, provincial 4A/3A scenic rows, national protected heritage sites, MCT intangible-food routes, and agricultural GI/specialty products.
 
 Generated structured corpora:
 
@@ -715,7 +715,7 @@ Recommended first target size:
 - MVP: 10,000-12,000 Qdrant rows across policy, scenic, heritage, and food corpora.
 - Stronger domestic coverage: 15,000-25,000 rows.
 
-The current structured manifests are intentionally small seed files that validate the pipeline. Production expansion should batch-import official 5A/4A scenic lists, selected 3A rows, national protected heritage sites, local specialty catalogs, and time-honored-brand lists.
+The current structured manifests are intentionally small seed files that validate the pipeline. Production expansion should batch-import official 5A/4A scenic lists, selected 3A rows, national protected heritage sites, local-cuisine sources, and specialty catalogs.
 
 To expand beyond seed data, add new row files under `data/internal/rows/` and reference them from the relevant source manifest through `row_file`. Both JSON and CSV row files are supported. CSV `tags` can be separated by `;`, `；`, `,`, `，`, `、`, or `|`.
 
@@ -725,7 +725,7 @@ The production target row files are already wired into the source manifests. Onc
 data/internal/rows/production/china_5a_scenic_rows.json
 data/internal/rows/production/china_4a_3a_selected_scenic_rows.json
 data/internal/rows/production/china_national_heritage_rows.json
-data/internal/rows/production/china_time_honored_brand_rows.json
+data/internal/rows/production/china_local_cuisine_rows.json
 data/internal/rows/production/china_agricultural_gi_specialty_rows.json
 ```
 

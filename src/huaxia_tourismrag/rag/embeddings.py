@@ -1,5 +1,6 @@
 """Embedding generation helpers."""
 
+import time
 from typing import Any, Protocol
 
 import httpx
@@ -41,11 +42,15 @@ class RemoteHttpEmbedder:
         api_key: str | None,
         dimensions: int,
         timeout_seconds: float = 120.0,
+        max_retries: int = 1,
+        retry_delay_seconds: float = 0.5,
     ) -> None:
         self.api_url = api_url.rstrip("/")
         self.api_key = api_key
         self._dimensions = dimensions
         self.timeout_seconds = timeout_seconds
+        self.max_retries = max(1, max_retries)
+        self.retry_delay_seconds = max(0.0, retry_delay_seconds)
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -78,15 +83,19 @@ class RemoteHttpEmbedder:
         with httpx.Client(timeout=self.timeout_seconds) as client:
             for endpoint in endpoints:
                 for payload in payloads:
-                    try:
-                        response = client.post(endpoint, headers=headers, json=payload)
-                        if response.status_code in {400, 404, 405, 422}:
-                            continue
-                        response.raise_for_status()
-                        return response.json()
-                    except httpx.HTTPError as exc:
-                        last_error = exc
-                        continue
+                    for attempt in range(self.max_retries):
+                        try:
+                            response = client.post(endpoint, headers=headers, json=payload)
+                            if response.status_code in {400, 404, 405, 422}:
+                                break
+                            response.raise_for_status()
+                            return response.json()
+                        except httpx.HTTPError as exc:
+                            last_error = exc
+                            if attempt < self.max_retries - 1:
+                                time.sleep(self.retry_delay_seconds)
+                                continue
+                            break
 
         if last_error:
             raise last_error

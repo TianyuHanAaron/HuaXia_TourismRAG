@@ -55,7 +55,6 @@ DESTINATION_CONTENT_TYPES = {
     "destination",
     "local_cuisine",
     "local_specialty",
-    "time_honored_brand",
 }
 
 POLICY_SUPPORT_CONTENT_TYPES = {

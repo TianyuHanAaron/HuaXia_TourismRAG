@@ -95,6 +95,26 @@ class TourismApiClient:
         )
         return self._post(endpoint, payload)
 
+    def create_diy_job(
+        self,
+        message: str,
+        detail_level: DetailLevel,
+        language: AnswerLanguage = "zh-CN",
+    ) -> dict:
+        """Queue a long-running DIY itinerary job."""
+
+        payload = build_question_payload(
+            message,
+            detail_level=detail_level,
+            language=language,
+        )
+        return self._post("/tourism/jobs/diy", payload)
+
+    def job_status(self, job_id: str) -> dict:
+        """Fetch a long-running travel job status."""
+
+        return self._get(f"/tourism/jobs/{job_id}")
+
     def _get(self, path: str) -> dict:
         url = f"{self.base_url}{path}"
         try:

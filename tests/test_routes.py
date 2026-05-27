@@ -4,7 +4,9 @@ from fastapi.testclient import TestClient
 from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.api.routes import router
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.jobs import TravelJobQueueItem
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
+from huaxia_tourismrag.services.job_store import InMemoryTravelJobStore
 
 
 class FakeTourismQAService:
@@ -59,6 +61,17 @@ class FakeSessionReplyService:
         )
 
 
+class FakeTravelJobQueue:
+    def __init__(self) -> None:
+        self.items: list[TravelJobQueueItem] = []
+
+    async def enqueue(self, item: TravelJobQueueItem) -> None:
+        self.items.append(item)
+
+    async def dequeue(self, timeout_seconds: int = 5) -> TravelJobQueueItem | None:
+        return self.items.pop(0) if self.items else None
+
+
 class MisconfiguredTourismQAService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
@@ -67,7 +80,11 @@ class MisconfiguredTourismQAService:
         raise AgentModelConfigurationError("OPENAI_API_KEY is required for testing")
 
 
-def make_client(configure_service: bool = True) -> TestClient:
+def make_client(
+    configure_service: bool = True,
+    configure_job_store: bool = True,
+    configure_job_queue: bool = False,
+) -> TestClient:
     FakeTourismQAService.questions = []
     FakeDIYItineraryService.questions = []
     FakeSessionReplyService.replies = []
@@ -76,6 +93,10 @@ def make_client(configure_service: bool = True) -> TestClient:
         app.state.tourism_qa_service_factory = FakeTourismQAService
         app.state.diy_itinerary_service_factory = FakeDIYItineraryService
         app.state.session_reply_service_factory = FakeSessionReplyService
+    if configure_job_store:
+        app.state.travel_job_store = InMemoryTravelJobStore()
+    if configure_job_queue:
+        app.state.travel_job_queue = FakeTravelJobQueue()
     app.include_router(router)
     return TestClient(app)
 
@@ -138,6 +159,58 @@ def test_diy_itinerary_route_uses_same_question_request_and_answer_response():
     assert response.headers["x-request-id"]
     assert response.json()["answer"].startswith("diy demo-tenant:")
     assert FakeDIYItineraryService.questions[0].question.startswith("从北京出发")
+
+
+def test_diy_itinerary_job_route_queues_and_completes_job():
+    client = make_client()
+
+    response = client.post(
+        "/tourism/jobs/diy",
+        json={
+            "question": "从北京出发，北京结束，三国历史巡礼：涿州-许昌-成都-汉中。",
+            "detail_level": "deep",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.headers["x-request-id"]
+    job_id = response.json()["job_id"]
+
+    status = client.get(f"/tourism/jobs/{job_id}")
+
+    assert status.status_code == 200
+    body = status.json()
+    assert body["status"] == "completed"
+    assert body["answer"]["answer"].startswith("diy demo-tenant:")
+
+
+def test_diy_itinerary_job_route_can_enqueue_for_external_worker():
+    client = make_client(configure_job_queue=True)
+
+    response = client.post(
+        "/tourism/jobs/diy",
+        json={
+            "question": "从北京出发，北京结束，三国历史巡礼：涿州-许昌-成都-汉中。",
+            "detail_level": "deep",
+        },
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "queued"
+    queue = client.app.state.travel_job_queue
+    assert len(queue.items) == 1
+    assert queue.items[0].job_id == body["job_id"]
+    assert queue.items[0].tenant_id == "demo-tenant"
+
+
+def test_diy_itinerary_job_status_returns_404_for_missing_job():
+    client = make_client()
+
+    response = client.get("/tourism/jobs/missing")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "job not found"
 
 
 def test_session_reply_route_uses_same_answer_response():
@@ -214,6 +287,18 @@ def test_diy_itinerary_route_returns_503_when_service_not_configured():
     assert response.json()["detail"] == "DIY itinerary service is not configured"
 
 
+def test_diy_itinerary_job_route_returns_503_when_store_not_configured():
+    client = make_client(configure_job_store=False)
+
+    response = client.post(
+        "/tourism/jobs/diy",
+        json={"question": "三国历史巡礼：涿州-许昌-成都。"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "travel job store is not configured"
+
+
 def test_session_reply_route_returns_503_when_service_not_configured():
     client = make_client(configure_service=False)
 
@@ -234,6 +319,8 @@ def test_tourism_capabilities_route_describes_supported_features():
     assert response.status_code == 200
     assert response.json()["primary_endpoint"] == "/tourism/questions"
     assert response.json()["diy_itinerary_endpoint"] == "/tourism/itineraries/diy"
+    assert response.json()["diy_job_endpoint"] == "/tourism/jobs/diy"
+    assert response.json()["job_status_endpoint"] == "/tourism/jobs/{job_id}"
     assert "zh-CN" in response.json()["supported_languages"]
     assert response.json()["supported_detail_levels"] == ["concise", "standard", "deep"]
     assert "detail_level" in response.json()["optional_context_fields"]

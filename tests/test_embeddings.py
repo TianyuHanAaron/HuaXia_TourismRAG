@@ -59,3 +59,29 @@ def test_remote_http_embedder_falls_back_to_embed_path(monkeypatch):
 
     assert embedder.embed_query("北京") == [1.0, 2.0]
     assert "https://embedding.example/embed" in endpoints
+
+
+def test_remote_http_embedder_retries_transient_server_errors(monkeypatch):
+    attempts = []
+
+    def fake_post(self, endpoint, headers=None, json=None):
+        attempts.append(endpoint)
+        if len(attempts) == 1:
+            return httpx.Response(503, request=httpx.Request("POST", endpoint))
+        return httpx.Response(
+            200,
+            json={"embeddings": [[1, 2]]},
+            request=httpx.Request("POST", endpoint),
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    embedder = RemoteHttpEmbedder(
+        api_url="https://embedding.example",
+        api_key=None,
+        dimensions=2,
+        max_retries=2,
+        retry_delay_seconds=0,
+    )
+
+    assert embedder.embed_query("北京") == [1.0, 2.0]
+    assert len(attempts) == 2

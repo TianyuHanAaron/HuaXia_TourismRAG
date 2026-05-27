@@ -91,7 +91,7 @@ def test_diy_relevance_filter_drops_origin_city_hotel_and_food_noise():
         _chunk(
             "donglaishun",
             "北京东来顺涮羊肉推荐场景",
-            "北京老字号涮羊肉，芝麻酱，韭菜花。",
+            "北京涮羊肉，芝麻酱，韭菜花。",
             "https://www.donglaishun.com/",
         ),
         _chunk(

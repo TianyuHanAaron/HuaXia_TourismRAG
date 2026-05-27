@@ -19,7 +19,10 @@ from huaxia_tourismrag.rag.embeddings import SentenceTransformerEmbedder
 from huaxia_tourismrag.rag.hf_models import load_embedding_model, load_reranker_model
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
+from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
+from huaxia_tourismrag.services.job_store import RedisTravelJobStore
 from huaxia_tourismrag.services.qa_service import TourismQAService
+from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import (
@@ -71,6 +74,8 @@ def build_embedder(settings: Settings | None = None) -> Embedder:
             api_key=settings.embedding_api_key,
             dimensions=settings.embedding_dimensions,
             timeout_seconds=settings.qdrant_timeout_seconds,
+            max_retries=settings.embedding_max_retries,
+            retry_delay_seconds=settings.embedding_retry_delay_seconds,
         )
     if provider_name == "local":
         return SentenceTransformerEmbedder(load_embedding_model())
@@ -81,6 +86,7 @@ def build_tourism_qa_service(
     tenant_id: str,
     session_store: TravelSessionStore | None = None,
     create_pending_sessions: bool = True,
+    retrieval_cache: RetrievalCache | None = None,
 ) -> TourismQAService:
     """Build a tenant-scoped Chinese tourism QA service."""
 
@@ -95,6 +101,8 @@ def build_tourism_qa_service(
         session_store=session_store,
         create_pending_sessions=create_pending_sessions,
         service_enrichment=build_service_enrichment(),
+        retrieval_cache=retrieval_cache or build_retrieval_cache(settings),
+        page_read_concurrency=settings.page_read_concurrency,
     )
 
 
@@ -102,6 +110,7 @@ def build_diy_itinerary_service(
     tenant_id: str,
     session_store: TravelSessionStore | None = None,
     create_pending_sessions: bool = True,
+    retrieval_cache: RetrievalCache | None = None,
 ) -> DIYItineraryService:
     """Build a tenant-scoped DIY itinerary service."""
 
@@ -116,6 +125,25 @@ def build_diy_itinerary_service(
         session_store=session_store,
         create_pending_sessions=create_pending_sessions,
         service_enrichment=build_service_enrichment(),
+        retrieval_cache=retrieval_cache or build_retrieval_cache(settings),
+        page_read_concurrency=settings.page_read_concurrency,
+    )
+
+
+def build_retrieval_cache(
+    settings: Settings | None = None,
+    redis: Redis | None = None,
+) -> RetrievalCache | None:
+    """Build the optional Redis-backed retrieval cache."""
+
+    settings = settings or get_settings()
+    if not settings.enable_retrieval_cache:
+        return None
+
+    redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
+    return RetrievalCache(
+        redis=redis,
+        ttl_seconds=settings.retrieval_cache_ttl_seconds,
     )
 
 
@@ -292,20 +320,53 @@ def build_travel_session_store() -> RedisTravelSessionStore:
     )
 
 
+def build_travel_job_store(
+    settings: Settings | None = None,
+    redis: Redis | None = None,
+) -> RedisTravelJobStore:
+    """Build the Redis-backed long-running travel job store."""
+
+    settings = settings or get_settings()
+    redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
+    return RedisTravelJobStore(redis=redis, ttl_seconds=settings.job_ttl_seconds)
+
+
+def build_travel_job_queue(
+    settings: Settings | None = None,
+    redis: Redis | None = None,
+) -> RedisTravelJobQueue | None:
+    """Build the optional Redis queue for external DIY job workers."""
+
+    settings = settings or get_settings()
+    if settings.job_execution_mode != "queue":
+        return None
+
+    redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
+    return RedisTravelJobQueue(redis=redis, key=settings.job_queue_key)
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
 
     app = FastAPI(title="HuaXia Tourism RAG")
     session_store = build_travel_session_store()
+    retrieval_cache = build_retrieval_cache(redis=session_store.redis)
+    job_store = build_travel_job_store(redis=session_store.redis)
+    job_queue = build_travel_job_queue(redis=session_store.redis)
     app.state.travel_session_store = session_store
+    app.state.retrieval_cache = retrieval_cache
+    app.state.travel_job_store = job_store
+    app.state.travel_job_queue = job_queue
     app.state.tourism_qa_service_factory = lambda tenant_id: build_tourism_qa_service(
         tenant_id,
         session_store=session_store,
+        retrieval_cache=retrieval_cache,
     )
     app.state.diy_itinerary_service_factory = (
         lambda tenant_id: build_diy_itinerary_service(
             tenant_id,
             session_store=session_store,
+            retrieval_cache=retrieval_cache,
         )
     )
     app.state.session_reply_service_factory = lambda tenant_id: SessionReplyService(
@@ -315,11 +376,13 @@ def create_app() -> FastAPI:
             tenant_id,
             session_store=session_store,
             create_pending_sessions=False,
+            retrieval_cache=retrieval_cache,
         ),
         diy_itinerary_service_factory=lambda tenant_id: build_diy_itinerary_service(
             tenant_id,
             session_store=session_store,
             create_pending_sessions=False,
+            retrieval_cache=retrieval_cache,
         ),
     )
     app.include_router(router)

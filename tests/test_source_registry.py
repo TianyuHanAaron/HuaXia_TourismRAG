@@ -2,6 +2,7 @@ import json
 
 from huaxia_tourismrag.indexing.source_registry import (
     ProductionSourceRegistryManager,
+    normalize_scenic_display_name,
 )
 
 
@@ -152,3 +153,101 @@ def test_source_registry_imports_csv_rows_and_appends_without_duplicates(tmp_pat
     assert second.imported_count == 0
     assert len(lines) == 2
     assert "故宫博物院" in lines[1]
+
+
+def test_source_registry_import_strips_scenic_city_prefix(tmp_path):
+    registry_path = tmp_path / "registry.json"
+    _write_registry(registry_path)
+    input_path = tmp_path / "input.csv"
+    input_path.write_text(
+        "name,text,province,city,tags\n"
+        "成都市安仁古镇景区,成都市安仁古镇景区是国家5A级旅游景区。,四川省,成都市,5A;古镇\n",
+        encoding="utf-8",
+    )
+
+    ProductionSourceRegistryManager().import_rows(
+        registry_path=registry_path,
+        dataset_id="china_5a",
+        input_path=input_path,
+    )
+
+    target = tmp_path / "rows" / "5a.csv"
+    lines = target.read_text(encoding="utf-8").splitlines()
+    assert "安仁古镇景区,安仁古镇景区是国家5A级旅游景区。" in lines[1]
+    assert "成都市安仁古镇景区" not in lines[1]
+
+
+def test_scenic_name_normalization_is_idempotent_for_non_location_prefix():
+    assert (
+        normalize_scenic_display_name(
+            name="古徽州文化旅游区",
+            province="安徽省",
+            city="黄山市",
+        )
+        == "古徽州文化旅游区"
+    )
+
+
+def test_scenic_name_normalization_strips_county_and_district_prefixes():
+    assert (
+        normalize_scenic_display_name(
+            name="资溪县大觉山景区",
+            province="江西省",
+            city="抚州市",
+        )
+        == "大觉山景区"
+    )
+    assert (
+        normalize_scenic_display_name(
+            name="东湖区滕王阁旅游区",
+            province="江西省",
+            city="南昌市",
+        )
+        == "滕王阁旅游区"
+    )
+    assert (
+        normalize_scenic_display_name(
+            name="连州市地下河旅游景区",
+            province="广东省",
+            city="清远市",
+        )
+        == "地下河旅游景区"
+    )
+
+
+def test_scenic_name_normalization_does_not_strip_market_or_metropolis_words():
+    assert (
+        normalize_scenic_display_name(
+            name="重庆观音桥商圈都市旅游区",
+            province="重庆市",
+            city="重庆市",
+        )
+        == "观音桥商圈都市旅游区"
+    )
+    assert (
+        normalize_scenic_display_name(
+            name="西安市大唐西市文化景区",
+            province="陕西省",
+            city="西安市",
+        )
+        == "大唐西市文化景区"
+    )
+
+
+def test_scenic_name_normalization_keeps_prefix_when_remainder_is_generic():
+    assert (
+        normalize_scenic_display_name(
+            name="临潼区博物馆",
+            province="陕西省",
+            city="西安市",
+        )
+        == "临潼区博物馆"
+    )
+    assert (
+        normalize_scenic_display_name(
+            name="重庆科技馆",
+            province="重庆市",
+            city="重庆市",
+        )
+        == "重庆科技馆"
+    )

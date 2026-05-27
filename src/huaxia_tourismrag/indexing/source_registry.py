@@ -6,6 +6,7 @@ import csv
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -23,6 +24,79 @@ STRUCTURED_ROW_CSV_COLUMNS = [
     "official_status",
     "authority",
 ]
+
+COMMON_PREFECTURE_PREFIXES = {
+    "阿坝州",
+    "甘孜州",
+    "凉山州",
+    "恩施州",
+    "延边州",
+    "湘西州",
+    "黔东南州",
+    "黔南州",
+    "黔西南州",
+    "红河州",
+    "文山州",
+    "楚雄州",
+    "大理州",
+    "德宏州",
+    "怒江州",
+    "迪庆州",
+    "临夏州",
+    "甘南州",
+    "海北州",
+    "黄南州",
+    "海南州",
+    "果洛州",
+    "玉树州",
+    "海西州",
+    "克州",
+    "伊犁州",
+    "博州",
+    "昌吉州",
+    "巴州",
+}
+
+COMMON_COUNTY_LEVEL_CITY_PREFIXES = {
+    "庐山市",
+    "井冈山市",
+    "贵溪市",
+    "瑞金市",
+    "连州市",
+    "开平市",
+    "赤水市",
+    "邹城市",
+    "曲阜市",
+    "都江堰市",
+    "彭州市",
+    "阆中市",
+    "敦煌市",
+    "高安市",
+    "句容市",
+    "溧阳市",
+    "宜兴市",
+    "长兴市",
+    "江山市",
+    "乐清市",
+    "武夷山市",
+    "福鼎市",
+}
+
+GENERIC_SCENIC_REMAINDERS = {
+    "景区",
+    "旅游区",
+    "文化景区",
+    "风景区",
+    "博物馆",
+    "科技馆",
+    "动物园",
+    "植物园",
+    "公园",
+    "森林公园",
+    "湿地公园",
+    "纪念馆",
+    "陈列馆",
+}
 
 
 class SourceCandidate(BaseModel):
@@ -212,11 +286,25 @@ class ProductionSourceRegistryManager:
         row: dict[str, object],
         dataset: ProductionDataset,
     ) -> dict[str, object]:
+        name = self._string(row.get("name") or row.get("title"))
+        text = self._string(row.get("text"))
+        province = self._string(row.get("province"))
+        city = self._string(row.get("city"))
+        if dataset.target_content_type == "attraction":
+            normalized_name = normalize_scenic_display_name(
+                name=name,
+                province=province,
+                city=city,
+            )
+            if normalized_name != name and text.startswith(name):
+                text = normalized_name + text[len(name):]
+            name = normalized_name
+
         return {
-            "name": self._string(row.get("name") or row.get("title")),
-            "text": self._string(row.get("text")),
-            "province": self._string(row.get("province")),
-            "city": self._string(row.get("city")),
+            "name": name,
+            "text": text,
+            "province": province,
+            "city": city,
             "district": self._optional_string(row.get("district")),
             "level": self._string(row.get("level") or dataset.target_level),
             "tags": self._tags(row.get("tags")),
@@ -269,3 +357,89 @@ class ProductionSourceRegistryManager:
 
 def _increment(counter: dict[str, int], key: str) -> None:
     counter[key] = counter.get(key, 0) + 1
+
+
+def normalize_scenic_display_name(
+    name: str,
+    province: str | None = None,
+    city: str | None = None,
+) -> str:
+    """Remove administrative location prefixes from scenic-area display names."""
+
+    cleaned = name.strip()
+    if not cleaned:
+        return cleaned
+
+    normalized = cleaned
+    for _ in range(3):
+        stripped = _strip_one_scenic_location_prefix(
+            normalized,
+            province=province,
+            city=city,
+        )
+        if stripped == normalized:
+            return normalized
+        normalized = stripped
+    return normalized
+
+
+def _strip_one_scenic_location_prefix(
+    name: str,
+    province: str | None = None,
+    city: str | None = None,
+) -> str:
+    prefixes = _scenic_location_prefixes(province=province, city=city)
+    for prefix in sorted(prefixes, key=len, reverse=True):
+        if name.startswith(prefix) and len(name) - len(prefix) >= 2:
+            return _strip_scenic_prefix_or_keep(name, prefix)
+
+    for prefix in sorted(COMMON_COUNTY_LEVEL_CITY_PREFIXES, key=len, reverse=True):
+        if name.startswith(prefix) and len(name) - len(prefix) >= 2:
+            return _strip_scenic_prefix_or_keep(name, prefix)
+
+    match = re.match(r"^([\u4e00-\u9fff]{2,12}(?:县|区|地区|盟))(.{2,})$", name)
+    if match:
+        return _strip_scenic_prefix_or_keep(name, match.group(1))
+    for prefix in sorted(COMMON_PREFECTURE_PREFIXES, key=len, reverse=True):
+        if name.startswith(prefix) and len(name) - len(prefix) >= 2:
+            return _strip_scenic_prefix_or_keep(name, prefix)
+    return name
+
+
+def _strip_scenic_prefix_or_keep(name: str, prefix: str) -> str:
+    remainder = name[len(prefix):].strip()
+    if not _is_useful_scenic_remainder(remainder):
+        return name
+    return remainder
+
+
+def _is_useful_scenic_remainder(remainder: str) -> bool:
+    if len(remainder) < 3:
+        return False
+    if remainder in GENERIC_SCENIC_REMAINDERS:
+        return False
+    return True
+
+
+def _scenic_location_prefixes(
+    province: str | None = None,
+    city: str | None = None,
+) -> set[str]:
+    prefixes = {
+        value.strip()
+        for value in (city, province)
+        if value and _is_admin_location_prefix(value.strip())
+    }
+    expanded = set(prefixes)
+    for direct_city in ("北京市", "天津市", "上海市", "重庆市"):
+        if direct_city in prefixes:
+            expanded.add(direct_city[:-1])
+    return expanded
+
+
+def _is_admin_location_prefix(value: str) -> bool:
+    if value in {"北京市", "天津市", "上海市", "重庆市"}:
+        return True
+    if value in COMMON_PREFECTURE_PREFIXES:
+        return True
+    return bool(re.fullmatch(r"[\u4e00-\u9fff]{2,12}(?:市|自治州|地区|盟)", value))

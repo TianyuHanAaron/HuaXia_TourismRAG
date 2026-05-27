@@ -22,6 +22,7 @@ from huaxia_tourismrag.schemas.travel_checkpoints import (
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
 from huaxia_tourismrag.services import qa_service as qa_service_module
 from huaxia_tourismrag.services.qa_service import TourismQAService
+from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.session_store import InMemoryTravelSessionStore
 
 
@@ -29,7 +30,9 @@ class FakeInternalRAG:
     def __init__(self) -> None:
         self.queries: list[str] = []
 
-    async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+    async def retrieve(
+        self, query: str, tenant_id: str, limit: int = 12
+    ) -> list[TravelChunk]:
         self.queries.append(query)
         return [
             TravelChunk(
@@ -46,7 +49,9 @@ class FakeInternalRAG:
 
 
 class FailingInternalRAG:
-    async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+    async def retrieve(
+        self, query: str, tenant_id: str, limit: int = 12
+    ) -> list[TravelChunk]:
         raise RuntimeError("embedding endpoint unavailable")
 
 
@@ -91,6 +96,17 @@ class FakeWebpageReader:
                 score=0.7,
             )
         ]
+
+
+class FakeRedis:
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    async def set(self, key: str, value: str, ex: int) -> None:
+        self.values[key] = value
 
 
 class FakeReranker:
@@ -299,7 +315,7 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
     assert web_search.requests == [
         (
             "四川云南十日游 成都 昆明 大理 丽江 路线 不赶路",
-            4,
+            3,
             SearchOptions(source_preference="mixed"),
         ),
         (
@@ -320,6 +336,106 @@ async def test_answer_uses_research_plan_tasks_for_retrieval(monkeypatch):
     assert final_plan is not None
     assert final_plan.destination == "四川、云南"
     assert reranker.top_k_values == [4]
+
+
+@pytest.mark.asyncio
+async def test_answer_performance_reports_retrieval_cache_hits(monkeypatch):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        task = TravelResearchTask(
+            task_type="route",
+            query="北京 三天 路线",
+            reason="规划路线。",
+            max_results=2,
+        )
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="北京",
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(answer="ok", highlights=[], warnings=[], citations=[])
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    cache = RetrievalCache(redis=FakeRedis(), ttl_seconds=3600)
+    hit = TravelSearchHit(
+        title="北京路线",
+        url="https://example.com/beijing",
+        snippet="北京三天路线。",
+        source_name="test",
+    )
+    cached_chunk = TravelChunk(
+        id="cached:1",
+        source_type="internal",
+        content_type="travel_guide",
+        title="北京路线",
+        text="北京三天路线证据。",
+        source_name="internal",
+        retrieved_at=datetime.now(timezone.utc),
+        score=0.9,
+    )
+    await cache.set_internal_rag("北京 三天 路线", "demo-tenant", 8, [cached_chunk])
+    await cache.set_web_search(
+        "北京 三天 路线",
+        max_results=2,
+        options=SearchOptions(source_preference="mixed"),
+        hits=[hit],
+    )
+    await cache.set_page_chunks(str(hit.url), [cached_chunk])
+    internal_rag = FakeInternalRAG()
+    web_search = FakeWebSearch()
+    webpage_reader = FakeWebpageReader()
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=internal_rag,
+            web_search=web_search,
+            webpage_reader=webpage_reader,
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=1,
+        top_k=4,
+        retrieval_cache=cache,
+    )
+
+    answer = await service.answer(TravelQuestion(question="北京三天怎么玩？"))
+
+    metadata_by_stage = {
+        stage.name: stage.metadata for stage in answer.performance.stages
+    }
+    assert metadata_by_stage["internal_rag"]["cache_hit"] is True
+    assert metadata_by_stage["web_search"]["cache_hit"] is True
+    assert metadata_by_stage["page_read"]["cache_hits"] == 1
+    assert metadata_by_stage["page_read"]["cache_misses"] == 0
+    assert internal_rag.queries == []
+    assert web_search.requests == []
+    assert webpage_reader.urls == []
 
 
 @pytest.mark.asyncio
@@ -527,7 +643,7 @@ async def test_answer_passes_freshness_options_to_web_search(monkeypatch):
                 TravelResearchTask(
                     task_type="food",
                     evidence_use="local_food",
-                    query="太原 本地面馆 老字号 近期",
+                    query="太原 本地面馆 特色小吃 近期",
                     reason="寻找近期本地美食体验。",
                     source_preference="local_experience",
                     recency_days=180,
@@ -629,7 +745,7 @@ async def test_answer_prioritizes_fresh_official_tasks_before_general_tasks(
                 TravelResearchTask(
                     task_type="food",
                     evidence_use="local_food",
-                    query="太原 本地美食 老字号",
+                    query="太原 本地美食 特色小吃",
                     reason="本地美食。",
                     source_preference="local_experience",
                 ),
@@ -696,7 +812,7 @@ async def test_answer_prioritizes_fresh_official_tasks_before_general_tasks(
     assert [request[0] for request in web_search.requests] == [
         "云冈石窟 官方 开放时间 预约 临时闭馆 公告",
         "山西十日游路线",
-        "太原 本地美食 老字号",
+        "太原 本地美食 特色小吃",
     ]
     assert webpage_reader.urls == ["https://example.com/1"]
 
@@ -853,7 +969,9 @@ async def test_answer_filters_unrelated_evidence_and_prefers_web_citations(
         )
 
     class NoisyInternalRAG:
-        async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+        async def retrieve(
+            self, query: str, tenant_id: str, limit: int = 12
+        ) -> list[TravelChunk]:
             return [
                 TravelChunk(
                     id="summer-palace",
@@ -1026,7 +1144,9 @@ async def test_answer_attaches_service_enrichment_context(monkeypatch):
         service_enrichment=enrichment,
     )
 
-    answer = await service.answer(TravelQuestion(question="上海出发杭州两日游。"))
+    answer = await service.answer(
+        TravelQuestion(question="上海出发杭州两日游。", detail_level="deep")
+    )
 
     assert answer.service_enrichment == ServiceEnrichmentContext()
     assert len(enrichment.calls) == 1

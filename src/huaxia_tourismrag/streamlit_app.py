@@ -7,6 +7,7 @@ import html
 import os
 import random
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,9 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "timeout_help": "复杂 DIY 路线建议 600 秒以上。",
         "health": "健康检查",
         "clear": "清空会话",
+        "debug_timing": "显示调试耗时",
+        "timing_title": "调试耗时",
+        "timing_total": "总耗时",
         "sidebar_note": "当前前端只负责咨询体验；真实预订会通过后续 MCP 服务入口接入。",
         "pending": "上次规划还差一步。你可以直接补充信息；如果想重新开始，请点侧边栏「清空会话」。",
         "examples_title": "可以这样开始",
@@ -153,6 +157,9 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "timeout_help": "Complex DIY routes may need 600 seconds or more.",
         "health": "Health check",
         "clear": "Clear chat",
+        "debug_timing": "Show debug timings",
+        "timing_title": "Debug timings",
+        "timing_total": "Total",
         "sidebar_note": "This frontend is for consultation. Real booking actions will be connected through MCP services later.",
         "pending": "The last plan needs one more detail. Reply directly, or clear the chat to start over.",
         "examples_title": "Try one of these",
@@ -225,6 +232,7 @@ def _ensure_state() -> None:
         "ui_state_version": UI_STATE_VERSION,
         "draft_prompt": "",
         "last_error": None,
+        "show_debug_timings": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -272,6 +280,10 @@ def _render_sidebar(copy: dict[str, Any]) -> None:
         value=int(st.session_state.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         step=30,
         help=copy["timeout_help"],
+    )
+    st.session_state["show_debug_timings"] = st.checkbox(
+        copy["debug_timing"],
+        value=bool(st.session_state.get("show_debug_timings", False)),
     )
 
     col_a, col_b = st.columns(2)
@@ -659,13 +671,30 @@ def _submit_prompt(
 
     with st.status(copy["thinking"], expanded=False):
         try:
-            payload = client.submit(
-                prompt,
-                mode=mode,
-                detail_level=detail_level,
-                language=_answer_language(),
-                session_id=session_id,
-            )
+            if _should_use_async_job(mode, detail_level, session_id):
+                payload = _submit_and_poll_diy_job(
+                    client=client,
+                    prompt=prompt,
+                    detail_level=detail_level,
+                    language=_answer_language(),
+                    timeout_seconds=_effective_timeout_seconds(
+                        configured_timeout=float(
+                            st.session_state.get(
+                                "timeout_seconds",
+                                DEFAULT_TIMEOUT_SECONDS,
+                            )
+                        ),
+                        is_pending_reply=False,
+                    ),
+                )
+            else:
+                payload = client.submit(
+                    prompt,
+                    mode=mode,
+                    detail_level=detail_level,
+                    language=_answer_language(),
+                    session_id=session_id,
+                )
         except TourismFrontendError as exc:
             st.session_state["last_error"] = str(exc)
             st.session_state["messages"].append(
@@ -684,6 +713,40 @@ def _submit_prompt(
             "payload": payload,
         }
     )
+
+
+def _should_use_async_job(
+    mode: RequestMode,
+    detail_level: DetailLevel,
+    session_id: str | None,
+) -> bool:
+    return mode == "diy" and detail_level == "deep" and session_id is None
+
+
+def _submit_and_poll_diy_job(
+    client: TourismApiClient,
+    prompt: str,
+    detail_level: DetailLevel,
+    language: AnswerLanguage,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    started = time.monotonic()
+    job = client.create_diy_job(
+        prompt,
+        detail_level=detail_level,
+        language=language,
+    )
+    job_id = str(job["job_id"])
+
+    while time.monotonic() - started < timeout_seconds:
+        status = client.job_status(job_id)
+        if status.get("status") == "completed" and status.get("answer"):
+            return status["answer"]
+        if status.get("status") == "failed":
+            raise TourismFrontendError(str(status.get("error") or "job failed"))
+        time.sleep(2)
+
+    raise TourismFrontendError("job polling timed out")
 
 
 def _effective_timeout_seconds(
@@ -757,6 +820,7 @@ def _render_answer(
     if bool(payload.get("needs_reply")):
         if show_quick_replies:
             _render_quick_reply_buttons(payload, copy)
+        _render_performance_trace(payload, copy)
         return
 
     highlights = payload.get("highlights") or []
@@ -776,6 +840,8 @@ def _render_answer(
         _render_list(citations, empty=copy["empty_citations"])
     with tabs[4]:
         _render_service_enrichment(service_enrichment, copy)
+
+    _render_performance_trace(payload, copy)
 
 
 def _should_show_quick_replies(index: int, messages: list[dict[str, Any]]) -> bool:
@@ -977,6 +1043,48 @@ def _fresh_web_evidence_rows(items: list[dict[str, Any]]) -> list[dict[str, Any]
         }
         for item in items
     ]
+
+
+def _render_performance_trace(payload: dict[str, Any], copy: dict[str, Any]) -> None:
+    if not st.session_state.get("show_debug_timings"):
+        return
+
+    performance = payload.get("performance")
+    rows = _performance_rows(performance)
+    if not rows:
+        return
+
+    total_ms = performance.get("total_ms") if isinstance(performance, dict) else None
+    with st.expander(copy["timing_title"], expanded=False):
+        if total_ms is not None:
+            st.caption(f"{copy['timing_total']}: {total_ms} ms")
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+
+
+def _performance_rows(performance: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not performance:
+        return []
+
+    stages = performance.get("stages") or []
+    rows: list[dict[str, Any]] = []
+    for stage in stages:
+        if not isinstance(stage, dict):
+            continue
+        metadata = stage.get("metadata") or {}
+        rows.append(
+            {
+                "阶段": stage.get("name"),
+                "耗时 ms": stage.get("duration_ms"),
+                "元数据": _format_metadata(metadata),
+            }
+        )
+    return rows
+
+
+def _format_metadata(metadata: dict[str, Any]) -> str:
+    if not metadata:
+        return ""
+    return ", ".join(f"{key}={value}" for key, value in metadata.items())
 
 
 def _mode_from_label(label: str, labels: dict[RequestMode, str] | None = None) -> RequestMode:

@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
+from huaxia_tourismrag.schemas.performance import PerformanceTrace
 from huaxia_tourismrag.schemas.service_enrichment import ServiceEnrichmentContext
 
 
@@ -50,7 +51,6 @@ ContentType = Literal[
     "visa_exit_entry",
     "tourism_safety",
     "scenic_quality",
-    "time_honored_brand",
 ]
 
 
@@ -300,6 +300,8 @@ class TravelAnswer(BaseModel):
     service_enrichment: ServiceEnrichmentContext | None = None
 
     quick_replies: list[QuickReplyOption] = Field(default_factory=list, max_length=6)
+
+    performance: PerformanceTrace | None = None
 
     session_id: str | None = None
 

@@ -1,33 +1,23 @@
 {
   "corpus_layer": "food_specialties",
-  "description": "Structured local cuisine, specialty, and time-honored-brand source manifest. Production rows should combine Ministry of Commerce old-brand lists, agricultural GI/specialty lists, and provincial/municipal culture-commerce-tourism sources.",
-  "production_target_rows": "Local cuisines, specialties, agricultural products, and time-honored brands useful for itinerary recommendation",
+  "description": "Structured local cuisine and specialty source manifest. Active rows must be useful for itinerary food recommendations, not generic commercial brand directories.",
+  "production_target_rows": "Local dishes, snacks, intangible-food experiences, agricultural specialties, and travel-ready food gifts useful for itinerary recommendation",
   "sources": [
     {
-      "source_id": "curated-local-food-specialty-seed",
-      "source_name": "HuaXia Tourism Curated Food and Specialty Seed",
-      "authority": "curated_agency",
-      "official_status": "curated_pending_official_url",
-      "default_content_type": "local_cuisine",
-      "default_level": "local_specialty",
-      "default_tags": ["本地美食", "土特产"],
-      "row_file": "../rows/seed/food_specialty_seed_rows.json"
-    },
-    {
-      "source_id": "china-time-honored-brand-production",
-      "source_name": "China Time-Honored Brand Structured Rows",
+      "source_id": "mct-intangible-food-route-production",
+      "source_name": "MCT Intangible Food Tourism Route Structured Rows",
       "authority": "national_ministry",
-      "official_status": "official_pending_acquisition",
-      "default_content_type": "time_honored_brand",
-      "default_level": "china_time_honored_brand",
-      "default_tags": ["中华老字号", "本地美食", "老字号"],
-      "row_file": "../rows/production/china_time_honored_brand_rows.json"
+      "official_status": "official_parsed",
+      "default_content_type": "local_cuisine",
+      "default_level": "mct_intangible_food_route",
+      "default_tags": ["本地美食", "非遗美食", "地方小吃"],
+      "row_file": "../rows/production/china_local_cuisine_rows.json"
     },
     {
       "source_id": "china-agricultural-gi-specialty-production",
       "source_name": "Agricultural GI and Local Specialty Structured Rows",
       "authority": "national_ministry",
-      "official_status": "official_pending_acquisition",
+      "official_status": "official_parsed",
       "default_content_type": "local_specialty",
       "default_level": "agricultural_gi_or_local_specialty",
       "default_tags": ["地理标志农产品", "土特产", "地方特产"],

@@ -73,7 +73,7 @@ def test_diy_itinerary_plan_allows_transport_optimized_order():
             TravelResearchTask(
                 task_type="food",
                 evidence_use="local_food",
-                query="许昌 本地美食 老字号 三国 旅行",
+                query="许昌 本地美食 特色小吃 三国 旅行",
                 reason="补充当地餐饮。",
             ),
         ],

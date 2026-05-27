@@ -30,7 +30,9 @@ class FakeInternalRAG:
     def __init__(self) -> None:
         self.queries: list[str] = []
 
-    async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+    async def retrieve(
+        self, query: str, tenant_id: str, limit: int = 12
+    ) -> list[TravelChunk]:
         self.queries.append(query)
         return [
             TravelChunk(
@@ -47,7 +49,9 @@ class FakeInternalRAG:
 
 
 class FailingInternalRAG:
-    async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+    async def retrieve(
+        self, query: str, tenant_id: str, limit: int = 12
+    ) -> list[TravelChunk]:
         raise RuntimeError("embedding endpoint unavailable")
 
 
@@ -242,7 +246,7 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
                 TravelResearchTask(
                     task_type="food",
                     evidence_use="local_food",
-                    query="成都 三国 主题 本地美食 老字号",
+                    query="成都 三国 主题 本地美食 特色小吃",
                     reason="补充当地餐饮。",
                     source_preference="local_experience",
                 ),
@@ -310,12 +314,12 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
     assert final_diy_plan.proposed_route[-1] == "北京"
     assert internal_rag.queries[:3] == [
         "许昌 曹魏 三国 遗址 博物馆 官方",
-        "成都 三国 主题 本地美食 老字号",
+        "成都 三国 主题 本地美食 特色小吃",
         "南阳 到 汉中 交通 高铁 自驾",
     ]
     assert web_search.requests[0] == (
         "许昌 曹魏 三国 遗址 博物馆 官方",
-        4,
+        3,
         SearchOptions(source_preference="mixed"),
     )
     assert webpage_reader.urls == [
@@ -647,7 +651,9 @@ async def test_diy_itinerary_service_filters_unrelated_evidence_before_citations
         )
 
     class NoisyInternalRAG:
-        async def retrieve(self, query: str, tenant_id: str) -> list[TravelChunk]:
+        async def retrieve(
+            self, query: str, tenant_id: str, limit: int = 12
+        ) -> list[TravelChunk]:
             return [
                 TravelChunk(
                     id="beijing-hotel",
@@ -803,7 +809,7 @@ async def test_diy_answer_attaches_service_enrichment_context(monkeypatch):
     )
 
     answer = await service.answer(
-        TravelQuestion(question="北京出发三国巡礼，涿州和许昌必须去。")
+        TravelQuestion(question="北京出发三国巡礼，涿州和许昌必须去。", detail_level="deep")
     )
 
     assert answer.service_enrichment == ServiceEnrichmentContext()

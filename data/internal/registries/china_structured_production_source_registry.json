@@ -92,26 +92,19 @@
       ]
     },
     {
-      "dataset_id": "china_time_honored_brands",
+      "dataset_id": "mct_intangible_food_routes",
       "corpus_layer": "food_specialties",
-      "target_row_file": "data/internal/rows/production/china_time_honored_brand_rows.json",
-      "target_content_type": "time_honored_brand",
-      "target_level": "china_time_honored_brand",
+      "target_row_file": "data/internal/rows/production/china_local_cuisine_rows.json",
+      "target_content_type": "local_cuisine",
+      "target_level": "mct_intangible_food_route",
       "priority": "p1",
       "source_candidates": [
         {
-          "name": "中华老字号信息管理平台",
-          "url": "https://zhlzh.mofcom.gov.cn/",
+          "name": "文化和旅游部 - 非遗美食特色旅游线路展示",
+          "url": "https://zhuanti.mct.gov.cn/fymstslvxlzs/xl_detail/9668.html",
           "authority": "national_ministry",
           "official_status": "official",
-          "notes": "Preferred official old-brand source; may require app/API inspection."
-        },
-        {
-          "name": "中国政府网 - 第三批中华老字号382个品牌正式认定公布",
-          "url": "https://www.gov.cn/lianbo/bumen/202402/content_6929516.htm",
-          "authority": "national_ministry",
-          "official_status": "official",
-          "notes": "Official recent announcement and provenance."
+          "notes": "Official MCT route detail pages are contiguous from 9668 to 9707 and can be parsed into local cuisine rows."
         }
       ]
     },

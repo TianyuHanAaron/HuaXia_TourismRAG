@@ -4,10 +4,11 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import httpx
 from qdrant_client import AsyncQdrantClient
+from redis.asyncio import Redis
 import typer
 from rich.console import Console
 from rich.json import JSON
@@ -15,16 +16,34 @@ from rich.panel import Panel
 
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.indexing.chunking import RawInternalDocument
+from huaxia_tourismrag.indexing.corpus_coverage import (
+    inspect_internal_corpus_coverage,
+    standard_internal_corpus_paths,
+)
 from huaxia_tourismrag.indexing.internal_corpus_builder import InternalCorpusBuilder
 from huaxia_tourismrag.indexing.internal_indexer import InternalCorpusIndexer
+from huaxia_tourismrag.indexing.official_source_importers import (
+    FirecrawlCuisineExtractor,
+    merge_rows_by_name_province_source,
+    parse_mct_intangible_food_route_html,
+    parse_moa_agricultural_gi_notice_html,
+    parse_state_council_heritage_tables_html,
+)
 from huaxia_tourismrag.indexing.source_registry import (
     ProductionSourceRegistryManager,
 )
 from huaxia_tourismrag.indexing.structured_knowledge_builder import (
     StructuredKnowledgeBuilder,
 )
-from huaxia_tourismrag.bootstrap import build_embedder
+from huaxia_tourismrag.bootstrap import (
+    build_diy_itinerary_service,
+    build_embedder,
+    build_retrieval_cache,
+    build_travel_job_queue,
+    build_travel_job_store,
+)
 from huaxia_tourismrag.vector.qdrant_store import QdrantStore
+from huaxia_tourismrag.services.job_worker import TravelJobWorker
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -85,6 +104,17 @@ STANDARD_INTERNAL_CORPORA = (
     "china_scenic_5a4a3a.jsonl",
     "china_national_heritage_sites.jsonl",
     "china_food_specialties_brands.jsonl",
+)
+
+OFFICIAL_HERITAGE_EIGHTH_BATCH_URL = (
+    "https://www.forestry.gov.cn/main/4815/20191016/173000319923859.html"
+)
+OFFICIAL_MOA_AGRICULTURAL_GI_URL = (
+    "https://www.moa.gov.cn/nybgb/2017/dsq/201802/t20180201_6136210.htm"
+)
+OFFICIAL_MCT_INTANGIBLE_FOOD_ROUTE_URLS = tuple(
+    f"https://zhuanti.mct.gov.cn/fymstslvxlzs/xl_detail/{page_id}.html"
+    for page_id in range(9668, 9708)
 )
 
 
@@ -516,6 +546,138 @@ def import_structured_rows(
     console.print(f"Target row file: {result.target_row_file}")
 
 
+@app.command("import-official-production-sources")
+def import_official_production_sources(
+    heritage_output_path: Annotated[
+        Path,
+        typer.Option(
+            "--heritage-output",
+            help="Production heritage row file to merge official parsed rows into.",
+        ),
+    ] = Path("data/internal/rows/production/china_national_heritage_rows.json"),
+    specialty_output_path: Annotated[
+        Path,
+        typer.Option(
+            "--specialty-output",
+            help="Production agricultural-GI row file to merge official parsed rows into.",
+        ),
+    ] = Path("data/internal/rows/production/china_agricultural_gi_specialty_rows.json"),
+    cuisine_output_path: Annotated[
+        Path,
+        typer.Option(
+            "--cuisine-output",
+            help="Production local-cuisine row file to merge official parsed rows into.",
+        ),
+    ] = Path("data/internal/rows/production/china_local_cuisine_rows.json"),
+    timeout: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            help="HTTP timeout in seconds for official-source downloads.",
+        ),
+    ] = 60.0,
+    food_extractor: Annotated[
+        str,
+        typer.Option(
+            "--food-extractor",
+            help="Local-cuisine extraction mode: auto, firecrawl, or fallback.",
+        ),
+    ] = "auto",
+) -> None:
+    """Fetch official Chinese web sources and merge parsed rows into production data."""
+
+    heritage_content, heritage_url = _fetch_official_source(
+        OFFICIAL_HERITAGE_EIGHTH_BATCH_URL,
+        timeout=timeout,
+    )
+    heritage_rows = parse_state_council_heritage_tables_html(
+        heritage_content,
+        source_url=heritage_url,
+    )
+    _merge_json_rows(heritage_output_path, heritage_rows)
+    console.print(
+        f"[green]Heritage official rows parsed:[/green] {len(heritage_rows)} "
+        f"-> {heritage_output_path}"
+    )
+
+    specialty_content, specialty_url = _fetch_official_source(
+        OFFICIAL_MOA_AGRICULTURAL_GI_URL,
+        timeout=timeout,
+    )
+    specialty_rows = parse_moa_agricultural_gi_notice_html(
+        specialty_content,
+        source_url=specialty_url,
+    )
+    _merge_json_rows(specialty_output_path, specialty_rows)
+    console.print(
+        f"[green]Agricultural-GI official rows parsed:[/green] "
+        f"{len(specialty_rows)} -> {specialty_output_path}"
+    )
+
+    if food_extractor not in {"auto", "firecrawl", "fallback"}:
+        raise typer.BadParameter("food-extractor must be auto, firecrawl, or fallback")
+
+    settings = get_settings()
+    firecrawl_extractor = None
+    if food_extractor in {"auto", "firecrawl"} and settings.firecrawl_api_key:
+        firecrawl_extractor = FirecrawlCuisineExtractor(
+            api_key=settings.firecrawl_api_key,
+            timeout=timeout,
+        )
+    elif food_extractor == "firecrawl":
+        raise typer.BadParameter(
+            "FIRECRAWL_API_KEY is required when --food-extractor=firecrawl"
+        )
+
+    cuisine_rows: list[dict[str, Any]] = []
+    cuisine_failures: list[tuple[str, str]] = []
+    for cuisine_url in OFFICIAL_MCT_INTANGIBLE_FOOD_ROUTE_URLS:
+        if firecrawl_extractor is not None:
+            try:
+                cuisine_rows.extend(firecrawl_extractor.extract_rows(cuisine_url))
+                continue
+            except Exception as exc:
+                if food_extractor == "firecrawl":
+                    cuisine_failures.append((cuisine_url, f"firecrawl: {exc}"))
+                    console.print(
+                        "[yellow]Firecrawl cuisine extraction failed; "
+                        f"skipping {cuisine_url}: {exc}[/yellow]"
+                    )
+                    continue
+                console.print(
+                    "[yellow]Firecrawl cuisine extraction failed; "
+                    f"using conservative fallback for {cuisine_url}: {exc}[/yellow]"
+                )
+
+        try:
+            cuisine_content, resolved_cuisine_url = _fetch_official_source(
+                cuisine_url,
+                timeout=timeout,
+            )
+            cuisine_rows.extend(
+                parse_mct_intangible_food_route_html(
+                    cuisine_content,
+                    source_url=resolved_cuisine_url,
+                )
+            )
+        except Exception as exc:
+            cuisine_failures.append((cuisine_url, f"fallback: {exc}"))
+            console.print(
+                "[yellow]MCT fallback cuisine extraction failed; "
+                f"skipping {cuisine_url}: {exc}[/yellow]"
+            )
+
+    _write_json_rows(cuisine_output_path, cuisine_rows)
+    console.print(
+        f"[green]MCT local-cuisine official rows parsed:[/green] "
+        f"{len(cuisine_rows)} -> {cuisine_output_path}"
+    )
+    if cuisine_failures:
+        console.print("[yellow]Skipped cuisine pages:[/yellow]")
+        for url, reason in cuisine_failures:
+            console.print(f"- {url}: {reason}")
+
+
 @app.command("index-internal")
 def index_internal(
     path: Annotated[
@@ -651,6 +813,75 @@ def inspect_internal_corpus(
         raise typer.Exit(1)
 
 
+@app.command("inspect-internal-coverage")
+def inspect_internal_coverage(
+    corpus_dir: Annotated[
+        Path,
+        typer.Option(
+            "--corpus-dir",
+            help="Directory containing standard internal JSONL corpora.",
+        ),
+    ] = Path("data/internal/corpora"),
+    minimum_provinces: Annotated[
+        int,
+        typer.Option(
+            "--minimum-provinces",
+            help="Minimum province coverage expected for key destination layers.",
+        ),
+    ] = 10,
+) -> None:
+    """Validate internal corpus province coverage before indexing."""
+
+    paths = standard_internal_corpus_paths(corpus_dir)
+    missing = [path for path in paths if not path.exists()]
+    if missing:
+        console.print("[red]Missing standard corpus files:[/red]")
+        for path in missing:
+            console.print(f"- {path}")
+        raise typer.Exit(1)
+
+    report = inspect_internal_corpus_coverage(paths)
+    console.print(f"[green]Total internal documents:[/green] {report.total_documents}")
+    console.print(f"Policy/rule documents: {report.policy_rule_documents}")
+    console.print(
+        "Priority province coverage: "
+        + "、".join(report.priority_province_coverage)
+    )
+    for layer, provinces in report.provinces_by_layer.items():
+        console.print(f"\n[bold]{layer}[/bold] ({len(provinces)} provinces)")
+        console.print("、".join(provinces))
+
+    if not report.has_minimum_business_coverage(
+        minimum_provinces=minimum_provinces,
+    ):
+        console.print(
+            "\n[red]Coverage is below the minimum business baseline.[/red]"
+        )
+        raise typer.Exit(1)
+
+
+@app.command("run-diy-job-worker")
+def run_diy_job_worker(
+    once: Annotated[
+        bool,
+        typer.Option(
+            "--once",
+            help="Process at most one queued job and exit.",
+        ),
+    ] = False,
+    timeout: Annotated[
+        int,
+        typer.Option(
+            "--timeout",
+            help="Queue polling timeout in seconds.",
+        ),
+    ] = 5,
+) -> None:
+    """Run the external worker for queued long-running DIY itinerary jobs."""
+
+    asyncio.run(_run_diy_job_worker(once=once, timeout_seconds=timeout))
+
+
 async def _index_internal_corpus(
     path: Path, collection: str | None, recreate: bool
 ) -> int:
@@ -677,6 +908,84 @@ async def _index_internal_corpus(
     indexer = InternalCorpusIndexer(embedder=embedder, store=store)
     indexer.embedding_batch_size = settings.embedding_batch_size
     return await indexer.index_jsonl(path)
+
+
+async def _run_diy_job_worker(once: bool, timeout_seconds: int) -> None:
+    settings = get_settings()
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    job_queue = build_travel_job_queue(settings, redis=redis)
+    if job_queue is None:
+        console.print(
+            "[red]JOB_EXECUTION_MODE=queue is required for the DIY job worker.[/red]"
+        )
+        raise typer.Exit(1)
+
+    job_store = build_travel_job_store(settings, redis=redis)
+    retrieval_cache = build_retrieval_cache(settings, redis=redis)
+    worker = TravelJobWorker(
+        job_store=job_store,
+        job_queue=job_queue,
+        diy_service_factory=lambda tenant_id: build_diy_itinerary_service(
+            tenant_id,
+            retrieval_cache=retrieval_cache,
+            create_pending_sessions=False,
+        ),
+    )
+
+    while True:
+        processed = await worker.run_once(timeout_seconds=timeout_seconds)
+        if processed:
+            console.print("[green]Processed one DIY itinerary job.[/green]")
+        elif once:
+            console.print("[yellow]No queued DIY itinerary job found.[/yellow]")
+
+        if once:
+            return
+
+
+def _fetch_official_source(url: str, timeout: float) -> tuple[bytes, str]:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/126.0 Safari/537.36"
+        ),
+    }
+    with httpx.Client(
+        timeout=timeout,
+        follow_redirects=True,
+        headers=headers,
+    ) as client:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.content, str(response.url)
+
+
+def _merge_json_rows(path: Path, incoming_rows: list[dict[str, Any]]) -> None:
+    existing_rows = _load_json_rows(path)
+    merged_rows = merge_rows_by_name_province_source(existing_rows, incoming_rows)
+    _write_json_rows(path, merged_rows)
+
+
+def _write_json_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(rows, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _load_json_rows(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise typer.BadParameter(f"Expected a JSON array in {path}.")
+    return [
+        row
+        for row in payload
+        if isinstance(row, dict)
+    ]
 
 
 def _increment(counter: dict[str, int], key: str) -> None:

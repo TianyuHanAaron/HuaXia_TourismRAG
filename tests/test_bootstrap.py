@@ -8,7 +8,10 @@ from huaxia_tourismrag.integrations.mapbox_mcp import MapboxMCPAdapter
 from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
 from huaxia_tourismrag.rag.embeddings import RemoteHttpEmbedder
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
+from huaxia_tourismrag.services.job_store import RedisTravelJobStore
+from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
 from huaxia_tourismrag.services.qa_service import TourismQAService
+from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_store import RedisTravelSessionStore
 from huaxia_tourismrag.tools.web_search import ExaSearchProvider, TavilySearchProvider
@@ -51,12 +54,16 @@ def test_build_embedder_uses_remote_provider():
         EMBEDDING_API_URL="https://example.endpoints.huggingface.cloud",
         EMBEDDING_API_KEY="hf-test",
         EMBEDDING_DIMENSIONS=1024,
+        EMBEDDING_MAX_RETRIES=3,
+        EMBEDDING_RETRY_DELAY_SECONDS=0.2,
     )
 
     embedder = bootstrap.build_embedder(settings)
 
     assert isinstance(embedder, RemoteHttpEmbedder)
     assert embedder.dimensions() == 1024
+    assert embedder.max_retries == 3
+    assert embedder.retry_delay_seconds == 0.2
 
 
 def test_build_embedder_requires_remote_url():
@@ -88,6 +95,37 @@ def test_mcp_provider_flags_default_to_disabled():
     assert settings.tuniu_mcp_transport == "stdio"
     assert settings.mapbox_mcp_transport == "http"
     assert settings.firecrawl_mcp_transport == "http"
+
+
+def test_speed_controls_default_to_safe_values():
+    settings = Settings(_env_file=None)
+
+    assert settings.enable_retrieval_cache is False
+    assert settings.retrieval_cache_ttl_seconds == 3600
+    assert settings.page_read_concurrency == 3
+    assert settings.job_ttl_seconds == 86400
+    assert settings.job_execution_mode == "background"
+    assert settings.job_queue_key == "tourism:job_queue:diy"
+    assert settings.embedding_max_retries == 2
+    assert settings.embedding_retry_delay_seconds == 0.5
+
+
+def test_build_retrieval_cache_respects_enable_flag():
+    assert bootstrap.build_retrieval_cache(Settings(_env_file=None)) is None
+
+    settings = Settings(ENABLE_RETRIEVAL_CACHE=True, _env_file=None)
+    cache = bootstrap.build_retrieval_cache(settings, redis=object())
+
+    assert isinstance(cache, RetrievalCache)
+
+
+def test_build_travel_job_queue_respects_execution_mode():
+    assert bootstrap.build_travel_job_queue(Settings(_env_file=None), redis=object()) is None
+
+    settings = Settings(JOB_EXECUTION_MODE="queue", _env_file=None)
+    queue = bootstrap.build_travel_job_queue(settings, redis=object())
+
+    assert isinstance(queue, RedisTravelJobQueue)
 
 
 def test_build_service_enrichment_keeps_providers_disabled_by_default():
@@ -302,3 +340,4 @@ def test_create_app_registers_tourism_service_factory():
     assert callable(app.state.diy_itinerary_service_factory)
     assert callable(app.state.session_reply_service_factory)
     assert isinstance(app.state.travel_session_store, RedisTravelSessionStore)
+    assert isinstance(app.state.travel_job_store, RedisTravelJobStore)

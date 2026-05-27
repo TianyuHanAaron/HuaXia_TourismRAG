@@ -1,5 +1,6 @@
 """Application configuration."""
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
     embedding_api_url: str | None = Field(default=None, alias="EMBEDDING_API_URL")
     embedding_api_key: str | None = Field(default=None, alias="EMBEDDING_API_KEY")
     embedding_dimensions: int = Field(default=1024, alias="EMBEDDING_DIMENSIONS")
+    embedding_max_retries: int = Field(default=2, alias="EMBEDDING_MAX_RETRIES")
+    embedding_retry_delay_seconds: float = Field(
+        default=0.5,
+        alias="EMBEDDING_RETRY_DELAY_SECONDS",
+    )
 
     reranker_model: str = Field(default="BAAI/bge-reranker-v2-m3", alias="RERANKER_MODEL")
     enable_model_reranker: bool = Field(default=False, alias="ENABLE_MODEL_RERANKER")
@@ -49,6 +55,21 @@ class Settings(BaseSettings):
     min_reranker_score: float = Field(default=0.05, alias="MIN_RERANKER_SCORE")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     session_ttl_seconds: int = Field(default=86400, alias="SESSION_TTL_SECONDS")
+    job_ttl_seconds: int = Field(default=86400, alias="JOB_TTL_SECONDS")
+    job_execution_mode: Literal["background", "queue"] = Field(
+        default="background",
+        alias="JOB_EXECUTION_MODE",
+    )
+    job_queue_key: str = Field(
+        default="tourism:job_queue:diy",
+        alias="JOB_QUEUE_KEY",
+    )
+    enable_retrieval_cache: bool = Field(default=False, alias="ENABLE_RETRIEVAL_CACHE")
+    retrieval_cache_ttl_seconds: int = Field(
+        default=3600,
+        alias="RETRIEVAL_CACHE_TTL_SECONDS",
+    )
+    page_read_concurrency: int = Field(default=3, alias="PAGE_READ_CONCURRENCY")
 
     baidu_maps_mcp_enabled: bool = Field(
         default=False,
