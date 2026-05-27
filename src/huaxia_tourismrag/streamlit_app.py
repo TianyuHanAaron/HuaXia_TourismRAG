@@ -9,7 +9,7 @@ import random
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 
@@ -20,9 +20,11 @@ if str(SRC_ROOT) not in sys.path:
 from huaxia_tourismrag.frontend.streamlit_client import (  # noqa: E402
     AnswerLanguage,
     DetailLevel,
+    PreferredContactChannel,
     RequestMode,
     TourismApiClient,
     TourismFrontendError,
+    build_sales_handoff_payload,
     strip_diy_prefix,
 )
 
@@ -112,6 +114,29 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "empty_citations": "暂无引用。",
         "empty_itinerary": "这次回答没有结构化 itinerary，正文里已经包含主要安排。",
         "empty_service": "当前没有外部服务校验结果。",
+        "job_submitted": "已进入深度规划队列，正在创建任务...",
+        "job_polling": "夏夏正在生成深度方案，已等待 {seconds} 秒...",
+        "job_done": "深度方案已生成。",
+        "answer_done": "回答已生成。",
+        "handoff_title": "转给华夏旅行社顾问",
+        "handoff_intro": "喜欢这版路线的话，可以把完整方案和你的关键要求发给顾问继续报价、排车、排酒店。原始需求和夏夏生成的方案会自动带上。",
+        "handoff_name": "称呼",
+        "handoff_contact": "联系方式",
+        "handoff_channel": "偏好联系方式",
+        "handoff_channel_labels": {
+            "any": "都可以",
+            "wechat": "微信",
+            "phone": "电话",
+            "email": "邮箱",
+        },
+        "handoff_must_keep": "不可删除项",
+        "handoff_flexible": "可调整项",
+        "handoff_quote": "待报价项",
+        "handoff_submit": "转给顾问跟进",
+        "handoff_contact_required": "请先留下至少一种联系方式。",
+        "handoff_success": "已提交给华夏旅行社顾问，线索编号：{lead_id}",
+        "handoff_original": "原始需求",
+        "handoff_snapshot": "方案快照",
     },
     "en": {
         "page_title": "Xiaxia | HuaXia Travel AI",
@@ -176,6 +201,29 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "empty_citations": "No citations yet.",
         "empty_itinerary": "No structured itinerary in this answer; the main plan is in the response text.",
         "empty_service": "No external service check result yet.",
+        "job_submitted": "The deep-planning job has been created...",
+        "job_polling": "Xiaxia is generating the deep plan. Waited {seconds} seconds...",
+        "job_done": "The deep plan is ready.",
+        "answer_done": "Answer ready.",
+        "handoff_title": "Send to HuaXia advisor",
+        "handoff_intro": "If this route looks promising, forward the full plan and key requirements to an advisor for quotation, hotels, transport, and arrangement. The original request and generated snapshot are included automatically.",
+        "handoff_name": "Name",
+        "handoff_contact": "Contact",
+        "handoff_channel": "Preferred contact",
+        "handoff_channel_labels": {
+            "any": "Any",
+            "wechat": "WeChat",
+            "phone": "Phone",
+            "email": "Email",
+        },
+        "handoff_must_keep": "Must-keep items",
+        "handoff_flexible": "Flexible items",
+        "handoff_quote": "Items to quote",
+        "handoff_submit": "Send to advisor",
+        "handoff_contact_required": "Please leave at least one contact method.",
+        "handoff_success": "Submitted to a HuaXia advisor. Lead ID: {lead_id}",
+        "handoff_original": "Original request",
+        "handoff_snapshot": "Plan snapshot",
     },
 }
 
@@ -232,6 +280,7 @@ def _ensure_state() -> None:
         "ui_state_version": UI_STATE_VERSION,
         "draft_prompt": "",
         "last_error": None,
+        "last_sales_handoff_id": None,
         "show_debug_timings": False,
     }
     for key, value in defaults.items():
@@ -609,6 +658,8 @@ def _render_chat_history(copy: dict[str, Any]) -> None:
             else:
                 st.markdown(str(message["content"]))
 
+    _render_sales_handoff_panel(copy)
+
 
 def _render_input(
     mode: RequestMode,
@@ -668,10 +719,11 @@ def _submit_prompt(
             is_pending_reply=bool(session_id),
         ),
     )
+    use_async_job = _should_use_async_job(mode, detail_level, session_id)
 
-    with st.status(copy["thinking"], expanded=False):
+    with st.status(copy["thinking"], expanded=False) as status:
         try:
-            if _should_use_async_job(mode, detail_level, session_id):
+            if use_async_job:
                 payload = _submit_and_poll_diy_job(
                     client=client,
                     prompt=prompt,
@@ -686,6 +738,8 @@ def _submit_prompt(
                         ),
                         is_pending_reply=False,
                     ),
+                    status_container=status,
+                    copy=copy,
                 )
             else:
                 payload = client.submit(
@@ -704,6 +758,8 @@ def _submit_prompt(
                 }
             )
             return
+        done_label = copy["job_done"] if use_async_job else copy["answer_done"]
+        status.update(label=done_label, state="complete")
 
     _sync_session(payload)
     st.session_state["messages"].append(
@@ -729,8 +785,12 @@ def _submit_and_poll_diy_job(
     detail_level: DetailLevel,
     language: AnswerLanguage,
     timeout_seconds: float,
+    status_container: Any | None = None,
+    copy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     started = time.monotonic()
+    if status_container is not None and copy is not None:
+        status_container.update(label=copy["job_submitted"])
     job = client.create_diy_job(
         prompt,
         detail_level=detail_level,
@@ -744,6 +804,9 @@ def _submit_and_poll_diy_job(
             return status["answer"]
         if status.get("status") == "failed":
             raise TourismFrontendError(str(status.get("error") or "job failed"))
+        if status_container is not None and copy is not None:
+            waited = int(time.monotonic() - started)
+            status_container.update(label=copy["job_polling"].format(seconds=waited))
         time.sleep(2)
 
     raise TourismFrontendError("job polling timed out")
@@ -842,6 +905,158 @@ def _render_answer(
         _render_service_enrichment(service_enrichment, copy)
 
     _render_performance_trace(payload, copy)
+
+
+def _render_sales_handoff_panel(copy: dict[str, Any]) -> None:
+    context = _latest_handoff_context(st.session_state.get("messages", []))
+    if context is None:
+        return
+
+    with st.expander(copy["handoff_title"], expanded=False):
+        st.caption(copy["handoff_intro"])
+        preview_left, preview_right = st.columns(2)
+        with preview_left:
+            st.caption(f"**{copy['handoff_original']}**")
+            st.caption(context["original_request"])
+        with preview_right:
+            st.caption(f"**{copy['handoff_snapshot']}**")
+            st.caption(context["itinerary_snapshot"][:600])
+        with st.form("sales-handoff-form", clear_on_submit=False, border=False):
+            name = st.text_input(copy["handoff_name"], key="handoff-name")
+            contact = st.text_input(copy["handoff_contact"], key="handoff-contact")
+            channel_labels: dict[str, str] = copy["handoff_channel_labels"]
+            selected_channel_label = st.selectbox(
+                copy["handoff_channel"],
+                options=list(channel_labels.values()),
+                index=0,
+                key="handoff-channel",
+            )
+            must_keep_text = st.text_area(
+                copy["handoff_must_keep"],
+                placeholder="成都武侯祠\n汉中" if _answer_language() == "zh-CN" else "Wuhou Shrine\nHanzhong",
+                height=72,
+                key="handoff-must-keep",
+            )
+            flexible_text = st.text_area(
+                copy["handoff_flexible"],
+                placeholder="住宿片区、餐厅、每日顺序" if _answer_language() == "zh-CN" else "Hotel area, restaurants, daily order",
+                height=72,
+                key="handoff-flexible",
+            )
+            quote_text = st.text_area(
+                copy["handoff_quote"],
+                placeholder="酒店、包车、讲解、门票" if _answer_language() == "zh-CN" else "Hotels, private car, guide, tickets",
+                height=72,
+                key="handoff-quote",
+            )
+            submitted = st.form_submit_button(
+                copy["handoff_submit"],
+                use_container_width=True,
+            )
+
+        if not submitted:
+            return
+
+        if not contact.strip():
+            st.warning(copy["handoff_contact_required"], icon=None)
+            return
+
+        channel = _contact_channel_from_label(selected_channel_label, channel_labels)
+        payload = build_sales_handoff_payload(
+            customer_name=name,
+            contact=contact,
+            preferred_channel=channel,
+            original_request=context["original_request"],
+            itinerary_snapshot=context["itinerary_snapshot"],
+            must_keep=_sales_lines_from_text(must_keep_text),
+            flexible_items=_sales_lines_from_text(flexible_text),
+            quote_items=_sales_lines_from_text(quote_text),
+            session_id=context.get("session_id"),
+            language=_answer_language(),
+        )
+        client = TourismApiClient(
+            base_url=st.session_state.get("api_base_url", _default_api_base_url()),
+            timeout_seconds=30,
+        )
+        try:
+            result = client.create_sales_handoff(payload)
+        except TourismFrontendError as exc:
+            st.error(f"请求失败：{exc}", icon=None)
+            return
+
+        lead_id = str(result.get("lead_id", ""))
+        st.session_state["last_sales_handoff_id"] = lead_id
+        st.success(copy["handoff_success"].format(lead_id=lead_id), icon=None)
+
+
+def _contact_channel_from_label(
+    label: str,
+    channel_labels: dict[str, str],
+) -> PreferredContactChannel:
+    for channel, channel_label in channel_labels.items():
+        if label == channel_label:
+            return cast(PreferredContactChannel, channel)
+    return "any"
+
+
+def _sales_lines_from_text(value: str) -> list[str]:
+    normalized = (
+        value.replace("、", "\n")
+        .replace("，", "\n")
+        .replace(",", "\n")
+        .replace("；", "\n")
+        .replace(";", "\n")
+    )
+    items: list[str] = []
+    for line in normalized.splitlines():
+        text = line.strip().strip("-•* ")
+        if text:
+            items.append(text)
+    return items
+
+
+def _latest_handoff_context(
+    messages: list[dict[str, Any]],
+) -> dict[str, str] | None:
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        payload = message.get("payload")
+        if (
+            message.get("role") != "assistant"
+            or not isinstance(payload, dict)
+            or payload.get("needs_reply")
+        ):
+            continue
+
+        snapshot = str(payload.get("answer") or "").strip()
+        if not snapshot:
+            continue
+
+        original_request = _latest_user_message_before(messages, index)
+        if not original_request:
+            return None
+
+        context = {
+            "original_request": original_request,
+            "itinerary_snapshot": snapshot,
+        }
+        session_id = payload.get("session_id") or st.session_state.get("session_id")
+        if session_id:
+            context["session_id"] = str(session_id)
+        return context
+    return None
+
+
+def _latest_user_message_before(
+    messages: list[dict[str, Any]],
+    index: int,
+) -> str | None:
+    for message in reversed(messages[:index]):
+        if message.get("role") == "user":
+            content = str(message.get("content") or "").strip()
+            if content:
+                return content
+    return None
 
 
 def _should_show_quick_replies(index: int, messages: list[dict[str, Any]]) -> bool:

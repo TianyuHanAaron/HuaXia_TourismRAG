@@ -13,11 +13,13 @@ from huaxia_tourismrag.schemas.jobs import (
     TravelJobQueueItem,
     TravelJobStatusResponse,
 )
+from huaxia_tourismrag.schemas.sales import SalesHandoffRequest, SalesHandoffResponse
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.job_queue import TravelJobQueue
 from huaxia_tourismrag.services.job_store import TravelJobNotFoundError, TravelJobStore
 from huaxia_tourismrag.services.qa_service import TourismQAService
+from huaxia_tourismrag.services.sales_handoff import SalesHandoffStore
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import SessionNotFoundError
 
@@ -33,6 +35,7 @@ class TourismCapabilitiesResponse(BaseModel):
     diy_job_endpoint: str
     job_status_endpoint: str
     session_reply_endpoint: str
+    sales_handoff_endpoint: str
     supported_languages: list[str]
     supported_budget_levels: list[str]
     supported_detail_levels: list[str]
@@ -133,6 +136,22 @@ def get_travel_job_store(request: Request) -> TravelJobStore:
     return store
 
 
+def get_sales_handoff_store(request: Request) -> SalesHandoffStore:
+    """Return the configured traveler-to-sales handoff store."""
+
+    store: SalesHandoffStore | None = getattr(
+        request.app.state,
+        "sales_handoff_store",
+        None,
+    )
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="sales handoff store is not configured",
+        )
+    return store
+
+
 @router.get("/health")
 def health_check() -> dict[str, str]:
     """Return a simple service health response."""
@@ -151,6 +170,7 @@ def get_capabilities() -> TourismCapabilitiesResponse:
         diy_job_endpoint="/tourism/jobs/diy",
         job_status_endpoint="/tourism/jobs/{job_id}",
         session_reply_endpoint="/tourism/sessions/{session_id}/reply",
+        sales_handoff_endpoint="/tourism/sales/handoffs",
         supported_languages=["zh-CN", "en"],
         supported_budget_levels=["budget", "mid_range", "luxury"],
         supported_detail_levels=["concise", "standard", "deep"],
@@ -271,6 +291,33 @@ async def reply_to_tourism_session(
         raise HTTPException(status_code=404, detail="session not found") from exc
     except AgentModelConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post(
+    "/sales/handoffs",
+    response_model=SalesHandoffResponse,
+    status_code=202,
+)
+async def create_sales_handoff(
+    body: SalesHandoffRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    store: SalesHandoffStore = Depends(get_sales_handoff_store),
+) -> SalesHandoffResponse:
+    """Capture a generated itinerary and route it to HuaXia sales."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    record = await store.create(user.tenant_id, body)
+    message = (
+        "已收到您的行程意向，华夏旅行社顾问会按不可删除项、可调整项和待报价项继续跟进。"
+        if body.language == "zh-CN"
+        else (
+            "Your itinerary has been received. A HuaXia advisor will follow up "
+            "using the must-keep, flexible, and quote-needed items."
+        )
+    )
+    return SalesHandoffResponse(lead_id=record.lead_id, message=message)
 
 
 async def _run_diy_itinerary_job(

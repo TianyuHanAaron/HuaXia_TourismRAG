@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         default="tourism:job_queue:diy",
         alias="JOB_QUEUE_KEY",
     )
-    enable_retrieval_cache: bool = Field(default=False, alias="ENABLE_RETRIEVAL_CACHE")
+    enable_retrieval_cache: bool = Field(default=True, alias="ENABLE_RETRIEVAL_CACHE")
     retrieval_cache_ttl_seconds: int = Field(
         default=3600,
         alias="RETRIEVAL_CACHE_TTL_SECONDS",

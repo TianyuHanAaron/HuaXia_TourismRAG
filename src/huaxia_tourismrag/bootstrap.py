@@ -23,6 +23,7 @@ from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
 from huaxia_tourismrag.services.job_store import RedisTravelJobStore
 from huaxia_tourismrag.services.qa_service import TourismQAService
 from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
+from huaxia_tourismrag.services.sales_handoff import RedisSalesHandoffStore
 from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import (
@@ -348,15 +349,21 @@ def build_travel_job_queue(
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
 
+    settings = get_settings()
     app = FastAPI(title="HuaXia Tourism RAG")
     session_store = build_travel_session_store()
     retrieval_cache = build_retrieval_cache(redis=session_store.redis)
     job_store = build_travel_job_store(redis=session_store.redis)
     job_queue = build_travel_job_queue(redis=session_store.redis)
+    sales_handoff_store = RedisSalesHandoffStore(
+        redis=session_store.redis,
+        ttl_seconds=settings.session_ttl_seconds,
+    )
     app.state.travel_session_store = session_store
     app.state.retrieval_cache = retrieval_cache
     app.state.travel_job_store = job_store
     app.state.travel_job_queue = job_queue
+    app.state.sales_handoff_store = sales_handoff_store
     app.state.tourism_qa_service_factory = lambda tenant_id: build_tourism_qa_service(
         tenant_id,
         session_store=session_store,

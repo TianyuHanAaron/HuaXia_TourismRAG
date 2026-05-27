@@ -5,6 +5,7 @@ from huaxia_tourismrag.frontend.streamlit_client import (
     _response_error_detail,
     build_question_payload,
     build_reply_payload,
+    build_sales_handoff_payload,
     endpoint_for_request,
     normalize_base_url,
     strip_diy_prefix,
@@ -96,6 +97,34 @@ def test_build_question_payload_keeps_request_dto_shape():
 
 def test_build_reply_payload_uses_session_reply_dto_shape():
     assert build_reply_payload("标准可执行版") == {"message": "标准可执行版"}
+
+
+def test_build_sales_handoff_payload_keeps_sales_dto_shape():
+    payload = build_sales_handoff_payload(
+        customer_name="王女士",
+        contact="wechat: huaxia-user",
+        preferred_channel="wechat",
+        original_request="北京出发三国历史巡礼，必须覆盖成都武侯祠和汉中。",
+        itinerary_snapshot="D1 涿州；D10 成都武侯祠；D11 汉中。",
+        must_keep=[" 成都武侯祠 ", "", "汉中"],
+        flexible_items=["住宿片区可调整"],
+        quote_items=["酒店", "包车", "讲解"],
+        session_id="session-123",
+        language="zh-CN",
+    )
+
+    assert payload == {
+        "customer_name": "王女士",
+        "contact": "wechat: huaxia-user",
+        "preferred_channel": "wechat",
+        "original_request": "北京出发三国历史巡礼，必须覆盖成都武侯祠和汉中。",
+        "itinerary_snapshot": "D1 涿州；D10 成都武侯祠；D11 汉中。",
+        "must_keep": ["成都武侯祠", "汉中"],
+        "flexible_items": ["住宿片区可调整"],
+        "quote_items": ["酒店", "包车", "讲解"],
+        "session_id": "session-123",
+        "language": "zh-CN",
+    }
 
 
 def test_strip_diy_prefix_supports_chat_shortcut():
@@ -245,3 +274,36 @@ def test_deep_diy_uses_async_job_path_only_for_first_turn():
     assert streamlit_app._should_use_async_job("normal", "deep", None) is False
     assert streamlit_app._should_use_async_job("diy", "standard", None) is False
     assert streamlit_app._should_use_async_job("diy", "deep", "session-1") is False
+
+
+def test_sales_lines_from_text_strips_empty_lines_and_commas():
+    assert streamlit_app._sales_lines_from_text("成都武侯祠\n汉中、许昌, 南阳\n ") == [
+        "成都武侯祠",
+        "汉中",
+        "许昌",
+        "南阳",
+    ]
+
+
+def test_latest_handoff_context_uses_last_completed_assistant_answer():
+    messages = [
+        {"role": "user", "content": "旧问题"},
+        {"role": "assistant", "payload": {"answer": "旧方案", "needs_reply": False}},
+        {"role": "user", "content": "三国历史巡礼，必须覆盖成都武侯祠。"},
+        {
+            "role": "assistant",
+            "payload": {
+                "answer": "D1 涿州；D10 成都武侯祠。",
+                "needs_reply": False,
+                "session_id": "session-123",
+            },
+        },
+    ]
+
+    context = streamlit_app._latest_handoff_context(messages)
+
+    assert context == {
+        "original_request": "三国历史巡礼，必须覆盖成都武侯祠。",
+        "itinerary_snapshot": "D1 涿州；D10 成都武侯祠。",
+        "session_id": "session-123",
+    }

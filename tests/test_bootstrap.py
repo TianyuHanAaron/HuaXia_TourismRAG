@@ -100,7 +100,7 @@ def test_mcp_provider_flags_default_to_disabled():
 def test_speed_controls_default_to_safe_values():
     settings = Settings(_env_file=None)
 
-    assert settings.enable_retrieval_cache is False
+    assert settings.enable_retrieval_cache is True
     assert settings.retrieval_cache_ttl_seconds == 3600
     assert settings.page_read_concurrency == 3
     assert settings.job_ttl_seconds == 86400
@@ -111,10 +111,10 @@ def test_speed_controls_default_to_safe_values():
 
 
 def test_build_retrieval_cache_respects_enable_flag():
-    assert bootstrap.build_retrieval_cache(Settings(_env_file=None)) is None
+    disabled_settings = Settings(ENABLE_RETRIEVAL_CACHE=False, _env_file=None)
+    assert bootstrap.build_retrieval_cache(disabled_settings) is None
 
-    settings = Settings(ENABLE_RETRIEVAL_CACHE=True, _env_file=None)
-    cache = bootstrap.build_retrieval_cache(settings, redis=object())
+    cache = bootstrap.build_retrieval_cache(Settings(_env_file=None), redis=object())
 
     assert isinstance(cache, RetrievalCache)
 

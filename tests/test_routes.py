@@ -7,6 +7,7 @@ from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.schemas.jobs import TravelJobQueueItem
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.job_store import InMemoryTravelJobStore
+from huaxia_tourismrag.services.sales_handoff import InMemorySalesHandoffStore
 
 
 class FakeTourismQAService:
@@ -84,6 +85,7 @@ def make_client(
     configure_service: bool = True,
     configure_job_store: bool = True,
     configure_job_queue: bool = False,
+    configure_sales_handoff_store: bool = True,
 ) -> TestClient:
     FakeTourismQAService.questions = []
     FakeDIYItineraryService.questions = []
@@ -97,6 +99,8 @@ def make_client(
         app.state.travel_job_store = InMemoryTravelJobStore()
     if configure_job_queue:
         app.state.travel_job_queue = FakeTravelJobQueue()
+    if configure_sales_handoff_store:
+        app.state.sales_handoff_store = InMemorySalesHandoffStore()
     app.include_router(router)
     return TestClient(app)
 
@@ -226,6 +230,60 @@ def test_session_reply_route_uses_same_answer_response():
     assert response.json()["answer"].startswith("reply demo-tenant:")
     assert FakeSessionReplyService.replies[0][0] == "session-123"
     assert FakeSessionReplyService.replies[0][1].message == "平衡旅行型，高铁+包车混合。"
+
+
+def test_sales_handoff_route_preserves_trip_snapshot_and_requirement_lists():
+    client = make_client()
+
+    response = client.post(
+        "/tourism/sales/handoffs",
+        json={
+            "customer_name": "王女士",
+            "contact": "wechat: huaxia-user",
+            "preferred_channel": "wechat",
+            "original_request": "北京出发三国历史巡礼，必须覆盖成都武侯祠和汉中。",
+            "itinerary_snapshot": "D1 涿州；D2 临漳；D10 成都武侯祠；D11 汉中。",
+            "must_keep": ["成都武侯祠", "汉中"],
+            "flexible_items": ["住宿片区可调整"],
+            "quote_items": ["酒店", "包车", "讲解"],
+            "session_id": "session-123",
+            "language": "zh-CN",
+        },
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["lead_id"].startswith("lead_")
+    assert body["status"] == "received"
+    assert "顾问" in body["message"]
+
+    store = client.app.state.sales_handoff_store
+    assert len(store.records) == 1
+    record = store.records[0]
+    assert record.tenant_id == "demo-tenant"
+    assert record.customer_name == "王女士"
+    assert record.contact == "wechat: huaxia-user"
+    assert record.original_request.startswith("北京出发")
+    assert record.itinerary_snapshot.startswith("D1")
+    assert record.must_keep == ["成都武侯祠", "汉中"]
+    assert record.flexible_items == ["住宿片区可调整"]
+    assert record.quote_items == ["酒店", "包车", "讲解"]
+
+
+def test_sales_handoff_route_returns_503_when_store_not_configured():
+    client = make_client(configure_sales_handoff_store=False)
+
+    response = client.post(
+        "/tourism/sales/handoffs",
+        json={
+            "contact": "user@example.com",
+            "original_request": "上海出发，山西历史人文十日深度游。",
+            "itinerary_snapshot": "D1 太原；D2 平遥；D3 云冈石窟。",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "sales handoff store is not configured"
 
 
 def test_tourism_ask_route_rejects_too_short_question():

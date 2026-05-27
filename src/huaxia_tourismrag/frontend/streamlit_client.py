@@ -8,6 +8,7 @@ import httpx
 RequestMode = Literal["normal", "diy"]
 DetailLevel = Literal["concise", "standard", "deep"]
 AnswerLanguage = Literal["zh-CN", "en"]
+PreferredContactChannel = Literal["phone", "wechat", "email", "any"]
 
 
 class TourismFrontendError(RuntimeError):
@@ -51,6 +52,36 @@ def build_reply_payload(message: str) -> dict[str, str]:
     return {"message": message.strip()}
 
 
+def build_sales_handoff_payload(
+    *,
+    contact: str,
+    original_request: str,
+    itinerary_snapshot: str,
+    customer_name: str | None = None,
+    preferred_channel: PreferredContactChannel = "any",
+    must_keep: list[str] | None = None,
+    flexible_items: list[str] | None = None,
+    quote_items: list[str] | None = None,
+    session_id: str | None = None,
+    language: AnswerLanguage = "zh-CN",
+) -> dict[str, object]:
+    """Build a request body that matches the SalesHandoffRequest DTO."""
+
+    payload: dict[str, object] = {
+        "customer_name": customer_name.strip() if customer_name else None,
+        "contact": contact.strip(),
+        "preferred_channel": preferred_channel,
+        "original_request": original_request.strip(),
+        "itinerary_snapshot": itinerary_snapshot.strip(),
+        "must_keep": _clean_text_list(must_keep),
+        "flexible_items": _clean_text_list(flexible_items),
+        "quote_items": _clean_text_list(quote_items),
+        "session_id": session_id.strip() if session_id else None,
+        "language": language,
+    }
+    return {key: value for key, value in payload.items() if value is not None}
+
+
 def strip_diy_prefix(message: str) -> str:
     """Remove chat-style DIY shortcuts before sending to the API."""
 
@@ -59,6 +90,12 @@ def strip_diy_prefix(message: str) -> str:
         if stripped.lower().startswith(prefix):
             return stripped[len(prefix) :].strip()
     return stripped
+
+
+def _clean_text_list(values: list[str] | None) -> list[str]:
+    if not values:
+        return []
+    return [text for item in values if (text := item.strip())]
 
 
 class TourismApiClient:
@@ -114,6 +151,11 @@ class TourismApiClient:
         """Fetch a long-running travel job status."""
 
         return self._get(f"/tourism/jobs/{job_id}")
+
+    def create_sales_handoff(self, payload: dict[str, object]) -> dict:
+        """Submit a generated itinerary snapshot to the sales handoff endpoint."""
+
+        return self._post("/tourism/sales/handoffs", payload)
 
     def _get(self, path: str) -> dict:
         url = f"{self.base_url}{path}"
