@@ -49,6 +49,51 @@ def test_citation_formatter_keeps_distinct_internal_chunks_without_urls():
         ]
     )
 
-    assert len(pack.citations) == 2
+    assert pack.citations == [
+        "[1] 山西行前清单 - test - internal:internal:1",
+        "[2] 平遥住宿清单 - test - internal:internal:2",
+    ]
     assert "山西行前清单" in pack.context_text
     assert "平遥住宿清单" in pack.context_text
+    assert [quote.source_ref for quote in pack.evidence_quotes] == [
+        "internal:internal:1",
+        "internal:internal:2",
+    ]
+
+
+def test_citation_formatter_builds_structured_evidence_quotes():
+    formatter = CitationFormatter()
+
+    pack = formatter.build(
+        [
+            TravelChunk(
+                id="web:chengdu-food",
+                source_type="web",
+                content_type="local_cuisine",
+                title="成都文旅美食推荐",
+                text="成都火锅、担担面和钟水饺适合做城市美食体验。后续长文本不应全部塞进引用。",
+                url="https://Example.cn/food/",
+                source_name="成都文旅",
+                retrieved_at=datetime.now(timezone.utc),
+                score=0.81,
+                rerank_score=0.92,
+            )
+        ]
+    )
+
+    assert len(pack.evidence_quotes) == 1
+    quote = pack.evidence_quotes[0]
+    assert quote.citation_id == 1
+    assert quote.chunk_id == "web:chengdu-food"
+    assert quote.source_type == "web"
+    assert quote.content_type == "local_cuisine"
+    assert quote.source_ref == "https://example.cn/food"
+    assert quote.quote == "成都火锅、担担面和钟水饺适合做城市美食体验。后续长文本不应全部塞进引用。"
+    assert quote.score == 0.81
+    assert quote.rerank_score == 0.92
+    assert "citation_id=1" in pack.context_text
+    assert "chunk_id=web:chengdu-food" in pack.context_text
+    assert "source_type=web" in pack.context_text
+    assert "content_type=local_cuisine" in pack.context_text
+    assert "source_ref=https://example.cn/food" in pack.context_text
+    assert "quote=成都火锅、担担面和钟水饺适合做城市美食体验。" in pack.context_text

@@ -266,11 +266,57 @@ class TravelItinerary(BaseModel):
 # Citation Pack
 # =========================================================
 
+class EvidenceQuote(BaseModel):
+    """Auditable quote attached to one allowed in-text citation id."""
+
+    citation_id: int = Field(ge=1)
+
+    chunk_id: str
+
+    source_type: SourceType
+
+    content_type: ContentType
+
+    title: str
+
+    source_name: str
+
+    source_ref: str
+
+    quote: str = Field(min_length=1, max_length=1800)
+
+    url: HttpUrl | None = None
+
+    score: float | None = None
+
+    rerank_score: float | None = None
+
+
+class CitationValidationIssue(BaseModel):
+    """Non-fatal citation validation issue surfaced for observability."""
+
+    issue_type: Literal[
+        "unknown_reference",
+        "missing_citation_line",
+        "altered_citation_line",
+        "unused_citation_line",
+        "source_type_mismatch",
+    ]
+
+    citation_id: int | None = None
+
+    message: str
+
+    source_ref: str | None = None
+
+
 class CitationPack(BaseModel):
 
     context_text: str
 
     citations: list[str]
+
+    evidence_quotes: list[EvidenceQuote] = Field(default_factory=list)
 
 
 class QuickReplyOption(BaseModel):
