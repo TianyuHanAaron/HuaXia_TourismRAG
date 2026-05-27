@@ -7,9 +7,21 @@ Use this checklist before investor demos or after changes to retrieval, parsing,
 - Scenic names are clean: no city/county/district prefix in attraction names unless it is part of the official attraction name.
 - Cuisine suggestions are edible local dishes, snacks, drinks, or food specialties. They must not be artware, medicine, craft workshops, temples, practice bases, or generic route fragments.
 - Citations are actual internal parsed sources or fresh web sources. Policy, railway, and tourism-law citations should appear only when they support transport, contract, safety, or compliance claims.
+- Every in-text citation id such as `[1]` must appear in the returned citation list, and every returned citation line must be used in the answer/highlights/warnings/generated itinerary.
+- Returned citation lines must exactly match the formatter-approved source line. The model should not rewrite titles, source names, URLs, or `internal:<chunk_id>` refs.
 - The answer uses one short uncertainty or confirmation section instead of repeating “证据不足” throughout the daily plan.
 - If the answer asks a checkpoint question, the Streamlit UI should show quick-reply buttons beneath it.
 - For DIY or must-cover routes, the required cities and must-have attractions are preserved in the final plan or explicitly flagged as infeasible before any removal.
+
+## Citation Faithfulness QA
+
+Structured cases live in `evals/citation_faithfulness_cases.json`. For each case, inspect the API or Streamlit response and verify:
+
+- `answer`, `highlights`, `warnings`, and `generated_itinerary` contain no unknown citation ids.
+- The returned `citations` array includes exactly the used ids, no extras.
+- Each returned citation line is copied exactly from the allowed citation formatter output.
+- Scenic/food recommendations are backed by scenic, heritage, destination, local cuisine, local specialty, or current web evidence. Policy/railway/legal sources should only support rules, transport, safety, contract, or compliance claims.
+- If citation guard warnings appear, they should be understandable and should not block the user-facing answer.
 
 ## Prompt 1: 山西历史人文十日深度游
 

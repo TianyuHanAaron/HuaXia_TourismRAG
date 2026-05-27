@@ -1,0 +1,41 @@
+[
+  {
+    "id": "food_route_chengdu_chongqing",
+    "prompt": "成都和重庆6天，主要想吃本地美食，也想加一点轻松景点，不想每天赶路。",
+    "mode": "questions",
+    "detail_level": "standard",
+    "expected_checks": [
+      "Every in-text citation id in answer/highlights/warnings/generated_itinerary appears in returned citations.",
+      "Returned citations contain no unused ids.",
+      "Returned citation lines exactly match formatter-approved lines.",
+      "Food claims do not rely only on railway, policy, legal, contract, or safety sources.",
+      "Cuisine recommendations are edible dishes, snacks, drinks, or food specialties."
+    ]
+  },
+  {
+    "id": "diy_three_kingdoms_route",
+    "prompt": "/diy 我想做一条三国历史巡礼路线，从北京出发并回到北京，必须覆盖涿州、临漳、许昌、南阳、咸宁、南京、成都、汉中。10到12天，高铁优先，必要时包车。",
+    "mode": "diy",
+    "detail_level": "deep",
+    "expected_checks": [
+      "Every in-text citation id in answer/highlights/warnings/generated_itinerary appears in returned citations.",
+      "Returned citations contain no unused ids.",
+      "Historical attraction claims prefer attraction, heritage, destination, or web evidence over railway/legal sources.",
+      "Railway/legal citations only support transport, ticketing, safety, contract, or compliance claims.",
+      "All required cities are preserved unless the answer first asks a checkpoint question."
+    ]
+  },
+  {
+    "id": "shanxi_heritage_family_luxury",
+    "prompt": "上海出发，山西历史人文十日深度游，5人含老人儿童，豪华级别。",
+    "mode": "questions",
+    "detail_level": "deep",
+    "expected_checks": [
+      "Every in-text citation id in answer/highlights/warnings/generated_itinerary appears in returned citations.",
+      "Returned citations contain no unused ids.",
+      "Heritage and scenic claims cite parsed scenic, heritage, destination, or web sources.",
+      "Policy citations do not dominate the itinerary.",
+      "Senior/child pacing recommendations are clearly supported or marked as planning judgment."
+    ]
+  }
+]
