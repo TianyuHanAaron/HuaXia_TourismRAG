@@ -95,6 +95,19 @@ def test_build_final_answer_prompt_includes_question_context_and_citations():
     assert "每一天最多一行核心安排" in prompt
 
 
+def test_build_final_answer_prompt_includes_strict_citation_contract():
+    prompt = build_final_answer_prompt(
+        question="成都重庆美食路线怎么安排？",
+        citation_context="[1] citation_id=1\nquote=成都火锅。",
+        citation_lines=["[1] 成都美食 - 成都文旅 - https://example.cn/food"],
+    )
+
+    assert "只能引用“允许使用的引用”里出现的编号" in prompt
+    assert "citations 字段必须逐字复制" in prompt
+    assert "不要输出未在允许列表中的引用编号" in prompt
+    assert "不要把政策、铁路、旅游法、安检来源用于支撑景点或美食推荐" in prompt
+
+
 def test_build_final_answer_prompt_includes_deep_detail_rules():
     prompt = build_final_answer_prompt(
         question="三国历史巡礼怎么安排？",
