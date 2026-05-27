@@ -36,6 +36,7 @@ from huaxia_tourismrag.services.travel_checkpoints import (
     should_skip_clarification,
     should_ask_detail_level,
 )
+from huaxia_tourismrag.tools.citation_guard import CitationGuard
 
 
 TASK_TYPE_PRIORITY = (
@@ -96,6 +97,7 @@ class DIYItineraryService:
         self.retrieval_cache = retrieval_cache
         self.page_read_concurrency = max(1, page_read_concurrency)
         self.relevance_filter = EvidenceRelevanceFilter()
+        self.citation_guard = CitationGuard()
 
     async def answer(self, question: TravelQuestion) -> TravelAnswer:
         timer = InferenceTimer()
@@ -307,6 +309,16 @@ class DIYItineraryService:
                 service_enrichment=service_context,
                 detail_level=resolved_detail_level(question),
             )
+        with timer.stage("citation_guard") as stage_metadata:
+            guard_result = self.citation_guard.validate_and_normalize(answer, pack)
+            answer = guard_result.answer
+            stage_metadata["issues"] = len(guard_result.issues)
+            stage_metadata["available_citations"] = len(pack.citations)
+            stage_metadata["used_citations"] = len(guard_result.used_citation_ids)
+            stage_metadata["returned_citations"] = len(answer.citations)
+        if guard_result.issues:
+            issue_summary = "；".join(issue.message for issue in guard_result.issues[:3])
+            answer.warnings.append(f"引用校验已自动修正：{issue_summary}")
         answer.service_enrichment = service_context
         answer.performance = timer.trace
         if internal_rag_warning and internal_rag_warning not in answer.warnings:

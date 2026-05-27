@@ -5,6 +5,7 @@ import pytest
 from huaxia_tourismrag.agents.tourism_agent import TourismDeps
 from huaxia_tourismrag.schemas.evidence import (
     CitationPack,
+    EvidenceQuote,
     TravelAnswer,
     TravelChunk,
     TravelQuestion,
@@ -569,7 +570,7 @@ async def test_answer_prioritizes_core_task_types_when_page_budget_is_small(monk
         service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
-            answer="ok",
+            answer="ok [1]",
             highlights=[],
             warnings=[],
             citations=citation_lines,
@@ -962,7 +963,7 @@ async def test_answer_filters_unrelated_evidence_and_prefers_web_citations(
         service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
-            answer="ok",
+            answer="ok [1]",
             highlights=[],
             warnings=[],
             citations=citation_lines,
@@ -1063,6 +1064,102 @@ async def test_answer_filters_unrelated_evidence_and_prefers_web_citations(
     assert answer.citations == [
         "[1] 海南东线七日游网页 - tavily - https://example.cn/hainan"
     ]
+
+
+@pytest.mark.asyncio
+async def test_answer_normalizes_fabricated_llm_citation_lines(monkeypatch):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        task = TravelResearchTask(
+            task_type="attraction",
+            query="北京 故宫 官方",
+            reason="核验景点。",
+        )
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="北京",
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="故宫建议提前预约。[1]",
+            highlights=[],
+            warnings=[],
+            citations=["[1] 模型改写来源 - fake - https://fake.example"],
+        )
+
+    class StrictCitationFormatter:
+        def build(self, chunks: list[TravelChunk]) -> CitationPack:
+            return CitationPack(
+                context_text="[1] quote=故宫建议提前预约。",
+                citations=[
+                    "[1] 故宫预约说明 - 北京文旅 - https://example.cn/palace"
+                ],
+                evidence_quotes=[
+                    EvidenceQuote(
+                        citation_id=1,
+                        chunk_id="web:palace",
+                        source_type="web",
+                        content_type="attraction",
+                        title="故宫预约说明",
+                        source_name="北京文旅",
+                        source_ref="https://example.cn/palace",
+                        quote="故宫建议提前预约。",
+                        url="https://example.cn/palace",
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=StrictCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=2,
+    )
+
+    answer = await service.answer(TravelQuestion(question="北京三天怎么玩？"))
+
+    assert answer.citations == [
+        "[1] 故宫预约说明 - 北京文旅 - https://example.cn/palace"
+    ]
+    assert any("引用校验已自动修正" in warning for warning in answer.warnings)
+    assert answer.performance is not None
+    guard_stage = next(stage for stage in answer.performance.stages if stage.name == "citation_guard")
+    assert guard_stage.metadata["issues"] == 1
+    assert guard_stage.metadata["returned_citations"] == 1
 
 
 @pytest.mark.asyncio

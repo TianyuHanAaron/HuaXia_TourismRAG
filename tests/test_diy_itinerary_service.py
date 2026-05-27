@@ -6,6 +6,7 @@ from huaxia_tourismrag.agents.tourism_agent import TourismDeps
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan, DIYRouteSegment
 from huaxia_tourismrag.schemas.evidence import (
     CitationPack,
+    EvidenceQuote,
     TravelAnswer,
     TravelChunk,
     TravelQuestion,
@@ -367,7 +368,7 @@ async def test_diy_answer_continues_with_web_evidence_when_internal_rag_is_unava
         service_enrichment: ServiceEnrichmentContext | None = None,
     ) -> TravelAnswer:
         return TravelAnswer(
-            answer="ok",
+            answer="ok [1]",
             highlights=[],
             warnings=[],
             citations=citation_lines,
@@ -403,7 +404,7 @@ async def test_diy_answer_continues_with_web_evidence_when_internal_rag_is_unava
     )
 
     assert web_search.requests[0][0] == "涿州 三国 官方"
-    assert answer.answer == "ok"
+    assert answer.answer == "ok [1]"
     assert answer.warnings == [
         "内部知识库向量检索暂不可用，已改用实时网页证据继续规划。"
     ]
@@ -816,3 +817,104 @@ async def test_diy_answer_attaches_service_enrichment_context(monkeypatch):
     assert len(enrichment.calls) == 1
     assert enrichment.calls[0][1].proposed_route == ["北京", "涿州", "许昌", "北京"]
     assert enrichment.calls[0][2] is None
+
+
+@pytest.mark.asyncio
+async def test_diy_answer_normalizes_fabricated_llm_citation_lines(monkeypatch):
+    async def fake_create_diy_itinerary_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> DIYItineraryPlan:
+        task = TravelResearchTask(
+            task_type="attraction",
+            query="成都 武侯祠 官方",
+            reason="核验三国主题景点。",
+        )
+        return DIYItineraryPlan(
+            original_question=question.question,
+            theme="三国历史巡礼",
+            origin="北京",
+            return_city="北京",
+            required_stops=["成都", "汉中"],
+            proposed_route=["北京", "成都", "汉中", "北京"],
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan=None,
+        diy_plan: DIYItineraryPlan | None = None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="成都段以武侯祠承接蜀汉主题。[1]",
+            highlights=[],
+            warnings=[],
+            citations=["[1] 模型改写来源 - fake - https://fake.example"],
+        )
+
+    class StrictCitationFormatter:
+        def build(self, chunks: list[TravelChunk]) -> CitationPack:
+            return CitationPack(
+                context_text="[1] quote=成都武侯祠承接蜀汉主题。",
+                citations=[
+                    "[1] 成都武侯祠 - 成都文旅 - https://example.cn/wuhou"
+                ],
+                evidence_quotes=[
+                    EvidenceQuote(
+                        citation_id=1,
+                        chunk_id="web:wuhou",
+                        source_type="web",
+                        content_type="attraction",
+                        title="成都武侯祠",
+                        source_name="成都文旅",
+                        source_ref="https://example.cn/wuhou",
+                        quote="成都武侯祠承接蜀汉主题。",
+                        url="https://example.cn/wuhou",
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fake_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=StrictCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=2,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(question="我想做成都三国历史巡礼。", detail_level="standard")
+    )
+
+    assert answer.citations == [
+        "[1] 成都武侯祠 - 成都文旅 - https://example.cn/wuhou"
+    ]
+    assert any("引用校验已自动修正" in warning for warning in answer.warnings)
+    assert answer.performance is not None
+    guard_stage = next(stage for stage in answer.performance.stages if stage.name == "citation_guard")
+    assert guard_stage.metadata["issues"] == 1
+    assert guard_stage.metadata["returned_citations"] == 1
