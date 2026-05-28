@@ -36,7 +36,7 @@ class InMemoryTravelJobQueue:
 class RedisTravelJobQueue:
     """Redis list-backed travel job queue."""
 
-    def __init__(self, redis: Redis, key: str = "tourism:job_queue:diy") -> None:
+    def __init__(self, redis: Redis, key: str = "tourism:job_queue:travel") -> None:
         self.redis = redis
         self.key = key
 

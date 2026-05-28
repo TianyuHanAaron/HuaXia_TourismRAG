@@ -1,7 +1,11 @@
+import pytest
+
+from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.agents.tourism_agent import (
     TOURISM_AGENT_INSTRUCTIONS,
     TourismDeps,
     build_final_answer_prompt,
+    generate_answer_with_context,
     tourism_agent,
 )
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
@@ -284,6 +288,54 @@ def test_build_final_answer_prompt_includes_service_enrichment_context():
 
 def test_tourism_agent_is_defined():
     assert tourism_agent is not None
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_with_context_uses_qwen_cloud_runner(monkeypatch):
+    calls = []
+
+    async def fake_run_qwen_structured(
+        prompt,
+        output_type,
+        instructions,
+        model_override=None,
+    ):
+        calls.append((prompt, output_type, instructions, model_override))
+        return TravelAnswer(
+            answer="夏夏建议先走成都再去重庆。",
+            highlights=["成渝美食线"],
+            warnings=[],
+            citations=[],
+        )
+
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.tourism_agent.is_qwen_cloud_provider",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.tourism_agent.get_settings",
+        lambda: Settings(
+            _env_file=None,
+            TOURISM_AGENT_MODEL="qwen3.7-max",
+            FINAL_ANSWER_MODEL="qwen3.7-max",
+        ),
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.tourism_agent.run_qwen_structured",
+        fake_run_qwen_structured,
+    )
+
+    answer = await generate_answer_with_context(
+        question="成都重庆美食路线怎么安排？",
+        citation_context="[1] quote=成都火锅。",
+        citation_lines=["[1] 成都文旅 - https://example.cn"],
+        deps=None,
+    )
+
+    assert answer.answer == "夏夏建议先走成都再去重庆。"
+    assert calls[0][1] is TravelAnswer
+    assert calls[0][2] == TOURISM_AGENT_INSTRUCTIONS
+    assert calls[0][3] == "qwen3.7-max"
 
 
 def test_travel_answer_accepts_partial_generated_itinerary_activities():

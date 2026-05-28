@@ -23,6 +23,17 @@ SourceType = Literal[
 
 DetailLevel = Literal["concise", "standard", "deep"]
 
+QuickReplyActionId = Literal[
+    "preference_option_a",
+    "preference_option_b",
+    "default_preferences",
+    "detail_concise",
+    "detail_standard",
+    "detail_deep",
+    "feasibility_accept_adjustment",
+    "feasibility_keep_original",
+]
+
 
 ContentType = Literal[
     "destination",
@@ -325,6 +336,8 @@ class QuickReplyOption(BaseModel):
     label: str = Field(min_length=1, max_length=40)
 
     message: str = Field(min_length=1, max_length=200)
+
+    action_id: QuickReplyActionId | None = None
 
 
 # =========================================================

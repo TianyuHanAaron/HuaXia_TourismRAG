@@ -1,5 +1,6 @@
 """Embedding generation helpers."""
 
+import asyncio
 import time
 from typing import Any, Protocol
 
@@ -10,6 +11,10 @@ class Embedder(Protocol):
     def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
 
     def embed_query(self, text: str) -> list[float]: ...
+
+    async def async_embed_documents(self, texts: list[str]) -> list[list[float]]: ...
+
+    async def async_embed_query(self, text: str) -> list[float]: ...
 
     def dimensions(self) -> int: ...
 
@@ -25,6 +30,14 @@ class SentenceTransformerEmbedder:
     def embed_query(self, text: str) -> list[float]:
         vector = self.model.encode(text, normalize_embeddings=True, convert_to_numpy=True)
         return vector.tolist()
+
+    async def async_embed_documents(self, texts: list[str]) -> list[list[float]]:
+        import asyncio
+
+        return await asyncio.to_thread(self.embed_documents, texts)
+
+    async def async_embed_query(self, text: str) -> list[float]:
+        return (await self.async_embed_documents([text]))[0]
 
     def dimensions(self) -> int:
         dims = self.model.get_embedding_dimension()
@@ -66,6 +79,20 @@ class RemoteHttpEmbedder:
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
 
+    async def async_embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        response = await self._async_post_embeddings(texts)
+        vectors = self._parse_vectors(response)
+        if len(vectors) != len(texts):
+            raise ValueError(
+                f"Embedding endpoint returned {len(vectors)} vectors for {len(texts)} texts."
+            )
+        return vectors
+
+    async def async_embed_query(self, text: str) -> list[float]:
+        return (await self.async_embed_documents([text]))[0]
+
     def dimensions(self) -> int:
         return self._dimensions
 
@@ -94,6 +121,42 @@ class RemoteHttpEmbedder:
                             last_error = exc
                             if attempt < self.max_retries - 1:
                                 time.sleep(self.retry_delay_seconds)
+                                continue
+                            break
+
+        if last_error:
+            raise last_error
+        raise ValueError("Embedding endpoint did not return a supported response.")
+
+    async def _async_post_embeddings(self, texts: list[str]) -> object:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        payloads = (
+            {"input": texts},
+            {"inputs": texts},
+        )
+        endpoints = self._endpoint_candidates()
+        last_error: httpx.HTTPError | None = None
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            for endpoint in endpoints:
+                for payload in payloads:
+                    for attempt in range(self.max_retries):
+                        try:
+                            response = await client.post(
+                                endpoint,
+                                headers=headers,
+                                json=payload,
+                            )
+                            if response.status_code in {400, 404, 405, 422}:
+                                break
+                            response.raise_for_status()
+                            return response.json()
+                        except httpx.HTTPError as exc:
+                            last_error = exc
+                            if attempt < self.max_retries - 1:
+                                await asyncio.sleep(self.retry_delay_seconds)
                                 continue
                             break
 
@@ -134,3 +197,124 @@ class RemoteHttpEmbedder:
                 raise ValueError("Embedding response contains non-vector items.")
             vectors.append([float(number) for number in item])
         return vectors
+
+
+class QwenCloudEmbedder:
+    """OpenAI-compatible embedder for Qwen Cloud DashScope embeddings."""
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        dimensions: int,
+        timeout_seconds: float = 120.0,
+        max_retries: int = 1,
+        retry_delay_seconds: float = 0.5,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self._dimensions = dimensions
+        self.timeout_seconds = timeout_seconds
+        self.max_retries = max(1, max_retries)
+        self.retry_delay_seconds = max(0.0, retry_delay_seconds)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        response = self._post_embeddings(texts)
+        vectors = self._parse_vectors(response)
+        if len(vectors) != len(texts):
+            raise ValueError(
+                f"Qwen Cloud returned {len(vectors)} vectors for {len(texts)} texts."
+            )
+        return vectors
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([text])[0]
+
+    async def async_embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        response = await self._async_post_embeddings(texts)
+        vectors = self._parse_vectors(response)
+        if len(vectors) != len(texts):
+            raise ValueError(
+                f"Qwen Cloud returned {len(vectors)} vectors for {len(texts)} texts."
+            )
+        return vectors
+
+    async def async_embed_query(self, text: str) -> list[float]:
+        return (await self.async_embed_documents([text]))[0]
+
+    def dimensions(self) -> int:
+        return self._dimensions
+
+    def _post_embeddings(self, texts: list[str]) -> object:
+        endpoint = self._endpoint()
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+        payload = {
+            "model": self.model,
+            "input": texts,
+        }
+        last_error: httpx.HTTPError | None = None
+        with httpx.Client(timeout=self.timeout_seconds) as client:
+            for attempt in range(self.max_retries):
+                try:
+                    response = client.post(endpoint, headers=headers, json=payload)
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.HTTPError as exc:
+                    last_error = exc
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay_seconds)
+                        continue
+                    break
+
+        if last_error:
+            raise last_error
+        raise ValueError("Qwen Cloud embedding endpoint did not return a response.")
+
+    async def _async_post_embeddings(self, texts: list[str]) -> object:
+        endpoint = self._endpoint()
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+        payload = {
+            "model": self.model,
+            "input": texts,
+        }
+        last_error: httpx.HTTPError | None = None
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            for attempt in range(self.max_retries):
+                try:
+                    response = await client.post(endpoint, headers=headers, json=payload)
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.HTTPError as exc:
+                    last_error = exc
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(self.retry_delay_seconds)
+                        continue
+                    break
+
+        if last_error:
+            raise last_error
+        raise ValueError("Qwen Cloud embedding endpoint did not return a response.")
+
+    def _endpoint(self) -> str:
+        if self.base_url.endswith("/embeddings"):
+            return self.base_url
+        return f"{self.base_url}/embeddings"
+
+    def _parse_vectors(self, data: object) -> list[list[float]]:
+        return RemoteHttpEmbedder(
+            api_url=self.base_url,
+            api_key=self.api_key,
+            dimensions=self._dimensions,
+        )._parse_vectors(data)

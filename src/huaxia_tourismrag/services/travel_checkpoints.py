@@ -7,105 +7,163 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelQuestion,
 )
 from huaxia_tourismrag.schemas.travel_checkpoints import (
+    CheckpointContext,
+    CheckpointPolicyDecision,
     ClarificationDecision,
     FeasibilityReport,
+    IntentType,
     IntentDecision,
     PreferenceProfile,
     RequestMode,
 )
 
 
-SKIP_CLARIFICATION_TERMS = (
-    "你来决定",
-    "你帮我决定",
-    "你帮我推荐",
-    "帮我推荐",
-    "无所谓",
-    "都可以",
-    "随便",
-    "按你推荐",
-    "默认偏好",
-    "按默认偏好",
-    "按默认偏好继续",
-)
-
-CONCISE_DETAIL_TERMS = ("简洁", "简单", "大纲", "大方向", "轻量", "先看思路", "简单说")
-STANDARD_DETAIL_TERMS = ("标准", "可执行", "正常详细度", "实用版")
-DEEP_DETAIL_TERMS = ("详细", "深度", "严肃", "旅行社级别", "深度版", "深度旅行社")
-
-
-def should_skip_clarification(question: TravelQuestion) -> bool:
-    """Return true when the user explicitly delegates missing preferences."""
-
-    return any(term in question.question for term in SKIP_CLARIFICATION_TERMS)
-
-
-def infer_detail_level(question: TravelQuestion) -> DetailLevel | None:
-    """Infer the requested answer depth from validated DTO or natural language."""
-
-    if question.detail_level:
-        return question.detail_level
-
-    text = question.question
-    if any(term in text for term in DEEP_DETAIL_TERMS):
-        return "deep"
-    if any(term in text for term in CONCISE_DETAIL_TERMS):
-        return "concise"
-    if any(term in text for term in STANDARD_DETAIL_TERMS):
-        return "standard"
-
-    return None
-
-
-def resolve_detail_level_reply(message: str) -> DetailLevel | None:
-    """Map a checkpoint reply to a validated detail level."""
-
-    normalized = message.strip().lower()
-    if normalized in {"1", "a", "concise"} or any(
-        term in message for term in CONCISE_DETAIL_TERMS
-    ):
-        return "concise"
-    if normalized in {"2", "b", "standard"} or any(
-        term in message for term in STANDARD_DETAIL_TERMS
-    ):
-        return "standard"
-    if normalized in {"3", "c", "deep"} or any(
-        term in message for term in DEEP_DETAIL_TERMS
-    ):
-        return "deep"
-
-    return None
-
-
 def resolved_detail_level(question: TravelQuestion) -> DetailLevel:
     """Return a concrete detail level for final answer generation."""
 
-    return infer_detail_level(question) or "standard"
+    return question.detail_level or "standard"
+
+
+def build_checkpoint_context(
+    question: TravelQuestion,
+    request_mode: RequestMode,
+) -> CheckpointContext:
+    """Build the typed-only context available to deterministic checkpoint policy."""
+
+    duration_days = None
+    if question.start_date and question.end_date:
+        duration_days = (question.end_date - question.start_date).days + 1
+
+    return CheckpointContext(
+        request_mode=request_mode,
+        detail_level=question.detail_level,
+        has_destination=question.destination is not None,
+        has_start_date=question.start_date is not None,
+        has_end_date=question.end_date is not None,
+        duration_days=duration_days,
+        travelers=question.travelers,
+        budget_level=question.budget_level,
+        interest_count=len(question.interests),
+    )
+
+
+def evaluate_checkpoint_policy(context: CheckpointContext) -> CheckpointPolicyDecision:
+    """Evaluate deterministic fast paths from DTO facts only."""
+
+    decision = CheckpointPolicyDecision()
+
+    if context.request_mode == "diy":
+        decision.run_intent_checkpoint = False
+        decision.synthesized_intent = "diy_itinerary"
+        decision.reasons.append("endpoint_diy_mode")
+
+    if context.detail_level == "concise":
+        decision.run_preference_checkpoint = False
+        decision.synthesized_preference_profile = PreferenceProfile(
+            pace="balanced",
+            attraction_mix="balanced",
+            food_preference="local",
+            accommodation_preference="convenient",
+            detail_level="concise",
+            assumed_defaults=["使用简洁回答深度与通用平衡偏好。"],
+        )
+        decision.reasons.append("explicit_concise_detail")
+
+    typed_short_single_destination = (
+        context.request_mode == "general"
+        and context.has_destination
+        and context.duration_days is not None
+        and context.duration_days <= 4
+        and (context.travelers is None or context.travelers <= 4)
+        and context.budget_level != "luxury"
+        and context.interest_count <= 3
+    )
+    if typed_short_single_destination:
+        decision.run_feasibility_checkpoint = False
+        decision.synthesized_feasibility_report = synthesize_feasibility_report()
+        decision.reasons.append("typed_short_single_destination")
+
+    return decision
+
+
+def synthesize_intent_decision(
+    request_mode: RequestMode,
+    intent: IntentType | None = None,
+) -> IntentDecision:
+    """Build a conservative typed intent decision without an LLM call."""
+
+    if request_mode == "diy":
+        return IntentDecision(
+            request_mode=request_mode,
+            intent="diy_itinerary",
+            reason="DIY endpoint already identifies this as a custom route request.",
+        )
+
+    return IntentDecision(
+        request_mode=request_mode,
+        intent=intent or "general_question",
+        reason="Typed request context is sufficient for fast-path intent routing.",
+    )
+
+
+def synthesize_preference_decision(
+    question: TravelQuestion,
+    profile: PreferenceProfile | None = None,
+) -> ClarificationDecision:
+    """Build a default preference profile for skipped preference checkpoints."""
+
+    profile = profile or PreferenceProfile(
+        pace="balanced",
+        attraction_mix="balanced",
+        food_preference="local",
+        accommodation_preference="convenient",
+        detail_level=resolved_detail_level(question),
+        assumed_defaults=["默认平衡节奏、本地美食优先、住宿以交通便利为主。"],
+    )
+    return ClarificationDecision(
+        should_ask=False,
+        question=None,
+        reason="请求足够明确，已使用默认偏好跳过偏好追问。",
+        profile=profile,
+        assumed_defaults=profile.assumed_defaults,
+    )
+
+
+def synthesize_feasibility_report() -> FeasibilityReport:
+    """Build a passing feasibility report for skipped feasibility checkpoints."""
+
+    return FeasibilityReport(
+        is_feasible=True,
+        should_ask=False,
+        question=None,
+        issues=[],
+        recommended_adjustments=[],
+    )
 
 
 def should_ask_detail_level(
     question: TravelQuestion,
     request_mode: RequestMode,
 ) -> ClarificationDecision:
-    """Ask for response depth when a complex request would otherwise be too long."""
+    """Ask for response depth only from typed request mode/context."""
 
-    inferred = infer_detail_level(question)
-    if inferred:
+    if question.detail_level:
         return ClarificationDecision(
             should_ask=False,
             question=None,
             reason="用户已指定回答详细度。",
-            profile=PreferenceProfile(detail_level=inferred),
+            profile=PreferenceProfile(detail_level=question.detail_level),
         )
 
-    text = question.question
-    complex_signals = (
-        request_mode == "diy",
-        any(marker in text for marker in ("10", "十日", "10天", "12", "十二", "多城")),
-        any(marker in text for marker in ("必须覆盖", "巡礼", "深度游", "老人", "儿童", "豪华")),
-        text.count("、") >= 4 or text.count("-") >= 3,
+    context = build_checkpoint_context(question, request_mode=request_mode)
+    should_ask = (
+        context.request_mode == "diy"
+        or (context.duration_days is not None and context.duration_days >= 7)
+        or (context.travelers is not None and context.travelers >= 5)
+        or context.budget_level == "luxury"
+        or context.interest_count >= 4
     )
-    if sum(bool(signal) for signal in complex_signals) < 2:
+    if not should_ask:
         return ClarificationDecision(
             should_ask=False,
             question=None,
@@ -152,9 +210,21 @@ def build_detail_level_answer(decision: ClarificationDecision) -> TravelAnswer:
         warnings=[decision.reason],
         citations=[],
         quick_replies=[
-            QuickReplyOption(label="先看大方向", message="先看大方向"),
-            QuickReplyOption(label="标准可执行版", message="标准可执行版"),
-            QuickReplyOption(label="深度旅行社版", message="深度旅行社版"),
+            QuickReplyOption(
+                label="先看大方向",
+                message="先看大方向",
+                action_id="detail_concise",
+            ),
+            QuickReplyOption(
+                label="标准可执行版",
+                message="标准可执行版",
+                action_id="detail_standard",
+            ),
+            QuickReplyOption(
+                label="深度旅行社版",
+                message="深度旅行社版",
+                action_id="detail_deep",
+            ),
         ],
         needs_reply=True,
     )
@@ -187,12 +257,33 @@ def build_feasibility_answer(report: FeasibilityReport) -> TravelAnswer:
         warnings=issue_lines,
         citations=[],
         quick_replies=[
-            QuickReplyOption(label="按建议调整", message="接受夏夏建议的调整方案"),
-            QuickReplyOption(label="保持原需求", message="保持原需求，请给出风险提示和压缩版"),
-            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+            QuickReplyOption(
+                label="按建议调整",
+                message="接受夏夏建议的调整方案",
+                action_id="feasibility_accept_adjustment",
+            ),
+            QuickReplyOption(
+                label="保持原需求",
+                message="保持原需求，请给出风险提示和压缩版",
+                action_id="feasibility_keep_original",
+            ),
+            QuickReplyOption(
+                label="默认偏好",
+                message="默认偏好",
+                action_id="default_preferences",
+            ),
         ],
         needs_reply=True,
     )
+
+
+def clear_unbacked_reply_state(answer: TravelAnswer) -> TravelAnswer:
+    """Prevent clients from seeing a pending-reply state without a session id."""
+
+    if answer.needs_reply and not answer.session_id:
+        answer.needs_reply = False
+        answer.quick_replies = []
+    return answer
 
 
 def _preference_quick_replies(
@@ -200,37 +291,20 @@ def _preference_quick_replies(
 ) -> list[QuickReplyOption]:
     """Build deterministic quick replies for preference checkpoints."""
 
-    question = decision.question or ""
-    if "主题纯粹" in question or "三国" in question and "平衡" in question:
-        return [
-            QuickReplyOption(label="主题纯粹型", message="A. 主题纯粹型"),
-            QuickReplyOption(label="平衡城市旅行型", message="B. 平衡城市旅行型"),
-            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
-        ]
-
-    if "高铁" in question and ("自驾" in question or "包车" in question):
-        return [
-            QuickReplyOption(label="高铁优先", message="高铁优先，必要时包车"),
-            QuickReplyOption(label="自驾/包车优先", message="自驾或包车优先"),
-            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
-        ]
-
-    if "自然" in question and ("历史" in question or "文化" in question):
-        return [
-            QuickReplyOption(label="自然风光", message="自然风光优先"),
-            QuickReplyOption(label="历史人文", message="历史人文优先"),
-            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
-        ]
-
-    if "城市" in question and ("度假" in question or "放松" in question):
-        return [
-            QuickReplyOption(label="城市休闲", message="城市文化和美食休闲优先"),
-            QuickReplyOption(label="度假放松", message="自然风景和度假放松优先"),
-            QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
-        ]
-
     return [
-        QuickReplyOption(label="选择 A", message="A"),
-        QuickReplyOption(label="选择 B", message="B"),
-        QuickReplyOption(label="默认偏好", message="按默认偏好继续"),
+        QuickReplyOption(
+            label="选择 A",
+            message="A",
+            action_id="preference_option_a",
+        ),
+        QuickReplyOption(
+            label="选择 B",
+            message="B",
+            action_id="preference_option_b",
+        ),
+        QuickReplyOption(
+            label="默认偏好",
+            message="默认偏好",
+            action_id="default_preferences",
+        ),
     ]

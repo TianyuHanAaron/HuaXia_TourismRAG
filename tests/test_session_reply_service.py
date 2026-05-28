@@ -121,7 +121,10 @@ async def test_session_reply_service_maps_detail_level_reply_to_question_dto():
 
     await service.reply(
         session_id=session.session_id,
-        request=SessionReplyRequest(message="3"),
+        request=SessionReplyRequest(
+            message="深度旅行社版",
+            quick_reply_action_id="detail_deep",
+        ),
     )
 
     assert diy_service.questions[0].detail_level == "deep"

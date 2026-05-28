@@ -21,8 +21,11 @@ class FakeQdrantClient:
         self.created_collection = None
         self.created_payload_indexes = []
         self.collection_info = FakeCollectionInfo()
+        self.collection_exists_calls = 0
+        self.get_collection_calls = 0
 
     async def collection_exists(self, collection_name: str) -> bool:
+        self.collection_exists_calls += 1
         return self.collection_exists_result
 
     async def create_collection(self, collection_name: str, vectors_config) -> None:
@@ -32,6 +35,7 @@ class FakeQdrantClient:
         }
 
     async def get_collection(self, collection_name: str) -> FakeCollectionInfo:
+        self.get_collection_calls += 1
         return self.collection_info
 
     async def create_payload_index(
@@ -238,3 +242,29 @@ async def test_ensure_collection_skips_existing_payload_indexes():
     await store.ensure_collection()
 
     assert client.created_payload_indexes == []
+
+
+@pytest.mark.asyncio
+async def test_ensure_collection_memoizes_readiness_per_process():
+    QdrantStore.clear_collection_readiness_cache()
+    client = FakeQdrantClient()
+    client.collection_info = FakeCollectionInfo(
+        payload_schema={field: PayloadSchemaType.KEYWORD for field in [
+            "tenant_id",
+            "source_type",
+            "content_type",
+            "source_name",
+            "province",
+            "city",
+            "level",
+            "official_status",
+            "authority",
+        ]}
+    )
+    store = QdrantStore(client=client, collection="tourism_internal_docs", vector_size=3)
+
+    await store.ensure_collection()
+    await store.ensure_collection()
+
+    assert client.collection_exists_calls == 1
+    assert client.get_collection_calls == 1

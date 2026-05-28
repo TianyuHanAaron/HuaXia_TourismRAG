@@ -1,7 +1,12 @@
+import pytest
+
+from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.agents.research_planner import (
     RESEARCH_PLANNER_INSTRUCTIONS,
+    create_research_plan,
     planner_agent,
 )
+from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
 from huaxia_tourismrag.schemas.travel_checkpoints import PreferenceProfile
 
@@ -93,3 +98,61 @@ def test_research_planner_formats_preference_profile():
 
 def test_research_planner_agent_is_defined():
     assert planner_agent is not None
+
+
+@pytest.mark.asyncio
+async def test_research_planner_uses_qwen_cloud_runner(monkeypatch):
+    calls = []
+
+    async def fake_run_qwen_structured(
+        prompt,
+        output_type,
+        instructions,
+        model_override=None,
+    ):
+        calls.append((prompt, output_type, instructions, model_override))
+        return TravelResearchPlan(
+            original_question="成都重庆美食路线怎么安排？",
+            destination="成都、重庆",
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="成都 重庆 美食 路线",
+                    reason="规划路线。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="成都 重庆 本地美食",
+                    reason="查美食。",
+                ),
+                TravelResearchTask(
+                    task_type="transport",
+                    query="成都 重庆 高铁",
+                    reason="查交通。",
+                ),
+            ],
+        )
+
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.research_planner.is_qwen_cloud_provider",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.research_planner.get_settings",
+        lambda: Settings(
+            _env_file=None,
+            TOURISM_AGENT_MODEL="qwen3.7-max",
+            PLANNER_MODEL="qwen3.6-plus",
+        ),
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.research_planner.run_qwen_structured",
+        fake_run_qwen_structured,
+    )
+
+    plan = await create_research_plan(TravelQuestion(question="成都重庆美食路线怎么安排？"))
+
+    assert plan.destination == "成都、重庆"
+    assert calls[0][1] is TravelResearchPlan
+    assert calls[0][2] == RESEARCH_PLANNER_INSTRUCTIONS
+    assert calls[0][3] == "qwen3.6-plus"

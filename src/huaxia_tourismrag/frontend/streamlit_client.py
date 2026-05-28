@@ -9,6 +9,16 @@ RequestMode = Literal["normal", "diy"]
 DetailLevel = Literal["concise", "standard", "deep"]
 AnswerLanguage = Literal["zh-CN", "en"]
 PreferredContactChannel = Literal["phone", "wechat", "email", "any"]
+QuickReplyActionId = Literal[
+    "preference_option_a",
+    "preference_option_b",
+    "default_preferences",
+    "detail_concise",
+    "detail_standard",
+    "detail_deep",
+    "feasibility_accept_adjustment",
+    "feasibility_keep_original",
+]
 
 
 class TourismFrontendError(RuntimeError):
@@ -31,6 +41,14 @@ def endpoint_for_request(mode: RequestMode, session_id: str | None = None) -> st
     return "/tourism/questions"
 
 
+def job_endpoint_for_request(mode: RequestMode) -> str:
+    """Return the async job endpoint for the selected UI mode."""
+
+    if mode == "diy":
+        return "/tourism/jobs/diy"
+    return "/tourism/jobs/questions"
+
+
 def build_question_payload(
     question: str,
     detail_level: DetailLevel | None = None,
@@ -46,10 +64,16 @@ def build_question_payload(
     return payload
 
 
-def build_reply_payload(message: str) -> dict[str, str]:
+def build_reply_payload(
+    message: str,
+    quick_reply_action_id: QuickReplyActionId | None = None,
+) -> dict[str, str]:
     """Build a request body that matches the SessionReplyRequest DTO."""
 
-    return {"message": message.strip()}
+    payload = {"message": message.strip()}
+    if quick_reply_action_id:
+        payload["quick_reply_action_id"] = quick_reply_action_id
+    return payload
 
 
 def build_sales_handoff_payload(
@@ -117,12 +141,13 @@ class TourismApiClient:
         detail_level: DetailLevel,
         language: AnswerLanguage = "zh-CN",
         session_id: str | None = None,
+        quick_reply_action_id: QuickReplyActionId | None = None,
     ) -> dict:
         """Submit either a first-turn question or a pending-session reply."""
 
         endpoint = endpoint_for_request(mode, session_id=session_id)
         payload = (
-            build_reply_payload(message)
+            build_reply_payload(message, quick_reply_action_id)
             if session_id
             else build_question_payload(
                 message,
@@ -146,6 +171,38 @@ class TourismApiClient:
             language=language,
         )
         return self._post("/tourism/jobs/diy", payload)
+
+    def create_travel_job(
+        self,
+        message: str,
+        mode: RequestMode,
+        detail_level: DetailLevel,
+        language: AnswerLanguage = "zh-CN",
+    ) -> dict:
+        """Queue a long-running travel job for normal or DIY planning."""
+
+        payload = build_question_payload(
+            message,
+            detail_level=detail_level,
+            language=language,
+        )
+        return self._post(job_endpoint_for_request(mode), payload)
+
+    def session_reply_job_endpoint(self, session_id: str) -> str:
+        """Return the async job endpoint for a pending session reply."""
+
+        return f"/tourism/sessions/{session_id}/reply/job"
+
+    def create_session_reply_job(
+        self,
+        message: str,
+        session_id: str,
+        quick_reply_action_id: QuickReplyActionId | None = None,
+    ) -> dict:
+        """Queue a long-running reply for an existing checkpoint session."""
+
+        payload = build_reply_payload(message, quick_reply_action_id)
+        return self._post(self.session_reply_job_endpoint(session_id), payload)
 
     def job_status(self, job_id: str) -> dict:
         """Fetch a long-running travel job status."""

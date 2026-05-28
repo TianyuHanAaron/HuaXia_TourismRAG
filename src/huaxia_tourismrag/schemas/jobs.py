@@ -6,10 +6,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.performance import PerformanceTrace
 
 
 TravelJobStatus = Literal["queued", "running", "completed", "failed"]
-TravelJobKind = Literal["diy_itinerary"]
+TravelJobKind = Literal["diy_itinerary", "general_question"]
 
 
 class TravelJob(BaseModel):
@@ -20,8 +21,12 @@ class TravelJob(BaseModel):
     kind: TravelJobKind = "diy_itinerary"
     status: TravelJobStatus = "queued"
     question: TravelQuestion
+    session_id: str | None = None
     answer: TravelAnswer | None = None
     error: str | None = Field(default=None, max_length=1000)
+    current_stage: str | None = Field(default="queued", max_length=80)
+    progress_percent: int | None = Field(default=0, ge=0, le=100)
+    performance: PerformanceTrace | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -40,6 +45,9 @@ class TravelJobStatusResponse(BaseModel):
     status: TravelJobStatus
     answer: TravelAnswer | None = None
     error: str | None = None
+    current_stage: str | None = None
+    progress_percent: int | None = None
+    performance: PerformanceTrace | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -50,6 +58,9 @@ class TravelJobStatusResponse(BaseModel):
             status=job.status,
             answer=job.answer,
             error=job.error,
+            current_stage=job.current_stage,
+            progress_percent=job.progress_percent,
+            performance=job.performance,
             created_at=job.created_at,
             updated_at=job.updated_at,
         )
@@ -60,3 +71,5 @@ class TravelJobQueueItem(BaseModel):
 
     job_id: str
     tenant_id: str
+    kind: TravelJobKind = "diy_itinerary"
+    session_id: str | None = None

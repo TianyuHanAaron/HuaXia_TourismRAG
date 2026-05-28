@@ -16,6 +16,15 @@ class FakeDIYService:
         return TravelAnswer(answer="ok", highlights=[], warnings=[], citations=[])
 
 
+class FakeQAService:
+    def __init__(self) -> None:
+        self.questions: list[TravelQuestion] = []
+
+    async def answer(self, question: TravelQuestion) -> TravelAnswer:
+        self.questions.append(question)
+        return TravelAnswer(answer="qa ok", highlights=[], warnings=[], citations=[])
+
+
 @pytest.mark.asyncio
 async def test_in_memory_job_queue_round_trip():
     queue = InMemoryTravelJobQueue()
@@ -48,3 +57,36 @@ async def test_travel_job_worker_processes_one_queued_job():
     assert completed.status == "completed"
     assert completed.answer is not None
     assert service.questions == [question]
+
+
+@pytest.mark.asyncio
+async def test_travel_job_worker_routes_general_question_jobs_to_qa_service():
+    job_store = InMemoryTravelJobStore()
+    job_queue = InMemoryTravelJobQueue()
+    diy_service = FakeDIYService()
+    qa_service = FakeQAService()
+    question = TravelQuestion(question="山西历史人文十日深度游，旅行社级别。")
+    job = await job_store.create("tenant-a", question, kind="general_question")
+    await job_queue.enqueue(
+        TravelJobQueueItem(
+            job_id=job.job_id,
+            tenant_id="tenant-a",
+            kind="general_question",
+        )
+    )
+    worker = TravelJobWorker(
+        job_store=job_store,
+        job_queue=job_queue,
+        diy_service_factory=lambda tenant_id: diy_service,
+        qa_service_factory=lambda tenant_id: qa_service,
+    )
+
+    processed = await worker.run_once(timeout_seconds=0)
+    completed = await job_store.get(job.job_id, "tenant-a")
+
+    assert processed is True
+    assert completed.status == "completed"
+    assert completed.answer is not None
+    assert completed.answer.answer == "qa ok"
+    assert diy_service.questions == []
+    assert qa_service.questions == [question]

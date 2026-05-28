@@ -3,7 +3,11 @@
 from pydantic_ai import Agent
 
 from huaxia_tourismrag.core.config import get_settings
-from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
+from huaxia_tourismrag.agents.model_runtime import (
+    ensure_agent_model_ready,
+    is_qwen_cloud_provider,
+)
+from huaxia_tourismrag.agents.qwen_structured_runner import run_qwen_structured
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.schemas.research import TravelResearchPlan
@@ -89,12 +93,21 @@ async def create_intent_decision(
 ) -> IntentDecision:
     """Run the intent checkpoint."""
 
-    ensure_agent_model_ready()
     prompt = f"""
 request_mode: {request_mode}
 question:
 {question.to_retrieval_query()}
 """.strip()
+    if is_qwen_cloud_provider():
+        settings = get_settings()
+        return await run_qwen_structured(
+            prompt=prompt,
+            output_type=IntentDecision,
+            instructions=INTENT_CHECKPOINT_INSTRUCTIONS,
+            model_override=settings.checkpoint_model,
+        )
+
+    ensure_agent_model_ready()
     result = await intent_checkpoint_agent.run(prompt)
     return result.output
 
@@ -106,7 +119,6 @@ async def create_preference_decision(
 ) -> ClarificationDecision:
     """Run the preference checkpoint."""
 
-    ensure_agent_model_ready()
     prompt = f"""
 request_mode: {request_mode}
 intent: {intent_decision.intent}
@@ -114,6 +126,16 @@ intent_reason: {intent_decision.reason}
 question:
 {question.to_retrieval_query()}
 """.strip()
+    if is_qwen_cloud_provider():
+        settings = get_settings()
+        return await run_qwen_structured(
+            prompt=prompt,
+            output_type=ClarificationDecision,
+            instructions=PREFERENCE_CHECKPOINT_INSTRUCTIONS,
+            model_override=settings.checkpoint_model,
+        )
+
+    ensure_agent_model_ready()
     result = await preference_checkpoint_agent.run(prompt)
     return result.output
 
@@ -127,7 +149,6 @@ async def create_feasibility_report(
 ) -> FeasibilityReport:
     """Run the feasibility checkpoint."""
 
-    ensure_agent_model_ready()
     prompt = f"""
 request_mode: {request_mode}
 question:
@@ -142,6 +163,16 @@ research_plan:
 diy_plan:
 {diy_plan.model_dump_json() if diy_plan else "未提供"}
 """.strip()
+    if is_qwen_cloud_provider():
+        settings = get_settings()
+        return await run_qwen_structured(
+            prompt=prompt,
+            output_type=FeasibilityReport,
+            instructions=FEASIBILITY_CHECKPOINT_INSTRUCTIONS,
+            model_override=settings.checkpoint_model,
+        )
+
+    ensure_agent_model_ready()
     result = await feasibility_checkpoint_agent.run(prompt)
     return result.output
 

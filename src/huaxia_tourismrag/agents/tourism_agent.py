@@ -4,7 +4,11 @@ from dataclasses import dataclass
 
 from pydantic_ai import Agent, RunContext
 
-from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
+from huaxia_tourismrag.agents.model_runtime import (
+    ensure_agent_model_ready,
+    is_qwen_cloud_provider,
+)
+from huaxia_tourismrag.agents.qwen_structured_runner import run_qwen_structured
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import (
@@ -438,7 +442,6 @@ async def generate_answer_with_context(
 ) -> TravelAnswer:
     """Run the tourism agent against prepared citation context."""
 
-    ensure_agent_model_ready()
     prompt = build_final_answer_prompt(
         question=question,
         citation_context=citation_context,
@@ -450,5 +453,15 @@ async def generate_answer_with_context(
         service_enrichment=service_enrichment,
         detail_level=detail_level,
     )
+    if is_qwen_cloud_provider():
+        settings = get_settings()
+        return await run_qwen_structured(
+            prompt=prompt,
+            output_type=TravelAnswer,
+            instructions=TOURISM_AGENT_INSTRUCTIONS,
+            model_override=settings.final_answer_model,
+        )
+
+    ensure_agent_model_ready()
     result = await tourism_agent.run(prompt, deps=deps)
     return result.output

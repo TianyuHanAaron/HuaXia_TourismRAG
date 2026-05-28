@@ -1,0 +1,52 @@
+from datetime import date
+
+from huaxia_tourismrag.schemas.evidence import TravelQuestion
+from huaxia_tourismrag.services.travel_checkpoints import (
+    build_checkpoint_context,
+    evaluate_checkpoint_policy,
+)
+
+
+def test_policy_ignores_natural_language_trigger_words() -> None:
+    question = TravelQuestion(
+        question="必须覆盖巡礼深度游老人儿童豪华包车多城，文本里故意放很多词。",
+    )
+
+    context = build_checkpoint_context(question, request_mode="general")
+    decision = evaluate_checkpoint_policy(context)
+
+    assert decision.run_intent_checkpoint is True
+    assert decision.run_preference_checkpoint is True
+    assert decision.run_feasibility_checkpoint is True
+
+
+def test_diy_endpoint_skips_intent_from_endpoint_mode_only() -> None:
+    question = TravelQuestion(question="普通自然语言，不包含任何特殊词。")
+
+    context = build_checkpoint_context(question, request_mode="diy")
+    decision = evaluate_checkpoint_policy(context)
+
+    assert decision.run_intent_checkpoint is False
+    assert decision.synthesized_intent == "diy_itinerary"
+
+
+def test_typed_short_general_trip_can_skip_preference_and_feasibility() -> None:
+    question = TravelQuestion(
+        question="请规划旅行。",
+        destination="北京",
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 3),
+        travelers=2,
+        detail_level="concise",
+    )
+
+    context = build_checkpoint_context(question, request_mode="general")
+    decision = evaluate_checkpoint_policy(context)
+
+    assert decision.run_preference_checkpoint is False
+    assert decision.run_feasibility_checkpoint is False
+    assert decision.synthesized_preference_profile is not None
+    assert decision.synthesized_preference_profile.detail_level == "concise"
+    assert decision.synthesized_feasibility_report is not None
+    assert decision.synthesized_feasibility_report.is_feasible is True
+

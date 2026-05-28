@@ -7,7 +7,7 @@ from uuid import uuid4
 from redis.asyncio import Redis
 
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
-from huaxia_tourismrag.schemas.jobs import TravelJob
+from huaxia_tourismrag.schemas.jobs import TravelJob, TravelJobKind
 
 
 class TravelJobStoreError(RuntimeError):
@@ -21,7 +21,13 @@ class TravelJobNotFoundError(TravelJobStoreError):
 class TravelJobStore(Protocol):
     """Storage interface for async travel jobs."""
 
-    async def create(self, tenant_id: str, question: TravelQuestion) -> TravelJob:
+    async def create(
+        self,
+        tenant_id: str,
+        question: TravelQuestion,
+        kind: TravelJobKind = "diy_itinerary",
+        session_id: str | None = None,
+    ) -> TravelJob:
         """Create a queued job."""
 
     async def get(self, job_id: str, tenant_id: str) -> TravelJob:
@@ -41,6 +47,15 @@ class TravelJobStore(Protocol):
     async def fail(self, job_id: str, tenant_id: str, error: str) -> TravelJob:
         """Store a failed job result."""
 
+    async def update_progress(
+        self,
+        job_id: str,
+        tenant_id: str,
+        stage: str,
+        progress_percent: int,
+    ) -> TravelJob:
+        """Update user-visible progress metadata."""
+
 
 class InMemoryTravelJobStore:
     """In-memory job store for tests and local fallback."""
@@ -48,11 +63,19 @@ class InMemoryTravelJobStore:
     def __init__(self) -> None:
         self._jobs: dict[str, TravelJob] = {}
 
-    async def create(self, tenant_id: str, question: TravelQuestion) -> TravelJob:
+    async def create(
+        self,
+        tenant_id: str,
+        question: TravelQuestion,
+        kind: TravelJobKind = "diy_itinerary",
+        session_id: str | None = None,
+    ) -> TravelJob:
         job = TravelJob(
             job_id=str(uuid4()),
             tenant_id=tenant_id,
+            kind=kind,
             question=question,
+            session_id=session_id,
         )
         self._jobs[job.job_id] = job
         return job
@@ -66,6 +89,8 @@ class InMemoryTravelJobStore:
     async def mark_running(self, job_id: str, tenant_id: str) -> TravelJob:
         job = await self.get(job_id, tenant_id)
         job.status = "running"
+        job.current_stage = "running"
+        job.progress_percent = max(job.progress_percent or 0, 10)
         job.updated_at = datetime.now(UTC)
         self._jobs[job.job_id] = job
         return job
@@ -80,6 +105,9 @@ class InMemoryTravelJobStore:
         job.status = "completed"
         job.answer = answer
         job.error = None
+        job.current_stage = "completed"
+        job.progress_percent = 100
+        job.performance = answer.performance
         job.updated_at = datetime.now(UTC)
         self._jobs[job.job_id] = job
         return job
@@ -88,6 +116,21 @@ class InMemoryTravelJobStore:
         job = await self.get(job_id, tenant_id)
         job.status = "failed"
         job.error = error
+        job.current_stage = "failed"
+        job.updated_at = datetime.now(UTC)
+        self._jobs[job.job_id] = job
+        return job
+
+    async def update_progress(
+        self,
+        job_id: str,
+        tenant_id: str,
+        stage: str,
+        progress_percent: int,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        job.current_stage = stage
+        job.progress_percent = progress_percent
         job.updated_at = datetime.now(UTC)
         self._jobs[job.job_id] = job
         return job
@@ -100,11 +143,19 @@ class RedisTravelJobStore:
         self.redis = redis
         self.ttl_seconds = ttl_seconds
 
-    async def create(self, tenant_id: str, question: TravelQuestion) -> TravelJob:
+    async def create(
+        self,
+        tenant_id: str,
+        question: TravelQuestion,
+        kind: TravelJobKind = "diy_itinerary",
+        session_id: str | None = None,
+    ) -> TravelJob:
         job = TravelJob(
             job_id=str(uuid4()),
             tenant_id=tenant_id,
+            kind=kind,
             question=question,
+            session_id=session_id,
         )
         await self._save(job)
         return job
@@ -122,6 +173,8 @@ class RedisTravelJobStore:
     async def mark_running(self, job_id: str, tenant_id: str) -> TravelJob:
         job = await self.get(job_id, tenant_id)
         job.status = "running"
+        job.current_stage = "running"
+        job.progress_percent = max(job.progress_percent or 0, 10)
         job.updated_at = datetime.now(UTC)
         await self._save(job)
         return job
@@ -136,6 +189,9 @@ class RedisTravelJobStore:
         job.status = "completed"
         job.answer = answer
         job.error = None
+        job.current_stage = "completed"
+        job.progress_percent = 100
+        job.performance = answer.performance
         job.updated_at = datetime.now(UTC)
         await self._save(job)
         return job
@@ -144,6 +200,21 @@ class RedisTravelJobStore:
         job = await self.get(job_id, tenant_id)
         job.status = "failed"
         job.error = error[:1000]
+        job.current_stage = "failed"
+        job.updated_at = datetime.now(UTC)
+        await self._save(job)
+        return job
+
+    async def update_progress(
+        self,
+        job_id: str,
+        tenant_id: str,
+        stage: str,
+        progress_percent: int,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        job.current_stage = stage
+        job.progress_percent = progress_percent
         job.updated_at = datetime.now(UTC)
         await self._save(job)
         return job

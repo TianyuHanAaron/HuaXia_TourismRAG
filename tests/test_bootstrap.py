@@ -6,10 +6,15 @@ from huaxia_tourismrag.integrations.baidu_maps_mcp import BaiduMapsMCPAdapter
 from huaxia_tourismrag.integrations.firecrawl_mcp import FirecrawlMCPAdapter
 from huaxia_tourismrag.integrations.mapbox_mcp import MapboxMCPAdapter
 from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
-from huaxia_tourismrag.rag.embeddings import RemoteHttpEmbedder
+from huaxia_tourismrag.rag.embeddings import QwenCloudEmbedder, RemoteHttpEmbedder
+from huaxia_tourismrag.services.answer_cache import AnswerCache
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
+from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
+    EvidenceRetrievalOrchestrator,
+)
 from huaxia_tourismrag.services.job_store import RedisTravelJobStore
 from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
+from huaxia_tourismrag.services.planning_cache import PlanningCache
 from huaxia_tourismrag.services.qa_service import TourismQAService
 from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
@@ -56,12 +61,14 @@ def test_build_embedder_uses_remote_provider():
         EMBEDDING_DIMENSIONS=1024,
         EMBEDDING_MAX_RETRIES=3,
         EMBEDDING_RETRY_DELAY_SECONDS=0.2,
+        EMBEDDING_TIMEOUT_SECONDS=7,
     )
 
     embedder = bootstrap.build_embedder(settings)
 
     assert isinstance(embedder, RemoteHttpEmbedder)
     assert embedder.dimensions() == 1024
+    assert embedder.timeout_seconds == 7
     assert embedder.max_retries == 3
     assert embedder.retry_delay_seconds == 0.2
 
@@ -70,6 +77,39 @@ def test_build_embedder_requires_remote_url():
     settings = Settings(EMBEDDING_PROVIDER="remote", EMBEDDING_API_URL=None)
 
     with pytest.raises(RuntimeError, match="EMBEDDING_API_URL"):
+        bootstrap.build_embedder(settings)
+
+
+def test_build_embedder_uses_qwen_cloud_provider():
+    settings = Settings(
+        _env_file=None,
+        EMBEDDING_PROVIDER="qwen_cloud",
+        EMBEDDING_MODEL="text-embedding-v4",
+        DASHSCOPE_API_KEY="dashscope-key",
+        EMBEDDING_DIMENSIONS=1024,
+        EMBEDDING_MAX_RETRIES=4,
+        EMBEDDING_RETRY_DELAY_SECONDS=0.1,
+        EMBEDDING_TIMEOUT_SECONDS=8,
+    )
+
+    embedder = bootstrap.build_embedder(settings)
+
+    assert isinstance(embedder, QwenCloudEmbedder)
+    assert embedder.dimensions() == 1024
+    assert embedder.model == "text-embedding-v4"
+    assert embedder.timeout_seconds == 8
+    assert embedder.max_retries == 4
+    assert embedder.retry_delay_seconds == 0.1
+
+
+def test_build_embedder_requires_qwen_cloud_key():
+    settings = Settings(
+        _env_file=None,
+        EMBEDDING_PROVIDER="qwen_cloud",
+        DASHSCOPE_API_KEY=None,
+    )
+
+    with pytest.raises(RuntimeError, match="DASHSCOPE_API_KEY"):
         bootstrap.build_embedder(settings)
 
 
@@ -102,10 +142,22 @@ def test_speed_controls_default_to_safe_values():
 
     assert settings.enable_retrieval_cache is True
     assert settings.retrieval_cache_ttl_seconds == 3600
+    assert settings.retrieval_task_concurrency == 3
+    assert settings.internal_rag_concurrency == 3
+    assert settings.web_search_concurrency == 3
+    assert settings.embedding_timeout_seconds == 20
+    assert settings.web_search_timeout_seconds == 20
+    assert settings.page_read_timeout_seconds == 30
+    assert settings.embedding_circuit_breaker_seconds == 60
+    assert settings.enable_planning_cache is True
+    assert settings.planning_cache_ttl_seconds == 1800
+    assert settings.enable_answer_cache is False
+    assert settings.answer_cache_ttl_seconds == 900
+    assert settings.enable_general_deep_jobs is True
     assert settings.page_read_concurrency == 3
     assert settings.job_ttl_seconds == 86400
     assert settings.job_execution_mode == "background"
-    assert settings.job_queue_key == "tourism:job_queue:diy"
+    assert settings.job_queue_key == "tourism:job_queue:travel"
     assert settings.embedding_max_retries == 2
     assert settings.embedding_retry_delay_seconds == 0.5
 
@@ -117,6 +169,51 @@ def test_build_retrieval_cache_respects_enable_flag():
     cache = bootstrap.build_retrieval_cache(Settings(_env_file=None), redis=object())
 
     assert isinstance(cache, RetrievalCache)
+
+
+def test_build_planning_cache_respects_enable_flag():
+    disabled_settings = Settings(ENABLE_PLANNING_CACHE=False, _env_file=None)
+    assert bootstrap.build_planning_cache(disabled_settings) is None
+
+    cache = bootstrap.build_planning_cache(Settings(_env_file=None), redis=object())
+
+    assert isinstance(cache, PlanningCache)
+
+
+def test_build_answer_cache_respects_enable_flag():
+    disabled_settings = Settings(ENABLE_ANSWER_CACHE=False, _env_file=None)
+    assert bootstrap.build_answer_cache(disabled_settings) is None
+
+    cache = bootstrap.build_answer_cache(
+        Settings(ENABLE_ANSWER_CACHE=True, _env_file=None),
+        redis=object(),
+    )
+
+    assert isinstance(cache, AnswerCache)
+
+
+def test_build_retrieval_orchestrator_uses_speed_settings():
+    settings = Settings(
+        _env_file=None,
+        RETRIEVAL_TASK_CONCURRENCY=5,
+        INTERNAL_RAG_CONCURRENCY=4,
+        WEB_SEARCH_CONCURRENCY=2,
+        PAGE_READ_CONCURRENCY=6,
+        EMBEDDING_CIRCUIT_BREAKER_SECONDS=90,
+    )
+
+    orchestrator = bootstrap.build_retrieval_orchestrator(
+        settings,
+        retrieval_cache=None,
+    )
+
+    assert isinstance(orchestrator, EvidenceRetrievalOrchestrator)
+    assert orchestrator.task_concurrency == 5
+    assert orchestrator.internal_rag_concurrency == 4
+    assert orchestrator.web_search_concurrency == 2
+    assert orchestrator.page_read_concurrency == 6
+    assert orchestrator.embedding_circuit_breaker is not None
+    assert orchestrator.embedding_circuit_breaker.cooldown_seconds == 90
 
 
 def test_build_travel_job_queue_respects_execution_mode():
@@ -187,6 +284,7 @@ def test_build_service_enrichment_wires_baidu_http_adapter():
 
 def test_build_service_enrichment_wires_mapbox_http_adapter():
     settings = Settings(
+        _env_file=None,
         MAPBOX_MCP_ENABLED=True,
         MAPBOX_MCP_TRANSPORT="http",
         MAPBOX_MCP_URL="https://mcp.mapbox.example/mcp",
@@ -234,6 +332,7 @@ def test_build_service_enrichment_accepts_legacy_mapbox_api_key_alias():
 
 def test_build_service_enrichment_wires_tuniu_http_adapter():
     settings = Settings(
+        _env_file=None,
         TUNIU_MCP_ENABLED=True,
         TUNIU_MCP_TRANSPORT="http",
         TUNIU_MCP_URL="https://mcp.tuniu.example/rpc",
@@ -249,6 +348,7 @@ def test_build_service_enrichment_wires_tuniu_http_adapter():
 
 def test_build_tourism_qa_service_wires_dependencies(monkeypatch):
     settings = Settings(
+        _env_file=None,
         TAVILY_API_KEY="tavily-key",
         FIRECRAWL_API_KEY="firecrawl-key",
         QDRANT_URL="http://localhost:6333",
@@ -267,7 +367,7 @@ def test_build_tourism_qa_service_wires_dependencies(monkeypatch):
 
 
 def test_build_tourism_qa_service_requires_firecrawl_key(monkeypatch):
-    settings = Settings(TAVILY_API_KEY="tavily-key", FIRECRAWL_API_KEY=None)
+    settings = Settings(_env_file=None, TAVILY_API_KEY="tavily-key", FIRECRAWL_API_KEY=None)
     monkeypatch.setattr(bootstrap, "get_settings", lambda: settings)
 
     with pytest.raises(RuntimeError, match="FIRECRAWL_API_KEY"):
@@ -276,6 +376,7 @@ def test_build_tourism_qa_service_requires_firecrawl_key(monkeypatch):
 
 def test_build_diy_itinerary_service_wires_dependencies(monkeypatch):
     settings = Settings(
+        _env_file=None,
         TAVILY_API_KEY="tavily-key",
         FIRECRAWL_API_KEY="firecrawl-key",
         QDRANT_URL="http://localhost:6333",
@@ -295,6 +396,7 @@ def test_build_diy_itinerary_service_wires_dependencies(monkeypatch):
 
 def test_build_tourism_deps_skips_model_reranker_by_default(monkeypatch):
     settings = Settings(
+        _env_file=None,
         TAVILY_API_KEY="tavily-key",
         FIRECRAWL_API_KEY="firecrawl-key",
         QDRANT_URL="http://localhost:6333",
@@ -316,6 +418,7 @@ def test_build_tourism_deps_skips_model_reranker_by_default(monkeypatch):
 def test_build_tourism_deps_loads_model_reranker_when_enabled(monkeypatch):
     model = object()
     settings = Settings(
+        _env_file=None,
         TAVILY_API_KEY="tavily-key",
         FIRECRAWL_API_KEY="firecrawl-key",
         QDRANT_URL="http://localhost:6333",
@@ -331,6 +434,29 @@ def test_build_tourism_deps_loads_model_reranker_when_enabled(monkeypatch):
 
     assert deps.reranker.model is model
     assert deps.reranker.max_model_candidates == 3
+
+
+def test_build_tourism_deps_skips_qwen_cloud_reranker_name(monkeypatch):
+    settings = Settings(
+        _env_file=None,
+        TAVILY_API_KEY="tavily-key",
+        FIRECRAWL_API_KEY="firecrawl-key",
+        QDRANT_URL="http://localhost:6333",
+        ENABLE_MODEL_RERANKER=True,
+        RERANKER_MODEL="qwen3-rerank",
+    )
+    monkeypatch.setattr(bootstrap, "get_settings", lambda: settings)
+    monkeypatch.setattr(bootstrap, "AsyncQdrantClient", lambda **kwargs: object())
+    monkeypatch.setattr(bootstrap, "load_embedding_model", FakeEmbeddingModel)
+
+    def fail_load_reranker_model():
+        raise AssertionError("Qwen Cloud reranker should not be loaded as FlagReranker")
+
+    monkeypatch.setattr(bootstrap, "load_reranker_model", fail_load_reranker_model)
+
+    deps = bootstrap.build_tourism_deps("tenant-a")
+
+    assert deps.reranker.model is None
 
 
 def test_create_app_registers_tourism_service_factory():

@@ -2,7 +2,11 @@
 
 from pydantic_ai import Agent
 
-from huaxia_tourismrag.agents.model_runtime import ensure_agent_model_ready
+from huaxia_tourismrag.agents.model_runtime import (
+    ensure_agent_model_ready,
+    is_qwen_cloud_provider,
+)
+from huaxia_tourismrag.agents.qwen_structured_runner import run_qwen_structured
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
@@ -55,14 +59,22 @@ async def create_diy_itinerary_plan(
 ) -> DIYItineraryPlan:
     """Create a structured DIY itinerary plan from a validated question."""
 
-    ensure_agent_model_ready()
-    result = await diy_itinerary_planner_agent.run(
-        _build_diy_planner_prompt(
-            question=question,
-            preference_profile=preference_profile,
-            intent_decision=intent_decision,
-        )
+    prompt = _build_diy_planner_prompt(
+        question=question,
+        preference_profile=preference_profile,
+        intent_decision=intent_decision,
     )
+    if is_qwen_cloud_provider():
+        settings = get_settings()
+        return await run_qwen_structured(
+            prompt=prompt,
+            output_type=DIYItineraryPlan,
+            instructions=DIY_ITINERARY_PLANNER_INSTRUCTIONS,
+            model_override=settings.planner_model,
+        )
+
+    ensure_agent_model_ready()
+    result = await diy_itinerary_planner_agent.run(prompt)
     return result.output
 
 

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.job_queue import TravelJobQueue
 from huaxia_tourismrag.services.job_store import TravelJobNotFoundError, TravelJobStore
+from huaxia_tourismrag.services.qa_service import TourismQAService
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +19,12 @@ class TravelJobWorker:
         job_store: TravelJobStore,
         job_queue: TravelJobQueue,
         diy_service_factory: Callable[[str], DIYItineraryService],
+        qa_service_factory: Callable[[str], TourismQAService] | None = None,
     ) -> None:
         self.job_store = job_store
         self.job_queue = job_queue
         self.diy_service_factory = diy_service_factory
+        self.qa_service_factory = qa_service_factory
 
     async def run_once(self, timeout_seconds: int = 5) -> bool:
         item = await self.job_queue.dequeue(timeout_seconds=timeout_seconds)
@@ -35,7 +38,17 @@ class TravelJobWorker:
             return True
 
         await self.job_store.mark_running(item.job_id, item.tenant_id)
-        service = self.diy_service_factory(item.tenant_id)
+        if job.kind == "general_question":
+            if self.qa_service_factory is None:
+                await self.job_store.fail(
+                    item.job_id,
+                    item.tenant_id,
+                    "QA service factory is not configured for general question jobs",
+                )
+                return True
+            service = self.qa_service_factory(item.tenant_id)
+        else:
+            service = self.diy_service_factory(item.tenant_id)
         try:
             answer = await service.answer(job.question)
         except Exception as exc:

@@ -48,11 +48,30 @@ class FakeInternalRAG:
             )
         ]
 
+    async def retrieve_many(
+        self,
+        queries: list[str],
+        tenant_id: str,
+        limit: int = 12,
+    ) -> dict[str, list[TravelChunk]]:
+        return {
+            query: await self.retrieve(query, tenant_id=tenant_id, limit=limit)
+            for query in queries
+        }
+
 
 class FailingInternalRAG:
     async def retrieve(
         self, query: str, tenant_id: str, limit: int = 12
     ) -> list[TravelChunk]:
+        raise RuntimeError("embedding endpoint unavailable")
+
+    async def retrieve_many(
+        self,
+        queries: list[str],
+        tenant_id: str,
+        limit: int = 12,
+    ) -> dict[str, list[TravelChunk]]:
         raise RuntimeError("embedding endpoint unavailable")
 
 
@@ -689,6 +708,17 @@ async def test_diy_itinerary_service_filters_unrelated_evidence_before_citations
                 ),
             ]
 
+        async def retrieve_many(
+            self,
+            queries: list[str],
+            tenant_id: str,
+            limit: int = 12,
+        ) -> dict[str, list[TravelChunk]]:
+            return {
+                query: await self.retrieve(query, tenant_id=tenant_id, limit=limit)
+                for query in queries
+            }
+
     monkeypatch.setattr(
         diy_service_module,
         "create_diy_itinerary_plan",
@@ -918,3 +948,64 @@ async def test_diy_answer_normalizes_fabricated_llm_citation_lines(monkeypatch):
     guard_stage = next(stage for stage in answer.performance.stages if stage.name == "citation_guard")
     assert guard_stage.metadata["issues"] == 1
     assert guard_stage.metadata["returned_citations"] == 1
+
+
+@pytest.mark.asyncio
+async def test_diy_endpoint_skips_intent_but_keeps_preference_checkpoint(monkeypatch):
+    async def fail_intent(*args, **kwargs):
+        raise AssertionError("DIY endpoint should not need intent checkpoint")
+
+    async def fake_preference(
+        question: TravelQuestion,
+        request_mode: str,
+        intent_decision: IntentDecision,
+    ) -> ClarificationDecision:
+        assert intent_decision.intent == "diy_itinerary"
+        return ClarificationDecision(
+            should_ask=True,
+            question="主题纯粹型还是平衡城市旅行型？",
+            reason="主题严格程度会改变路线。",
+            profile=PreferenceProfile(theme_strictness="unknown"),
+            assumed_defaults=["默认平衡主题和城市体验。"],
+        )
+
+    monkeypatch.setattr(diy_service_module, "create_intent_decision", fail_intent)
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_preference_decision",
+        fake_preference,
+    )
+
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=InMemoryTravelSessionStore(),
+    )
+
+    answer = await service.answer(
+        TravelQuestion(
+            question="三国历史巡礼，必须覆盖涿州、许昌、南阳、成都、汉中。"
+        )
+    )
+
+    assert answer.needs_reply is True
+    assert answer.session_id is not None
+    assert [option.label for option in answer.quick_replies] == [
+        "选择 A",
+        "选择 B",
+        "默认偏好",
+    ]
+    assert [option.action_id for option in answer.quick_replies] == [
+        "preference_option_a",
+        "preference_option_b",
+        "default_preferences",
+    ]

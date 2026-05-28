@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from huaxia_tourismrag.schemas.evidence import TravelQuestion
+from huaxia_tourismrag.schemas.evidence import QuickReplyActionId, TravelQuestion
 
 
 SessionEndpoint = Literal["questions", "diy"]
@@ -40,3 +40,5 @@ class SessionReplyRequest(BaseModel):
     """User reply to a pending session clarification."""
 
     message: str = Field(min_length=1, max_length=1000)
+
+    quick_reply_action_id: QuickReplyActionId | None = None

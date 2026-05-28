@@ -15,8 +15,27 @@ class Settings(BaseSettings):
         default="openai-chat:gpt-5.5",
         alias="TOURISM_AGENT_MODEL",
     )
+    checkpoint_model_name: str | None = Field(default=None, alias="CHECKPOINT_MODEL")
+    planner_model_name: str | None = Field(default=None, alias="PLANNER_MODEL")
+    final_answer_model_name: str | None = Field(default=None, alias="FINAL_ANSWER_MODEL")
+    tourism_agent_provider: str = Field(
+        default="pydantic_ai",
+        alias="TOURISM_AGENT_PROVIDER",
+    )
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_admin_key: str | None = Field(default=None, alias="OPENAI_ADMIN_KEY")
+    dashscope_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "DASHSCOPE_API_KEY",
+            "QWEN_CLOUD_DASHSCOPE_API_KEY",
+            "QWEN_CLOUD_API_KEY",
+        ),
+    )
+    qwen_cloud_base_url: str = Field(
+        default="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        alias="QWEN_CLOUD_BASE_URL",
+    )
 
     tavily_api_key: str | None = Field(default=None, alias="TAVILY_API_KEY")
     exa_api_key: str | None = Field(default=None, alias="EXA_API_KEY")
@@ -61,7 +80,7 @@ class Settings(BaseSettings):
         alias="JOB_EXECUTION_MODE",
     )
     job_queue_key: str = Field(
-        default="tourism:job_queue:diy",
+        default="tourism:job_queue:travel",
         alias="JOB_QUEUE_KEY",
     )
     enable_retrieval_cache: bool = Field(default=True, alias="ENABLE_RETRIEVAL_CACHE")
@@ -69,6 +88,21 @@ class Settings(BaseSettings):
         default=3600,
         alias="RETRIEVAL_CACHE_TTL_SECONDS",
     )
+    retrieval_task_concurrency: int = Field(default=3, alias="RETRIEVAL_TASK_CONCURRENCY")
+    internal_rag_concurrency: int = Field(default=3, alias="INTERNAL_RAG_CONCURRENCY")
+    web_search_concurrency: int = Field(default=3, alias="WEB_SEARCH_CONCURRENCY")
+    embedding_timeout_seconds: float = Field(default=20.0, alias="EMBEDDING_TIMEOUT_SECONDS")
+    web_search_timeout_seconds: float = Field(default=20.0, alias="WEB_SEARCH_TIMEOUT_SECONDS")
+    page_read_timeout_seconds: float = Field(default=30.0, alias="PAGE_READ_TIMEOUT_SECONDS")
+    embedding_circuit_breaker_seconds: int = Field(
+        default=60,
+        alias="EMBEDDING_CIRCUIT_BREAKER_SECONDS",
+    )
+    enable_planning_cache: bool = Field(default=True, alias="ENABLE_PLANNING_CACHE")
+    planning_cache_ttl_seconds: int = Field(default=1800, alias="PLANNING_CACHE_TTL_SECONDS")
+    enable_answer_cache: bool = Field(default=False, alias="ENABLE_ANSWER_CACHE")
+    answer_cache_ttl_seconds: int = Field(default=900, alias="ANSWER_CACHE_TTL_SECONDS")
+    enable_general_deep_jobs: bool = Field(default=True, alias="ENABLE_GENERAL_DEEP_JOBS")
     page_read_concurrency: int = Field(default=3, alias="PAGE_READ_CONCURRENCY")
 
     baidu_maps_mcp_enabled: bool = Field(
@@ -117,6 +151,24 @@ class Settings(BaseSettings):
         alias="FIRECRAWL_MCP_URL",
     )
     firecrawl_mcp_command: str | None = Field(default=None, alias="FIRECRAWL_MCP_COMMAND")
+
+    @property
+    def checkpoint_model(self) -> str:
+        """Model used for lightweight checkpoint DTO calls."""
+
+        return self.checkpoint_model_name or self.tourism_agent_model
+
+    @property
+    def planner_model(self) -> str:
+        """Model used for research and DIY planning DTO calls."""
+
+        return self.planner_model_name or self.tourism_agent_model
+
+    @property
+    def final_answer_model(self) -> str:
+        """Model used for final TravelAnswer generation."""
+
+        return self.final_answer_model_name or self.tourism_agent_model
 
     trusted_domains: tuple[str, ...] = (
         # National tourism / culture

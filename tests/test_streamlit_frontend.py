@@ -7,6 +7,7 @@ from huaxia_tourismrag.frontend.streamlit_client import (
     build_reply_payload,
     build_sales_handoff_payload,
     endpoint_for_request,
+    job_endpoint_for_request,
     normalize_base_url,
     strip_diy_prefix,
 )
@@ -81,6 +82,19 @@ def test_endpoint_for_request_uses_explicit_mode_or_pending_session():
     )
 
 
+def test_job_endpoint_for_request_uses_explicit_mode():
+    assert job_endpoint_for_request("normal") == "/tourism/jobs/questions"
+    assert job_endpoint_for_request("diy") == "/tourism/jobs/diy"
+
+
+def test_session_reply_job_endpoint_is_explicit():
+    client = streamlit_app.TourismApiClient(base_url="http://api.test")
+
+    assert client.session_reply_job_endpoint("session-123") == (
+        "/tourism/sessions/session-123/reply/job"
+    )
+
+
 def test_build_question_payload_keeps_request_dto_shape():
     payload = build_question_payload(
         question="我想去云南玩7天。",
@@ -97,6 +111,10 @@ def test_build_question_payload_keeps_request_dto_shape():
 
 def test_build_reply_payload_uses_session_reply_dto_shape():
     assert build_reply_payload("标准可执行版") == {"message": "标准可执行版"}
+    assert build_reply_payload("标准可执行版", "detail_standard") == {
+        "message": "标准可执行版",
+        "quick_reply_action_id": "detail_standard",
+    }
 
 
 def test_build_sales_handoff_payload_keeps_sales_dto_shape():
@@ -210,33 +228,29 @@ def test_performance_rows_are_gui_friendly():
 def test_quick_reply_options_keep_first_three_valid_options():
     options = streamlit_app._quick_reply_options(
         [
-            {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
-            {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
-            {"label": "默认偏好", "message": "按默认偏好继续"},
+            {
+                "label": "选择 A",
+                "message": "A",
+                "action_id": "preference_option_a",
+            },
+            {
+                "label": "选择 B",
+                "message": "B",
+                "action_id": "preference_option_b",
+            },
+            {
+                "label": "默认偏好",
+                "message": "默认偏好",
+                "action_id": "default_preferences",
+            },
             {"label": "额外", "message": "额外"},
         ]
     )
 
     assert options == [
-        {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
-        {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
-        {"label": "默认偏好", "message": "按默认偏好继续"},
-    ]
-
-
-def test_quick_reply_options_falls_back_for_old_theme_checkpoint_payload():
-    options = streamlit_app._quick_reply_options(
-        [],
-        answer=(
-            "夏夏先帮您把关键偏好确认一下：你希望这条“三国历史巡礼”更偏哪一种："
-            "A 主题纯粹型；B 平衡城市旅行型？"
-        ),
-    )
-
-    assert options == [
-        {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
-        {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
-        {"label": "默认偏好", "message": "按默认偏好继续"},
+        {"label": "选择 A", "message": "A", "action_id": "preference_option_a"},
+        {"label": "选择 B", "message": "B", "action_id": "preference_option_b"},
+        {"label": "默认偏好", "message": "默认偏好", "action_id": "default_preferences"},
     ]
 
 
@@ -269,11 +283,11 @@ def test_pending_reply_uses_longer_timeout_floor():
     ) == 300
 
 
-def test_deep_diy_uses_async_job_path_only_for_first_turn():
+def test_deep_requests_use_async_job_path_only_for_first_turn():
     assert streamlit_app._should_use_async_job("diy", "deep", None) is True
-    assert streamlit_app._should_use_async_job("normal", "deep", None) is False
+    assert streamlit_app._should_use_async_job("normal", "deep", None) is True
     assert streamlit_app._should_use_async_job("diy", "standard", None) is False
-    assert streamlit_app._should_use_async_job("diy", "deep", "session-1") is False
+    assert streamlit_app._should_use_async_job("diy", "deep", "session-1") is True
 
 
 def test_sales_lines_from_text_strips_empty_lines_and_commas():

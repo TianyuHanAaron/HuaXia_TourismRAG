@@ -1,9 +1,12 @@
 import pytest
 
+from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.agents.diy_itinerary_planner import (
     DIY_ITINERARY_PLANNER_INSTRUCTIONS,
+    create_diy_itinerary_plan,
     diy_itinerary_planner_agent,
 )
+from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.schemas.diy_itinerary import (
     DIYItineraryPlan,
     DIYRouteSegment,
@@ -136,6 +139,70 @@ def test_diy_itinerary_planner_formats_preference_profile():
     assert "travel_mode: mixed" in text
     assert "theme_strictness: theme_pure" in text
     assert "默认保留全部必选城市" in text
+
+
+@pytest.mark.asyncio
+async def test_diy_itinerary_planner_uses_qwen_cloud_runner(monkeypatch):
+    calls = []
+
+    async def fake_run_qwen_structured(
+        prompt,
+        output_type,
+        instructions,
+        model_override=None,
+    ):
+        calls.append((prompt, output_type, instructions, model_override))
+        return DIYItineraryPlan(
+            original_question="三国历史巡礼：北京-涿州-许昌-成都-北京。",
+            theme="三国历史巡礼",
+            origin="北京",
+            return_city="北京",
+            required_stops=["涿州", "许昌", "成都"],
+            proposed_route=["北京", "涿州", "许昌", "成都", "北京"],
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="三国历史巡礼 北京 涿州 许昌 成都 路线",
+                    reason="规划路线。",
+                ),
+                TravelResearchTask(
+                    task_type="transport",
+                    query="北京 涿州 许昌 成都 高铁",
+                    reason="查交通。",
+                ),
+                TravelResearchTask(
+                    task_type="attraction",
+                    query="许昌 三国 景点",
+                    reason="查景点。",
+                ),
+            ],
+        )
+
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.diy_itinerary_planner.is_qwen_cloud_provider",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.diy_itinerary_planner.get_settings",
+        lambda: Settings(
+            _env_file=None,
+            TOURISM_AGENT_MODEL="qwen3.7-max",
+            PLANNER_MODEL="qwen3.6-plus",
+        ),
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.diy_itinerary_planner.run_qwen_structured",
+        fake_run_qwen_structured,
+    )
+
+    plan = await create_diy_itinerary_plan(
+        TravelQuestion(question="三国历史巡礼：北京-涿州-许昌-成都-北京。")
+    )
+
+    assert plan.theme == "三国历史巡礼"
+    assert calls[0][1] is DIYItineraryPlan
+    assert calls[0][2] == DIY_ITINERARY_PLANNER_INSTRUCTIONS
+    assert calls[0][3] == "qwen3.6-plus"
 
 
 def test_diy_itinerary_planner_agent_is_defined():

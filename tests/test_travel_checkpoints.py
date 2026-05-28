@@ -1,7 +1,11 @@
+import pytest
+
+from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.agents.travel_checkpoints import (
     FEASIBILITY_CHECKPOINT_INSTRUCTIONS,
     INTENT_CHECKPOINT_INSTRUCTIONS,
     PREFERENCE_CHECKPOINT_INSTRUCTIONS,
+    create_intent_decision,
     feasibility_checkpoint_agent,
     intent_checkpoint_agent,
     preference_checkpoint_agent,
@@ -19,9 +23,7 @@ from huaxia_tourismrag.services.travel_checkpoints import (
     build_detail_level_answer,
     build_feasibility_answer,
     build_intent_redirect_answer,
-    infer_detail_level,
     should_ask_detail_level,
-    should_skip_clarification,
 )
 
 
@@ -51,9 +53,14 @@ def test_build_clarification_answer_uses_travel_answer_shape():
     assert answer.citations == []
     assert answer.needs_reply is True
     assert [option.label for option in answer.quick_replies] == [
-        "主题纯粹型",
-        "平衡城市旅行型",
+        "选择 A",
+        "选择 B",
         "默认偏好",
+    ]
+    assert [option.action_id for option in answer.quick_replies] == [
+        "preference_option_a",
+        "preference_option_b",
+        "default_preferences",
     ]
 
 
@@ -82,18 +89,11 @@ def test_build_feasibility_answer_uses_travel_answer_shape():
         "保持原需求",
         "默认偏好",
     ]
-
-
-def test_should_skip_clarification_when_user_delegates_preferences():
-    question = TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，你来决定怎么安排。")
-
-    assert should_skip_clarification(question) is True
-
-
-def test_should_skip_clarification_when_user_chooses_default_preference():
-    question = TravelQuestion(question="三国历史巡礼：涿州-许昌-成都，按默认偏好继续。")
-
-    assert should_skip_clarification(question) is True
+    assert [option.action_id for option in answer.quick_replies] == [
+        "feasibility_accept_adjustment",
+        "feasibility_keep_original",
+        "default_preferences",
+    ]
 
 
 def test_detail_level_is_validated_on_question_dto():
@@ -103,18 +103,9 @@ def test_detail_level_is_validated_on_question_dto():
     assert "回答详细度: concise" in question.to_retrieval_query()
 
 
-def test_detail_level_inference_from_user_text():
-    assert infer_detail_level(TravelQuestion(question="北京三天怎么玩，简单说一下。")) == "concise"
-    assert infer_detail_level(TravelQuestion(question="山西十日深度旅行社级别规划。")) == "deep"
-    assert infer_detail_level(TravelQuestion(question="成都五天给我可执行版本。")) == "standard"
-
-
-def test_detail_level_checkpoint_asks_for_complex_diy_when_missing():
+def test_detail_level_checkpoint_asks_for_diy_when_missing():
     question = TravelQuestion(
-        question=(
-            "三国历史巡礼路线，从北京出发并回到北京，必须覆盖涿州、临漳、"
-            "许昌、南阳、咸宁、南京、成都、汉中，10到12天。"
-        )
+        question="请规划一条自定义主题旅行。",
     )
 
     decision = should_ask_detail_level(question, request_mode="diy")
@@ -125,7 +116,10 @@ def test_detail_level_checkpoint_asks_for_complex_diy_when_missing():
 
 
 def test_detail_level_checkpoint_skips_when_user_already_specifies_level():
-    question = TravelQuestion(question="三国历史巡礼，给我深度旅行社方案。")
+    question = TravelQuestion(
+        question="请规划一条自定义主题旅行。",
+        detail_level="deep",
+    )
 
     decision = should_ask_detail_level(question, request_mode="diy")
 
@@ -147,6 +141,11 @@ def test_build_detail_level_answer_uses_travel_answer_shape():
         "先看大方向",
         "标准可执行版",
         "深度旅行社版",
+    ]
+    assert [option.action_id for option in answer.quick_replies] == [
+        "detail_concise",
+        "detail_standard",
+        "detail_deep",
     ]
     assert answer.citations == []
 
@@ -173,6 +172,53 @@ def test_intent_decision_can_recommend_diy_endpoint():
 
     assert decision.should_redirect is True
     assert decision.recommended_endpoint == "/tourism/itineraries/diy"
+
+
+@pytest.mark.asyncio
+async def test_intent_checkpoint_uses_qwen_cloud_runner(monkeypatch):
+    calls = []
+
+    async def fake_run_qwen_structured(
+        prompt,
+        output_type,
+        instructions,
+        model_override=None,
+    ):
+        calls.append((prompt, output_type, instructions, model_override))
+        return IntentDecision(
+            request_mode="general",
+            intent="diy_itinerary",
+            should_redirect=True,
+            recommended_endpoint="/tourism/itineraries/diy",
+            reason="用户请求是 DIY 主题路线。",
+        )
+
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.travel_checkpoints.is_qwen_cloud_provider",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.travel_checkpoints.get_settings",
+        lambda: Settings(
+            _env_file=None,
+            TOURISM_AGENT_MODEL="qwen3.7-max",
+            CHECKPOINT_MODEL="qwen3.6-flash",
+        ),
+    )
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.travel_checkpoints.run_qwen_structured",
+        fake_run_qwen_structured,
+    )
+
+    decision = await create_intent_decision(
+        TravelQuestion(question="三国历史巡礼怎么安排？"),
+        request_mode="general",
+    )
+
+    assert decision.intent == "diy_itinerary"
+    assert calls[0][1] is IntentDecision
+    assert calls[0][2] == INTENT_CHECKPOINT_INSTRUCTIONS
+    assert calls[0][3] == "qwen3.6-flash"
 
 
 def test_build_intent_redirect_answer_uses_same_response_shape():

@@ -1,6 +1,7 @@
 """Qdrant vector store integration."""
 
 from uuid import NAMESPACE_URL, uuid5
+from typing import ClassVar
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
@@ -30,6 +31,8 @@ PAYLOAD_KEYWORD_INDEXES = (
 
 
 class QdrantStore:
+    _ready_collections: ClassVar[set[tuple[int, str, int]]] = set()
+
     def __init__(
         self,
         client: AsyncQdrantClient,
@@ -43,6 +46,10 @@ class QdrantStore:
         self.upsert_batch_size = max(1, upsert_batch_size)
 
     async def ensure_collection(self) -> None:
+        cache_key = (id(self.client), self.collection, self.vector_size)
+        if cache_key in self._ready_collections:
+            return
+
         exists = await self.client.collection_exists(self.collection)
         if not exists:
             await self.client.create_collection(
@@ -53,6 +60,11 @@ class QdrantStore:
                 ),
             )
         await self._ensure_payload_indexes()
+        self._ready_collections.add(cache_key)
+
+    @classmethod
+    def clear_collection_readiness_cache(cls) -> None:
+        cls._ready_collections.clear()
 
     async def _ensure_payload_indexes(self) -> None:
         collection_info = await self.client.get_collection(self.collection)

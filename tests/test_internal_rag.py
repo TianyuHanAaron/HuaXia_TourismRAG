@@ -11,6 +11,12 @@ class FakeEmbedder:
         assert text == "北京故宫怎么玩"
         return [0.1, 0.2]
 
+    async def async_embed_query(self, text: str) -> list[float]:
+        return self.embed_query(text)
+
+    async def async_embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[float(index), float(index + 1)] for index, _ in enumerate(texts)]
+
 
 class FakeStore:
     def __init__(self) -> None:
@@ -66,3 +72,21 @@ async def test_retrieve_embeds_query_searches_store_and_maps_payload_to_chunks()
     assert chunks[0].id == "tenant-a:doc-1:0"
     assert chunks[0].title == "北京旅游指南"
     assert chunks[0].score == 0.91
+
+
+@pytest.mark.asyncio
+async def test_retrieve_many_batches_embeddings_and_searches_queries():
+    tool = InternalRAGTool.__new__(InternalRAGTool)
+    tool.embedder = FakeEmbedder()
+    tool.store = FakeStore()
+    tool.search_concurrency = 2
+
+    results = await tool.retrieve_many(
+        ["北京故宫怎么玩", "上海外滩怎么玩"],
+        tenant_id="tenant-a",
+        limit=3,
+    )
+
+    assert set(results) == {"北京故宫怎么玩", "上海外滩怎么玩"}
+    assert all(chunks[0].title == "北京旅游指南" for chunks in results.values())
+    assert tool.store.collection_ready is True

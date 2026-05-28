@@ -44,6 +44,7 @@ class FakeDIYItineraryService:
 
 class FakeSessionReplyService:
     replies: list[tuple[str, SessionReplyRequest]] = []
+    job_replies: list[tuple[str, SessionReplyRequest]] = []
 
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
@@ -60,6 +61,34 @@ class FakeSessionReplyService:
             warnings=[],
             citations=[],
         )
+
+    async def prepare_job_question(
+        self,
+        session_id: str,
+        request: SessionReplyRequest,
+    ) -> tuple[TravelQuestion, str]:
+        self.job_replies.append((session_id, request))
+        return TravelQuestion(question=f"job reply {request.message}"), "general_question"
+
+    async def answer_prepared_question(
+        self,
+        question: TravelQuestion,
+        kind: str,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer=f"{self.tenant_id}: {question.question}",
+            highlights=[],
+            warnings=[],
+            citations=[],
+        )
+
+    async def complete_job_session(
+        self,
+        session_id: str,
+        answer: TravelAnswer,
+    ) -> TravelAnswer:
+        answer.session_id = session_id
+        return answer
 
 
 class FakeTravelJobQueue:
@@ -90,6 +119,7 @@ def make_client(
     FakeTourismQAService.questions = []
     FakeDIYItineraryService.questions = []
     FakeSessionReplyService.replies = []
+    FakeSessionReplyService.job_replies = []
     app = FastAPI()
     if configure_service:
         app.state.tourism_qa_service_factory = FakeTourismQAService
@@ -206,6 +236,50 @@ def test_diy_itinerary_job_route_can_enqueue_for_external_worker():
     assert len(queue.items) == 1
     assert queue.items[0].job_id == body["job_id"]
     assert queue.items[0].tenant_id == "demo-tenant"
+    assert queue.items[0].kind == "diy_itinerary"
+
+
+def test_general_question_job_route_queues_and_completes_job():
+    client = make_client()
+
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={
+            "question": "上海出发，山西历史人文十日深度游，5人含老人儿童，豪华级别。",
+            "detail_level": "deep",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.headers["x-request-id"]
+    job_id = response.json()["job_id"]
+
+    status = client.get(f"/tourism/jobs/{job_id}")
+
+    assert status.status_code == 200
+    body = status.json()
+    assert body["status"] == "completed"
+    assert body["answer"]["answer"].startswith("demo-tenant:")
+
+
+def test_general_question_job_route_can_enqueue_for_external_worker():
+    client = make_client(configure_job_queue=True)
+
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={
+            "question": "上海出发，山西历史人文十日深度游，5人含老人儿童，豪华级别。",
+            "detail_level": "deep",
+        },
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    queue = client.app.state.travel_job_queue
+    assert len(queue.items) == 1
+    assert queue.items[0].job_id == body["job_id"]
+    assert queue.items[0].tenant_id == "demo-tenant"
+    assert queue.items[0].kind == "general_question"
 
 
 def test_diy_itinerary_job_status_returns_404_for_missing_job():
@@ -230,6 +304,47 @@ def test_session_reply_route_uses_same_answer_response():
     assert response.json()["answer"].startswith("reply demo-tenant:")
     assert FakeSessionReplyService.replies[0][0] == "session-123"
     assert FakeSessionReplyService.replies[0][1].message == "平衡旅行型，高铁+包车混合。"
+
+
+def test_session_reply_job_route_queues_and_completes_job():
+    client = make_client()
+
+    response = client.post(
+        "/tourism/sessions/session-123/reply/job",
+        json={"message": "平衡旅行型，高铁+包车混合。"},
+    )
+
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    status = client.get(f"/tourism/jobs/{job_id}")
+
+    assert status.status_code == 200
+    body = status.json()
+    assert body["status"] == "completed"
+    assert body["answer"]["answer"].startswith("demo-tenant:")
+    assert body["answer"]["session_id"] == "session-123"
+    assert FakeSessionReplyService.job_replies[0][0] == "session-123"
+    assert FakeSessionReplyService.job_replies[0][1].message == "平衡旅行型，高铁+包车混合。"
+
+
+def test_session_reply_job_route_can_enqueue_for_external_worker():
+    client = make_client(configure_job_queue=True)
+
+    response = client.post(
+        "/tourism/sessions/session-123/reply/job",
+        json={"message": "平衡旅行型，高铁+包车混合。"},
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    queue = client.app.state.travel_job_queue
+    assert len(queue.items) == 1
+    assert queue.items[0].job_id == body["job_id"]
+    assert queue.items[0].tenant_id == "demo-tenant"
+    assert queue.items[0].kind == "general_question"
+    job_store = client.app.state.travel_job_store
+    job = job_store._jobs[body["job_id"]]
+    assert job.session_id == "session-123"
 
 
 def test_sales_handoff_route_preserves_trip_snapshot_and_requirement_lists():
@@ -378,6 +493,7 @@ def test_tourism_capabilities_route_describes_supported_features():
     assert response.json()["primary_endpoint"] == "/tourism/questions"
     assert response.json()["diy_itinerary_endpoint"] == "/tourism/itineraries/diy"
     assert response.json()["diy_job_endpoint"] == "/tourism/jobs/diy"
+    assert response.json()["general_job_endpoint"] == "/tourism/jobs/questions"
     assert response.json()["job_status_endpoint"] == "/tourism/jobs/{job_id}"
     assert "zh-CN" in response.json()["supported_languages"]
     assert response.json()["supported_detail_levels"] == ["concise", "standard", "deep"]

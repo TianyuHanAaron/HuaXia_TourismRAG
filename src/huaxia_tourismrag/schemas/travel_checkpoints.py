@@ -14,6 +14,11 @@ IntentType = Literal[
     "diy_itinerary",
     "operational_status",
 ]
+CheckpointReason = Literal[
+    "endpoint_diy_mode",
+    "explicit_concise_detail",
+    "typed_short_single_destination",
+]
 
 
 class IntentDecision(BaseModel):
@@ -135,3 +140,43 @@ class FeasibilityReport(BaseModel):
         if self.should_ask and not self.question:
             raise ValueError("question is required when should_ask is true")
         return self
+
+
+class CheckpointContext(BaseModel):
+    """DTO-only facts that deterministic checkpoint policy is allowed to inspect."""
+
+    request_mode: RequestMode
+
+    detail_level: DetailLevel | None = None
+
+    has_destination: bool = False
+
+    has_start_date: bool = False
+
+    has_end_date: bool = False
+
+    duration_days: int | None = Field(default=None, ge=0, le=366)
+
+    travelers: int | None = Field(default=None, ge=1, le=20)
+
+    budget_level: Literal["budget", "mid_range", "luxury"] | None = None
+
+    interest_count: int = Field(default=0, ge=0, le=12)
+
+
+class CheckpointPolicyDecision(BaseModel):
+    """Deterministic checkpoint routing decision from typed context only."""
+
+    run_intent_checkpoint: bool = True
+
+    run_preference_checkpoint: bool = True
+
+    run_feasibility_checkpoint: bool = True
+
+    synthesized_intent: IntentType | None = None
+
+    synthesized_preference_profile: PreferenceProfile | None = None
+
+    synthesized_feasibility_report: FeasibilityReport | None = None
+
+    reasons: list[CheckpointReason] = Field(default_factory=list)

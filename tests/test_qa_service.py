@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -48,11 +48,30 @@ class FakeInternalRAG:
             )
         ]
 
+    async def retrieve_many(
+        self,
+        queries: list[str],
+        tenant_id: str,
+        limit: int = 12,
+    ) -> dict[str, list[TravelChunk]]:
+        return {
+            query: await self.retrieve(query, tenant_id=tenant_id, limit=limit)
+            for query in queries
+        }
+
 
 class FailingInternalRAG:
     async def retrieve(
         self, query: str, tenant_id: str, limit: int = 12
     ) -> list[TravelChunk]:
+        raise RuntimeError("embedding endpoint unavailable")
+
+    async def retrieve_many(
+        self,
+        queries: list[str],
+        tenant_id: str,
+        limit: int = 12,
+    ) -> dict[str, list[TravelChunk]]:
         raise RuntimeError("embedding endpoint unavailable")
 
 
@@ -430,10 +449,9 @@ async def test_answer_performance_reports_retrieval_cache_hits(monkeypatch):
     metadata_by_stage = {
         stage.name: stage.metadata for stage in answer.performance.stages
     }
-    assert metadata_by_stage["internal_rag"]["cache_hit"] is True
-    assert metadata_by_stage["web_search"]["cache_hit"] is True
-    assert metadata_by_stage["page_read"]["cache_hits"] == 1
-    assert metadata_by_stage["page_read"]["cache_misses"] == 0
+    assert metadata_by_stage["evidence_retrieval"]["internal_chunks"] == 3
+    assert metadata_by_stage["evidence_retrieval"]["web_chunks"] == 1
+    assert metadata_by_stage["evidence_retrieval"]["pages"] == 1
     assert internal_rag.queries == []
     assert web_search.requests == []
     assert webpage_reader.urls == []
@@ -1249,3 +1267,235 @@ async def test_answer_attaches_service_enrichment_context(monkeypatch):
     assert len(enrichment.calls) == 1
     assert enrichment.calls[0][1] is None
     assert enrichment.calls[0][2].destination == "杭州"
+
+
+@pytest.mark.asyncio
+async def test_final_answer_cannot_request_reply_without_session(monkeypatch):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="成都、重庆",
+            tasks=[
+                TravelResearchTask(
+                    task_type="food",
+                    query="成都 重庆 本地美食",
+                    reason="测试美食证据。",
+                ),
+                TravelResearchTask(
+                    task_type="route",
+                    query="成都 重庆 六天 路线",
+                    reason="测试路线证据。",
+                ),
+                TravelResearchTask(
+                    task_type="attraction",
+                    query="成都 重庆 轻松 景点",
+                    reason="测试景点证据。",
+                ),
+            ],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="成都重庆美食路线。",
+            highlights=[],
+            warnings=[],
+            citations=[],
+            needs_reply=True,
+        )
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=InMemoryTravelSessionStore(),
+    )
+
+    answer = await service.answer(TravelQuestion(question="成都重庆六天美食路线。"))
+
+    assert answer.needs_reply is False
+    assert answer.session_id is None
+
+
+@pytest.mark.asyncio
+async def test_typed_concise_short_question_skips_preference_and_feasibility(
+    monkeypatch,
+):
+    async def fail_preference(*args, **kwargs):
+        raise AssertionError("preference checkpoint should be skipped")
+
+    async def fail_feasibility(*args, **kwargs):
+        raise AssertionError("feasibility checkpoint should be skipped")
+
+    async def fake_intent(
+        question: TravelQuestion,
+        request_mode: str,
+    ) -> IntentDecision:
+        return IntentDecision(
+            request_mode=request_mode,
+            intent="conventional_itinerary",
+            reason="general endpoint still uses typed intent checkpoint.",
+        )
+
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        assert intent_decision is not None
+        assert preference_profile is not None
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="北京",
+            trip_days=3,
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="北京 三天 路线",
+                    reason="测试路线。",
+                ),
+                TravelResearchTask(
+                    task_type="attraction",
+                    query="北京 故宫 天坛",
+                    reason="测试景点。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="北京 本地小吃",
+                    reason="测试美食。",
+                ),
+            ],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        assert detail_level == "concise"
+        return TravelAnswer(
+            answer="北京三天简洁路线。",
+            highlights=[],
+            warnings=[],
+            citations=[],
+        )
+
+    monkeypatch.setattr(qa_service_module, "create_intent_decision", fake_intent)
+    monkeypatch.setattr(qa_service_module, "create_preference_decision", fail_preference)
+    monkeypatch.setattr(qa_service_module, "create_feasibility_report", fail_feasibility)
+    monkeypatch.setattr(qa_service_module, "create_research_plan", fake_create_research_plan)
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=InMemoryTravelSessionStore(),
+    )
+
+    answer = await service.answer(
+        TravelQuestion(
+            question="请规划旅行。",
+            destination="北京",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 6, 3),
+            travelers=2,
+            detail_level="concise",
+        )
+    )
+
+    assert answer.answer == "北京三天简洁路线。"
+
+
+@pytest.mark.asyncio
+async def test_normal_endpoint_still_runs_intent_for_obvious_diy_text(monkeypatch):
+    calls = {"intent": 0}
+
+    async def fake_intent(
+        question: TravelQuestion,
+        request_mode: str,
+    ) -> IntentDecision:
+        calls["intent"] += 1
+        return IntentDecision(
+            request_mode="general",
+            intent="diy_itinerary",
+            should_redirect=True,
+            recommended_endpoint="/tourism/itineraries/diy",
+            reason="用户请求自定义主题路线。",
+        )
+
+    monkeypatch.setattr(qa_service_module, "create_intent_decision", fake_intent)
+
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=InMemoryTravelSessionStore(),
+    )
+
+    answer = await service.answer(
+        TravelQuestion(question="我想做一条三国历史巡礼，必须覆盖涿州、许昌、成都。")
+    )
+
+    assert calls["intent"] == 1
+    assert "/tourism/itineraries/diy" in answer.answer

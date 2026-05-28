@@ -10,6 +10,7 @@ from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.schemas.jobs import (
     TravelJobCreateResponse,
+    TravelJobKind,
     TravelJobQueueItem,
     TravelJobStatusResponse,
 )
@@ -33,6 +34,7 @@ class TourismCapabilitiesResponse(BaseModel):
     legacy_endpoint: str
     diy_itinerary_endpoint: str
     diy_job_endpoint: str
+    general_job_endpoint: str
     job_status_endpoint: str
     session_reply_endpoint: str
     sales_handoff_endpoint: str
@@ -168,8 +170,9 @@ def get_capabilities() -> TourismCapabilitiesResponse:
         legacy_endpoint="/tourism/ask",
         diy_itinerary_endpoint="/tourism/itineraries/diy",
         diy_job_endpoint="/tourism/jobs/diy",
+        general_job_endpoint="/tourism/jobs/questions",
         job_status_endpoint="/tourism/jobs/{job_id}",
-        session_reply_endpoint="/tourism/sessions/{session_id}/reply",
+    session_reply_endpoint="/tourism/sessions/{session_id}/reply",
         sales_handoff_endpoint="/tourism/sales/handoffs",
         supported_languages=["zh-CN", "en"],
         supported_budget_levels=["budget", "mid_range", "luxury"],
@@ -236,15 +239,55 @@ async def create_diy_itinerary_job(
 
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
-    job = await job_store.create(user.tenant_id, body)
+    job = await job_store.create(user.tenant_id, body, kind="diy_itinerary")
     job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
     if job_queue is not None:
         await job_queue.enqueue(
-            TravelJobQueueItem(job_id=job.job_id, tenant_id=user.tenant_id)
+            TravelJobQueueItem(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                kind="diy_itinerary",
+            )
         )
     else:
         background_tasks.add_task(
             _run_diy_itinerary_job,
+            job_id=job.job_id,
+            tenant_id=user.tenant_id,
+            question=body,
+            service=service,
+            job_store=job_store,
+        )
+    return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
+
+
+@router.post("/jobs/questions", response_model=TravelJobCreateResponse, status_code=202)
+async def create_general_question_job(
+    body: TravelQuestion,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    user: CurrentUser = Depends(get_current_user),
+    service: TourismQAService = Depends(get_tourism_qa_service),
+    job_store: TravelJobStore = Depends(get_travel_job_store),
+) -> TravelJobCreateResponse:
+    """Queue a long-running general tourism question job."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    job = await job_store.create(user.tenant_id, body, kind="general_question")
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    if job_queue is not None:
+        await job_queue.enqueue(
+            TravelJobQueueItem(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                kind="general_question",
+            )
+        )
+    else:
+        background_tasks.add_task(
+            _run_general_question_job,
             job_id=job.job_id,
             tenant_id=user.tenant_id,
             question=body,
@@ -294,6 +337,60 @@ async def reply_to_tourism_session(
 
 
 @router.post(
+    "/sessions/{session_id}/reply/job",
+    response_model=TravelJobCreateResponse,
+    status_code=202,
+)
+async def create_session_reply_job(
+    session_id: str,
+    body: SessionReplyRequest,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    user: CurrentUser = Depends(get_current_user),
+    service: SessionReplyService = Depends(get_session_reply_service),
+    job_store: TravelJobStore = Depends(get_travel_job_store),
+) -> TravelJobCreateResponse:
+    """Queue a deep reply to a pending multi-hop tourism session."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        question, kind = await service.prepare_job_question(session_id, body)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="session not found") from exc
+
+    job = await job_store.create(
+        user.tenant_id,
+        question,
+        kind=kind,
+        session_id=session_id,
+    )
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    if job_queue is not None:
+        await job_queue.enqueue(
+            TravelJobQueueItem(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                kind=kind,
+                session_id=session_id,
+            )
+        )
+    else:
+        background_tasks.add_task(
+            _run_session_reply_job,
+            job_id=job.job_id,
+            tenant_id=user.tenant_id,
+            session_id=session_id,
+            kind=kind,
+            question=question,
+            service=service,
+            job_store=job_store,
+        )
+    return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
+
+
+@router.post(
     "/sales/handoffs",
     response_model=SalesHandoffResponse,
     status_code=202,
@@ -330,6 +427,43 @@ async def _run_diy_itinerary_job(
     await job_store.mark_running(job_id, tenant_id)
     try:
         answer = await service.answer(question)
+    except Exception as exc:
+        await job_store.fail(job_id, tenant_id, str(exc))
+        return
+
+    await job_store.complete(job_id, tenant_id, answer)
+
+
+async def _run_general_question_job(
+    job_id: str,
+    tenant_id: str,
+    question: TravelQuestion,
+    service: TourismQAService,
+    job_store: TravelJobStore,
+) -> None:
+    await job_store.mark_running(job_id, tenant_id)
+    try:
+        answer = await service.answer(question)
+    except Exception as exc:
+        await job_store.fail(job_id, tenant_id, str(exc))
+        return
+
+    await job_store.complete(job_id, tenant_id, answer)
+
+
+async def _run_session_reply_job(
+    job_id: str,
+    tenant_id: str,
+    session_id: str,
+    kind: TravelJobKind,
+    question: TravelQuestion,
+    service: SessionReplyService,
+    job_store: TravelJobStore,
+) -> None:
+    await job_store.mark_running(job_id, tenant_id)
+    try:
+        answer = await service.answer_prepared_question(question, kind)
+        answer = await service.complete_job_session(session_id, answer)
     except Exception as exc:
         await job_store.fail(job_id, tenant_id, str(exc))
         return

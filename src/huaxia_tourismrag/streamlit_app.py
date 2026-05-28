@@ -708,6 +708,7 @@ def _submit_prompt(
     mode: RequestMode,
     detail_level: DetailLevel,
     copy: dict[str, Any],
+    quick_reply_action_id: str | None = None,
 ) -> None:
     session_id = st.session_state.get("session_id") if st.session_state.get("needs_reply") else None
     client = TourismApiClient(
@@ -724,11 +725,14 @@ def _submit_prompt(
     with st.status(copy["thinking"], expanded=False) as status:
         try:
             if use_async_job:
-                payload = _submit_and_poll_diy_job(
+                payload = _submit_and_poll_travel_job(
                     client=client,
                     prompt=prompt,
+                    mode=mode,
                     detail_level=detail_level,
                     language=_answer_language(),
+                    session_id=session_id,
+                    quick_reply_action_id=quick_reply_action_id,
                     timeout_seconds=_effective_timeout_seconds(
                         configured_timeout=float(
                             st.session_state.get(
@@ -748,6 +752,7 @@ def _submit_prompt(
                     detail_level=detail_level,
                     language=_answer_language(),
                     session_id=session_id,
+                    quick_reply_action_id=quick_reply_action_id,
                 )
         except TourismFrontendError as exc:
             st.session_state["last_error"] = str(exc)
@@ -776,14 +781,17 @@ def _should_use_async_job(
     detail_level: DetailLevel,
     session_id: str | None,
 ) -> bool:
-    return mode == "diy" and detail_level == "deep" and session_id is None
+    return detail_level == "deep" and mode in {"normal", "diy"}
 
 
-def _submit_and_poll_diy_job(
+def _submit_and_poll_travel_job(
     client: TourismApiClient,
     prompt: str,
+    mode: RequestMode,
     detail_level: DetailLevel,
     language: AnswerLanguage,
+    session_id: str | None,
+    quick_reply_action_id: str | None,
     timeout_seconds: float,
     status_container: Any | None = None,
     copy: dict[str, Any] | None = None,
@@ -791,11 +799,19 @@ def _submit_and_poll_diy_job(
     started = time.monotonic()
     if status_container is not None and copy is not None:
         status_container.update(label=copy["job_submitted"])
-    job = client.create_diy_job(
-        prompt,
-        detail_level=detail_level,
-        language=language,
-    )
+    if session_id:
+        job = client.create_session_reply_job(
+            prompt,
+            session_id=session_id,
+            quick_reply_action_id=quick_reply_action_id,
+        )
+    else:
+        job = client.create_travel_job(
+            prompt,
+            mode=mode,
+            detail_level=detail_level,
+            language=language,
+        )
     job_id = str(job["job_id"])
 
     while time.monotonic() - started < timeout_seconds:
@@ -1074,7 +1090,6 @@ def _render_quick_reply_buttons(
 ) -> None:
     options = _quick_reply_options(
         payload.get("quick_replies") or [],
-        answer=str(payload.get("answer") or ""),
     )
     if not options:
         return
@@ -1083,75 +1098,45 @@ def _render_quick_reply_buttons(
     for index, option in enumerate(options):
         label = str(option["label"])
         message = str(option["message"])
+        action_id = option.get("action_id")
         with columns[index]:
             if st.button(
                 label,
                 key=f"quick-reply-{index}-{label}",
                 use_container_width=True,
             ):
-                _submit_quick_reply(message, copy)
+                _submit_quick_reply(message, copy, action_id=action_id)
                 st.rerun()
 
 
 def _quick_reply_options(
     quick_replies: list[dict[str, Any]],
-    answer: str = "",
 ) -> list[dict[str, str]]:
     options = []
     for item in quick_replies[:3]:
         label = str(item.get("label", "")).strip()
         message = str(item.get("message", "")).strip()
+        action_id = item.get("action_id")
         if label and message:
-            options.append({"label": label, "message": message})
-    if options:
-        return options
-
-    return _fallback_quick_reply_options(answer)
-
-
-def _fallback_quick_reply_options(answer: str) -> list[dict[str, str]]:
-    """Infer buttons for old checkpoint payloads that predate quick_replies."""
-
-    if not answer:
-        return []
-
-    if "主题纯粹" in answer and "平衡" in answer:
-        return [
-            {"label": "主题纯粹型", "message": "A. 主题纯粹型"},
-            {"label": "平衡城市旅行型", "message": "B. 平衡城市旅行型"},
-            {"label": "默认偏好", "message": "按默认偏好继续"},
-        ]
-
-    if "先看大方向" in answer and "深度旅行社" in answer:
-        return [
-            {"label": "先看大方向", "message": "先看大方向"},
-            {"label": "标准可执行版", "message": "标准可执行版"},
-            {"label": "深度旅行社版", "message": "深度旅行社版"},
-        ]
-
-    if "可执行性" in answer or "明显风险" in answer:
-        return [
-            {"label": "按建议调整", "message": "接受夏夏建议的调整方案"},
-            {"label": "保持原需求", "message": "保持原需求，请给出风险提示和压缩版"},
-            {"label": "默认偏好", "message": "按默认偏好继续"},
-        ]
-
-    if "A" in answer and "B" in answer:
-        return [
-            {"label": "选择 A", "message": "A"},
-            {"label": "选择 B", "message": "B"},
-            {"label": "默认偏好", "message": "按默认偏好继续"},
-        ]
-    return []
+            option = {"label": label, "message": message}
+            if isinstance(action_id, str) and action_id:
+                option["action_id"] = action_id
+            options.append(option)
+    return options
 
 
-def _submit_quick_reply(message: str, copy: dict[str, Any]) -> None:
+def _submit_quick_reply(
+    message: str,
+    copy: dict[str, Any],
+    action_id: str | None = None,
+) -> None:
     st.session_state["messages"].append({"role": "user", "content": message})
     _submit_prompt(
         message,
         mode=st.session_state.get("mode", "normal"),
         detail_level=st.session_state.get("detail_level", "deep"),
         copy=copy,
+        quick_reply_action_id=action_id,
     )
 
 
