@@ -1,5 +1,6 @@
 """Small typed-ish client helpers for the Streamlit frontend."""
 
+from datetime import date
 from typing import Literal
 
 import httpx
@@ -9,6 +10,23 @@ RequestMode = Literal["normal", "diy"]
 DetailLevel = Literal["concise", "standard", "deep"]
 AnswerLanguage = Literal["zh-CN", "en"]
 PreferredContactChannel = Literal["phone", "wechat", "email", "any"]
+FormRequestMode = Literal["normal", "diy"]
+TravelPace = Literal["relaxed", "balanced", "intensive"]
+TravelModePreference = Literal[
+    "train_first",
+    "flight_first",
+    "self_drive",
+    "charter_when_needed",
+    "mixed",
+]
+RouteStrictness = Literal["flexible", "must_cover_all", "theme_pure", "balanced_city"]
+AccommodationPreference = Literal["convenient", "luxury", "boutique", "budget"]
+FoodPreference = Literal[
+    "local_snacks",
+    "classic_restaurants",
+    "fine_dining",
+    "balanced",
+]
 QuickReplyActionId = Literal[
     "preference_option_a",
     "preference_option_b",
@@ -23,6 +41,16 @@ QuickReplyActionId = Literal[
 
 class TourismFrontendError(RuntimeError):
     """Raised when the frontend cannot reach or parse the tourism API."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        detail: str | None = None,
+    ) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(message)
 
 
 def normalize_base_url(base_url: str) -> str:
@@ -106,6 +134,64 @@ def build_sales_handoff_payload(
     return {key: value for key, value in payload.items() if value is not None}
 
 
+def build_form_payload(
+    *,
+    request_mode: FormRequestMode,
+    origin_city: str | None = None,
+    destination: str | None = None,
+    return_city: str | None = None,
+    required_stops: list[str] | None = None,
+    start_date: date | str | None = None,
+    end_date: date | str | None = None,
+    duration_days: int | None = None,
+    adults: int = 1,
+    elders: int = 0,
+    children: int = 0,
+    budget_level: Literal["budget", "mid_range", "luxury"] | None = None,
+    travel_mode_preference: TravelModePreference = "mixed",
+    pace: TravelPace = "balanced",
+    route_strictness: RouteStrictness = "flexible",
+    attraction_preferences: list[str] | None = None,
+    accommodation_preference: AccommodationPreference = "convenient",
+    food_preference: FoodPreference = "balanced",
+    must_have: list[str] | None = None,
+    avoid: list[str] | None = None,
+    extra_notes: str | None = None,
+    detail_level: DetailLevel = "deep",
+    language: AnswerLanguage = "zh-CN",
+) -> dict[str, object]:
+    """Build a request body that matches the TravelFormRequest DTO."""
+
+    payload: dict[str, object | None] = {
+        "request_mode": request_mode,
+        "origin_city": _clean_optional(origin_city),
+        "destination": _clean_optional(destination),
+        "return_city": _clean_optional(return_city),
+        "required_stops": _clean_text_list(required_stops),
+        "start_date": _date_string(start_date),
+        "end_date": _date_string(end_date),
+        "duration_days": duration_days,
+        "traveler_composition": {
+            "adults": adults,
+            "elders": elders,
+            "children": children,
+        },
+        "budget_level": budget_level,
+        "travel_mode_preference": travel_mode_preference,
+        "pace": pace,
+        "route_strictness": route_strictness,
+        "attraction_preferences": _clean_text_list(attraction_preferences),
+        "accommodation_preference": accommodation_preference,
+        "food_preference": food_preference,
+        "must_have": _clean_text_list(must_have),
+        "avoid": _clean_text_list(avoid),
+        "extra_notes": _clean_optional(extra_notes),
+        "detail_level": detail_level,
+        "language": language,
+    }
+    return {key: value for key, value in payload.items() if value is not None}
+
+
 def strip_diy_prefix(message: str) -> str:
     """Remove chat-style DIY shortcuts before sending to the API."""
 
@@ -120,6 +206,21 @@ def _clean_text_list(values: list[str] | None) -> list[str]:
     if not values:
         return []
     return [text for item in values if (text := item.strip())]
+
+
+def _clean_optional(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _date_string(value: date | str | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value.isoformat()
+    return _clean_optional(value)
 
 
 class TourismApiClient:
@@ -188,6 +289,16 @@ class TourismApiClient:
         )
         return self._post(job_endpoint_for_request(mode), payload)
 
+    def submit_form(self, payload: dict[str, object]) -> dict:
+        """Submit a form-derived request to the matching synchronous endpoint."""
+
+        return self._post("/tourism/forms/questions", payload)
+
+    def create_form_job(self, payload: dict[str, object]) -> dict:
+        """Queue a form-derived request for async generation."""
+
+        return self._post("/tourism/forms/jobs", payload)
+
     def session_reply_job_endpoint(self, session_id: str) -> str:
         """Return the async job endpoint for a pending session reply."""
 
@@ -234,7 +345,9 @@ class TourismApiClient:
         except httpx.HTTPStatusError as exc:
             detail = _response_error_detail(exc.response)
             raise TourismFrontendError(
-                f"API returned {exc.response.status_code}: {detail}"
+                f"API returned {exc.response.status_code}: {detail}",
+                status_code=exc.response.status_code,
+                detail=detail,
             ) from exc
         except httpx.HTTPError as exc:
             raise TourismFrontendError(str(exc)) from exc

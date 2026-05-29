@@ -1,3 +1,4 @@
+import httpx
 import pytest
 
 from huaxia_tourismrag.schemas.evidence import TravelSearchHit
@@ -6,6 +7,7 @@ from huaxia_tourismrag.tools.web_search import (
     ChineseTourismSearchTool,
     ExaSearchProvider,
     TavilySearchProvider,
+    WebSearchProviderUnavailable,
 )
 
 
@@ -18,6 +20,33 @@ class FakeResponse:
 
     def json(self) -> dict:
         return self.payload
+
+
+class FakeErrorResponse:
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        self.request = httpx.Request("POST", "https://api.tavily.com/search")
+
+    def raise_for_status(self) -> None:
+        raise httpx.HTTPStatusError(
+            f"Client error '{self.status_code}'",
+            request=self.request,
+            response=httpx.Response(
+                self.status_code,
+                request=self.request,
+                text="provider unavailable",
+            ),
+        )
+
+
+class FakeTavilyErrorClient:
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        self.post_calls = []
+
+    async def post(self, url: str, json: dict) -> FakeErrorResponse:
+        self.post_calls.append({"url": url, "json": json})
+        return FakeErrorResponse(self.status_code)
 
 
 class FakeTavilyClient:
@@ -157,6 +186,20 @@ async def test_tavily_search_provider_uses_freshness_options():
     assert payload["time_range"] == "year"
     assert payload["include_domains"] == ["yungang.org"]
     assert payload["exclude_domains"] == ["spam.example"]
+
+
+@pytest.mark.asyncio
+async def test_tavily_provider_maps_limit_status_to_provider_unavailable():
+    provider = TavilySearchProvider(
+        api_key="test-key",
+        client=FakeTavilyErrorClient(status_code=432),
+    )
+
+    with pytest.raises(WebSearchProviderUnavailable) as exc_info:
+        await provider.search("山西旅游", max_results=3)
+
+    assert exc_info.value.provider == "tavily"
+    assert exc_info.value.status_code == 432
 
 
 @pytest.mark.asyncio

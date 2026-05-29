@@ -14,7 +14,7 @@ from huaxia_tourismrag.schemas.service_enrichment import (
 
 def test_route_feasibility_report_is_strictly_typed():
     report = RouteFeasibilityReport(
-        provider="mapbox",
+        provider="baidu_maps",
         route_summary="北京到涿州适合短途高铁或自驾接驳。",
         legs=[
             RouteLegCheck(
@@ -31,7 +31,20 @@ def test_route_feasibility_report_is_strictly_typed():
     )
 
     assert report.legs[0].feasibility_level == "easy"
-    assert report.provider == "mapbox"
+    assert report.provider == "baidu_maps"
+
+
+def test_route_feasibility_report_rejects_removed_legacy_map_provider():
+    removed_provider = "map" + "box"
+    try:
+        RouteFeasibilityReport(
+            provider=removed_provider,
+            route_summary="Removed map provider should no longer be available.",
+        )
+    except ValidationError as exc:
+        assert "provider" in str(exc)
+    else:
+        raise AssertionError("RouteFeasibilityReport accepted removed map provider")
 
 
 def test_weather_impact_rejects_unknown_severity():

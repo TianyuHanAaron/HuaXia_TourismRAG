@@ -9,6 +9,7 @@ from huaxia_tourismrag.services.embedding_circuit_breaker import EmbeddingCircui
 from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
     EvidenceRetrievalOrchestrator,
 )
+from huaxia_tourismrag.tools.web_search import WebSearchProviderUnavailable
 
 
 class FakeInternalRAG:
@@ -47,6 +48,19 @@ class FakeWebSearch:
                 source_name="fake",
             )
         ]
+
+
+class FailingProviderWebSearch:
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    async def search_chinese_tourism(self, query, max_results, options=None):
+        self.queries.append(query)
+        raise WebSearchProviderUnavailable(
+            provider="tavily",
+            status_code=432,
+            message="provider limit reached",
+        )
 
 
 class FakeReader:
@@ -167,3 +181,35 @@ async def test_orchestrator_skips_internal_rag_when_circuit_open():
 
     assert internal.queries == []
     assert result.internal_rag_warning is not None
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_stops_web_searches_after_provider_unavailable():
+    tasks = [
+        TravelResearchTask(task_type="route", query="山西路线规划", reason="route"),
+        TravelResearchTask(task_type="food", query="山西美食推荐", reason="food"),
+        TravelResearchTask(task_type="transport", query="山西交通方式", reason="transport"),
+    ]
+    web = FailingProviderWebSearch()
+    orchestrator = EvidenceRetrievalOrchestrator(
+        task_concurrency=1,
+        web_search_concurrency=1,
+    )
+
+    result = await orchestrator.retrieve(
+        tasks=tasks,
+        tenant_id="tenant-a",
+        budget=RetrievalBudget(
+            max_tasks=3,
+            max_pages_to_read=1,
+            max_search_results_per_task=1,
+            internal_rag_limit=1,
+        ),
+        internal_rag=FakeInternalRAG(),
+        web_search=web,
+        webpage_reader=FakeReader(),
+    )
+
+    assert web.queries == ["山西路线规划"]
+    assert result.selected_hits == []
+    assert result.web_chunks == []

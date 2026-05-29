@@ -3,12 +3,78 @@ import pytest
 from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.agents.research_planner import (
     RESEARCH_PLANNER_INSTRUCTIONS,
+    _build_research_planner_prompt,
     create_research_plan,
     planner_agent,
 )
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
-from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
+from huaxia_tourismrag.schemas.research import (
+    ResearchEntity,
+    TravelResearchPlan,
+    TravelResearchTask,
+)
 from huaxia_tourismrag.schemas.travel_checkpoints import PreferenceProfile
+
+
+def test_research_plan_accepts_structured_destination_entities() -> None:
+    plan = TravelResearchPlan(
+        original_question="广州出发广西五日游",
+        destination="广西",
+        origin="广州",
+        trip_days=5,
+        required_entities=[
+            ResearchEntity(
+                name="桂林",
+                entity_type="city",
+                evidence_use="mainstream_attraction",
+            ),
+            ResearchEntity(
+                name="漓江",
+                entity_type="attraction",
+                evidence_use="mainstream_attraction",
+            ),
+            ResearchEntity(
+                name="遇龙河骑行",
+                entity_type="activity",
+                evidence_use="mainstream_attraction",
+            ),
+            ResearchEntity(
+                name="涠洲岛",
+                entity_type="attraction",
+                evidence_use="mainstream_attraction",
+            ),
+            ResearchEntity(
+                name="海鲜",
+                entity_type="food",
+                evidence_use="local_food",
+            ),
+        ],
+        tasks=[
+            TravelResearchTask(
+                task_type="route",
+                query="广州 广西 桂林 阳朔 北海 路线",
+                reason="route",
+            ),
+            TravelResearchTask(
+                task_type="attraction",
+                query="桂林 漓江 阳朔 涠洲岛 景点",
+                reason="attraction",
+            ),
+            TravelResearchTask(
+                task_type="food",
+                query="北海 涠洲岛 海鲜 本地美食",
+                reason="food",
+            ),
+        ],
+    )
+
+    assert [entity.name for entity in plan.required_entities] == [
+        "桂林",
+        "漓江",
+        "遇龙河骑行",
+        "涠洲岛",
+        "海鲜",
+    ]
 
 
 def test_research_plan_requires_multiple_structured_tasks():
@@ -77,6 +143,18 @@ def test_research_planner_instruction_requires_core_travel_tasks():
     assert "local_food" in RESEARCH_PLANNER_INSTRUCTIONS
     assert "不要回答旅行方案" in RESEARCH_PLANNER_INSTRUCTIONS
     assert "用户偏好画像" in RESEARCH_PLANNER_INSTRUCTIONS
+
+
+def test_research_planner_prompt_requires_destination_entities() -> None:
+    prompt = _build_research_planner_prompt(
+        TravelQuestion(question="贵州六日游，黄果树、小七孔、西江苗寨"),
+        preference_profile=None,
+        intent_decision=None,
+    )
+
+    assert "required_entities" in prompt
+    assert "entity_type" in prompt
+    assert "evidence_use" in prompt
 
 
 def test_research_planner_formats_preference_profile():

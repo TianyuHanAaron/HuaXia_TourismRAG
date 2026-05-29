@@ -1,6 +1,7 @@
 """Application bootstrap helpers."""
 
 import logging
+from urllib.parse import unquote
 
 import httpx
 from fastapi import FastAPI
@@ -13,8 +14,8 @@ from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.integrations.baidu_maps_mcp import BaiduMapsMCPAdapter
 from huaxia_tourismrag.integrations.firecrawl_mcp import FirecrawlMCPAdapter
-from huaxia_tourismrag.integrations.mapbox_mcp import MapboxMCPAdapter
 from huaxia_tourismrag.integrations.mcp_client import ExternalMCPClient
+from huaxia_tourismrag.integrations.tavily_mcp import TavilyMCPAdapter
 from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
 from huaxia_tourismrag.rag.embeddings import Embedder
 from huaxia_tourismrag.rag.embeddings import QwenCloudEmbedder
@@ -25,6 +26,7 @@ from huaxia_tourismrag.services.answer_cache import AnswerCache
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.context_budgeter import ContextBudgeter
 from huaxia_tourismrag.services.embedding_circuit_breaker import EmbeddingCircuitBreaker
+from huaxia_tourismrag.services.evidence_pack_cache import EvidencePackCache
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
 from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
     EvidenceRetrievalOrchestrator,
@@ -32,6 +34,7 @@ from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
 from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
 from huaxia_tourismrag.services.job_store import RedisTravelJobStore
 from huaxia_tourismrag.services.planning_cache import PlanningCache
+from huaxia_tourismrag.services.provider_budget import ProviderCooldown
 from huaxia_tourismrag.services.qa_service import TourismQAService
 from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.sales_handoff import RedisSalesHandoffStore
@@ -122,6 +125,7 @@ def build_tourism_qa_service(
     retrieval_cache: RetrievalCache | None = None,
     planning_cache: PlanningCache | None = None,
     answer_cache: AnswerCache | None = None,
+    evidence_pack_cache: EvidencePackCache | None = None,
 ) -> TourismQAService:
     """Build a tenant-scoped Chinese tourism QA service."""
 
@@ -130,6 +134,7 @@ def build_tourism_qa_service(
     retrieval_cache = retrieval_cache or build_retrieval_cache(settings)
     planning_cache = planning_cache or build_planning_cache(settings)
     answer_cache = answer_cache or build_answer_cache(settings)
+    evidence_pack_cache = evidence_pack_cache or build_evidence_pack_cache(settings)
 
     return TourismQAService(
         deps=deps,
@@ -148,6 +153,10 @@ def build_tourism_qa_service(
         context_budgeter=ContextBudgeter(),
         planning_cache=planning_cache,
         answer_cache=answer_cache,
+        evidence_pack_cache=evidence_pack_cache,
+        enable_prompt_compaction=settings.enable_prompt_compaction,
+        final_context_quote_caps=_final_context_quote_caps(settings),
+        topic_section_mode=settings.topic_section_mode,
     )
 
 
@@ -158,6 +167,7 @@ def build_diy_itinerary_service(
     retrieval_cache: RetrievalCache | None = None,
     planning_cache: PlanningCache | None = None,
     answer_cache: AnswerCache | None = None,
+    evidence_pack_cache: EvidencePackCache | None = None,
 ) -> DIYItineraryService:
     """Build a tenant-scoped DIY itinerary service."""
 
@@ -166,6 +176,7 @@ def build_diy_itinerary_service(
     retrieval_cache = retrieval_cache or build_retrieval_cache(settings)
     planning_cache = planning_cache or build_planning_cache(settings)
     answer_cache = answer_cache or build_answer_cache(settings)
+    evidence_pack_cache = evidence_pack_cache or build_evidence_pack_cache(settings)
 
     return DIYItineraryService(
         deps=deps,
@@ -184,6 +195,10 @@ def build_diy_itinerary_service(
         context_budgeter=ContextBudgeter(),
         planning_cache=planning_cache,
         answer_cache=answer_cache,
+        evidence_pack_cache=evidence_pack_cache,
+        enable_prompt_compaction=settings.enable_prompt_compaction,
+        final_context_quote_caps=_final_context_quote_caps(settings),
+        topic_section_mode=settings.topic_section_mode,
     )
 
 
@@ -238,6 +253,42 @@ def build_answer_cache(
     )
 
 
+def build_evidence_pack_cache(
+    settings: Settings | None = None,
+    redis: Redis | None = None,
+) -> EvidencePackCache | None:
+    """Build the optional Redis-backed citation-pack cache."""
+
+    settings = settings or get_settings()
+    if not settings.enable_evidence_pack_cache:
+        return None
+
+    redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
+    return EvidencePackCache(
+        redis=redis,
+        ttl_seconds=settings.evidence_pack_cache_ttl_seconds,
+    )
+
+
+def _provider_max_calls(settings: Settings) -> dict[str, int]:
+    if not settings.enable_provider_budgets:
+        return {}
+    return {
+        "tavily": settings.tavily_max_calls_per_request,
+        "firecrawl": settings.firecrawl_max_calls_per_request,
+        "baidu_maps": settings.page_read_max_calls_per_request,
+        "tuniu": settings.page_read_max_calls_per_request,
+    }
+
+
+def _final_context_quote_caps(settings: Settings) -> dict[str, int]:
+    return {
+        "concise": settings.max_final_context_quotes_concise,
+        "standard": settings.max_final_context_quotes_standard,
+        "deep": settings.max_final_context_quotes_deep,
+    }
+
+
 def build_retrieval_orchestrator(
     settings: Settings | None = None,
     retrieval_cache: RetrievalCache | None = None,
@@ -269,7 +320,7 @@ def build_service_enrichment(
     settings = settings or get_settings()
     maps = None
     tuniu = None
-    fresh_web = None
+    fresh_web_providers = []
     if settings.baidu_maps_mcp_enabled:
         maps = BaiduMapsMCPAdapter(
             _build_external_mcp_client(
@@ -280,20 +331,6 @@ def build_service_enrichment(
                 api_key=settings.baidu_maps_api_key,
                 timeout_seconds=settings.qdrant_timeout_seconds,
                 env_prefix="BAIDU_MAPS",
-            )
-        )
-    if settings.mapbox_mcp_enabled:
-        if not settings.mapbox_access_token:
-            raise RuntimeError("MAPBOX_ACCESS_TOKEN or MAPBOX_API_KEY is required")
-        maps = MapboxMCPAdapter(
-            _build_external_mcp_client(
-                provider="mapbox",
-                transport=settings.mapbox_mcp_transport,
-                url=settings.mapbox_mcp_url,
-                command=settings.mapbox_mcp_command,
-                api_key=settings.mapbox_access_token,
-                timeout_seconds=settings.qdrant_timeout_seconds,
-                env_prefix="MAPBOX",
             )
         )
     if settings.tuniu_mcp_enabled:
@@ -311,22 +348,44 @@ def build_service_enrichment(
     if settings.firecrawl_mcp_enabled:
         if not settings.firecrawl_api_key:
             raise RuntimeError("FIRECRAWL_API_KEY is required")
-        fresh_web = FirecrawlMCPAdapter(
-            _build_external_mcp_client(
-                provider="firecrawl",
-                transport=settings.firecrawl_mcp_transport,
-                url=settings.firecrawl_mcp_url,
-                command=settings.firecrawl_mcp_command,
-                api_key=settings.firecrawl_api_key,
-                timeout_seconds=settings.qdrant_timeout_seconds,
-                env_prefix="FIRECRAWL",
+        fresh_web_providers.append(
+            FirecrawlMCPAdapter(
+                _build_external_mcp_client(
+                    provider="firecrawl",
+                    transport=settings.firecrawl_mcp_transport,
+                    url=settings.firecrawl_mcp_url,
+                    command=settings.firecrawl_mcp_command,
+                    api_key=settings.firecrawl_api_key,
+                    timeout_seconds=settings.qdrant_timeout_seconds,
+                    env_prefix="FIRECRAWL",
+                )
+            )
+        )
+    if settings.tavily_mcp_enabled:
+        if not settings.tavily_api_key:
+            raise RuntimeError("TAVILY_API_KEY is required")
+        fresh_web_providers.append(
+            TavilyMCPAdapter(
+                _build_external_mcp_client(
+                    provider="tavily",
+                    transport=settings.tavily_mcp_transport,
+                    url=settings.tavily_mcp_url,
+                    command=settings.tavily_mcp_command,
+                    api_key=settings.tavily_api_key,
+                    timeout_seconds=settings.qdrant_timeout_seconds,
+                    env_prefix="TAVILY",
+                )
             )
         )
 
     return TravelServiceEnrichmentService(
         maps=maps,
         tuniu=tuniu,
-        fresh_web=fresh_web,
+        fresh_web_providers=fresh_web_providers,
+        provider_max_calls=_provider_max_calls(settings),
+        provider_cooldown=ProviderCooldown(
+            cooldown_seconds=settings.provider_cooldown_seconds,
+        ),
     )
 
 
@@ -372,13 +431,15 @@ def _build_external_mcp_client(
 
 
 def _resolve_mcp_url(url: str, api_key: str | None) -> str:
+    url = unquote(url)
     if not api_key:
-        return url
-    return (
+        return url.replace("{", "").replace("}", "")
+    resolved = (
         url.replace("{API_KEY}", api_key)
         .replace("{FIRECRAWL_API_KEY}", api_key)
-        .replace("{MAPBOX_ACCESS_TOKEN}", api_key)
+        .replace("{TAVILY_API_KEY}", api_key)
     )
+    return resolved.replace("{", "").replace("}", "")
 
 
 def build_tourism_deps(tenant_id: str) -> TourismDeps:
@@ -483,6 +544,7 @@ def create_app() -> FastAPI:
     retrieval_cache = build_retrieval_cache(redis=session_store.redis)
     planning_cache = build_planning_cache(redis=session_store.redis)
     answer_cache = build_answer_cache(redis=session_store.redis)
+    evidence_pack_cache = build_evidence_pack_cache(redis=session_store.redis)
     job_store = build_travel_job_store(redis=session_store.redis)
     job_queue = build_travel_job_queue(redis=session_store.redis)
     sales_handoff_store = RedisSalesHandoffStore(
@@ -500,6 +562,7 @@ def create_app() -> FastAPI:
         retrieval_cache=retrieval_cache,
         planning_cache=planning_cache,
         answer_cache=answer_cache,
+        evidence_pack_cache=evidence_pack_cache,
     )
     app.state.diy_itinerary_service_factory = (
         lambda tenant_id: build_diy_itinerary_service(
@@ -508,6 +571,7 @@ def create_app() -> FastAPI:
             retrieval_cache=retrieval_cache,
             planning_cache=planning_cache,
             answer_cache=answer_cache,
+            evidence_pack_cache=evidence_pack_cache,
         )
     )
     app.state.session_reply_service_factory = lambda tenant_id: SessionReplyService(
@@ -520,6 +584,7 @@ def create_app() -> FastAPI:
             retrieval_cache=retrieval_cache,
             planning_cache=planning_cache,
             answer_cache=answer_cache,
+            evidence_pack_cache=evidence_pack_cache,
         ),
         diy_itinerary_service_factory=lambda tenant_id: build_diy_itinerary_service(
             tenant_id,
@@ -528,6 +593,7 @@ def create_app() -> FastAPI:
             retrieval_cache=retrieval_cache,
             planning_cache=planning_cache,
             answer_cache=answer_cache,
+            evidence_pack_cache=evidence_pack_cache,
         ),
     )
     app.include_router(router)

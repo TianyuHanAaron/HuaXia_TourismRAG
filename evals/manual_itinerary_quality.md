@@ -110,6 +110,17 @@ After any complete answer:
 - Submit and confirm the UI returns a lead id.
 - Confirm backend receives original request, generated itinerary snapshot, and the three requirement lists.
 
+## Quick Form Template QA
+
+Run these before a public demo after changing Streamlit, checkpoint, or form DTO code:
+
+- Default landing composer opens on `快速表单`, with `自由描述` still available as a secondary tab.
+- Submit a normal form: 上海出发, 山西, 10 天, 5 人含老人儿童, 豪华级别, 历史人文, 高铁优先. It should create one typed request and should not ask for the same basic information again.
+- Submit a DIY form: 北京往返, 必须覆盖涿州/临漳/许昌/南阳/咸宁/南京/成都/汉中, 12 天, 高铁优先, 必须全部覆盖, 深度旅行社版. It should route through the DIY flow and preserve all required stops.
+- During checkpoint replies, the form should not appear; the UI should show quick-reply buttons or the free-text reply box only.
+- `转给华夏旅行社顾问` should appear only after a completed itinerary answer, never during a pending multi-hop checkpoint.
+- Form-derived answers should still pass citation checks: no unknown citation ids, no unused citation lines, and food/scenic claims should not cite unrelated railway/legal sources.
+
 ## Latest Lightweight API Smoke Notes
 
 Run date: 2026-05-27.
@@ -121,3 +132,15 @@ Run date: 2026-05-27.
 - 北京/西安文化遗产路线: completed; no craft/artware pollution found. Two transport/policy citations appeared.
 
 Runtime note: complete answers still took minutes in the live API path, so production testing should keep async job mode, retrieval cache, and visible progress states enabled.
+
+## Destination Evidence Smoke Cases
+
+Use `evals/destination_evidence_cases.json` after any retrieval, citation, planner, or context-budgeting change.
+
+Pass criteria:
+
+- `needs_reply=false` for all four conventional prompts.
+- Returned citation IDs exactly match used in-text citation IDs.
+- Scenic and food highlights do not cite policy/legal/railway sources except for explicit transport or risk warnings.
+- Each expected entity is either planned with direct destination evidence or explicitly marked as missing/needs real-time verification.
+- Deep job runtime should trend below 60 seconds for cached/common routes and below 90 seconds uncached.

@@ -1,6 +1,7 @@
 import pytest
 
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import QuickReplyOption
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import InMemoryTravelSessionStore
@@ -47,6 +48,7 @@ async def test_session_reply_service_combines_original_question_and_reply():
     )
 
     assert answer.needs_reply is False
+    assert answer.session_id is None
     updated = await store.get(session.session_id, tenant_id="tenant-a")
     assert updated.completed is True
     assert updated.messages == ["平衡旅行型，高铁+包车混合。"]
@@ -92,6 +94,7 @@ async def test_session_reply_service_keeps_session_open_if_more_reply_needed():
     )
 
     assert answer.needs_reply is True
+    assert answer.session_id == session.session_id
     updated = await store.get(session.session_id, tenant_id="tenant-a")
     assert updated.completed is False
 
@@ -128,3 +131,60 @@ async def test_session_reply_service_maps_detail_level_reply_to_question_dto():
     )
 
     assert diy_service.questions[0].detail_level == "deep"
+
+
+@pytest.mark.asyncio
+async def test_session_reply_service_resolves_typed_preference_option_reply():
+    FakeQAService.questions = []
+    store = InMemoryTravelSessionStore()
+    session = await store.create(
+        endpoint="diy",
+        tenant_id="tenant-a",
+        original_question=TravelQuestion(
+            question=(
+                "三国历史巡礼，北京往返，必须覆盖涿州、临漳、许昌、"
+                "南阳、咸宁、南京、成都、汉中。"
+            )
+        ),
+        pending_reason="需要确认主题偏好。",
+        pending_kind="preference",
+        pending_question=(
+            "三国主题路线中，您希望严格聚焦于历史遗迹与典故发生地，"
+            "还是平衡城市旅行体验？"
+        ),
+        pending_quick_replies=[
+            QuickReplyOption(
+                label="选择 A",
+                message="A",
+                action_id="preference_option_a",
+            ),
+            QuickReplyOption(
+                label="选择 B",
+                message="B",
+                action_id="preference_option_b",
+            ),
+        ],
+    )
+    diy_service = FakeQAService(
+        TravelAnswer(answer="done", highlights=[], warnings=[], citations=[])
+    )
+    service = SessionReplyService(
+        tenant_id="tenant-a",
+        session_store=store,
+        tourism_qa_service_factory=lambda tenant_id: FakeQAService(
+            TravelAnswer(answer="wrong", highlights=[], warnings=[], citations=[])
+        ),
+        diy_itinerary_service_factory=lambda tenant_id: diy_service,
+    )
+
+    await service.reply(
+        session_id=session.session_id,
+        request=SessionReplyRequest(message="B"),
+    )
+
+    question = diy_service.questions[0]
+    assert question.continuation_pending_kind == "preference"
+    assert question.continuation_quick_reply_action_id == "preference_option_b"
+    assert "上一轮夏夏问题" in question.question
+    assert "严格聚焦于历史遗迹" in question.question
+    assert "用户选择：B" in question.question

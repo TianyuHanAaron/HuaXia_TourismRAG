@@ -97,6 +97,8 @@ def test_build_final_answer_prompt_includes_question_context_and_citations():
     assert "只在最后的待确认事项集中说明一次" in prompt
     assert "detail_level: concise" in prompt
     assert "每一天最多一行核心安排" in prompt
+    assert "本次请求是行程规划，generated_itinerary 必须存在" in prompt
+    assert "generated_itinerary.itinerary 至少包含 3 天" in prompt
 
 
 def test_build_final_answer_prompt_includes_strict_citation_contract():
@@ -112,6 +114,60 @@ def test_build_final_answer_prompt_includes_strict_citation_contract():
     assert "不要把政策、铁路、旅游法、安检来源用于支撑景点或美食推荐" in prompt
 
 
+def test_final_answer_prompt_requires_dedicated_trip_topic_sections():
+    prompt = build_final_answer_prompt(
+        question="成都、南阳、汉中三国路线怎么安排？",
+        citation_context="[1] citation_id=1\nquote=成都蜀绣和川剧体验。",
+        citation_lines=["[1] 成都体验 - tavily - https://example.cn/chengdu"],
+        detail_level="deep",
+    )
+
+    assert "topic_sections" in prompt
+    assert "美食" in prompt
+    assert "住宿" in prompt
+    assert "公交" in prompt
+    assert "购物" in prompt
+    assert "娱乐项目" in prompt
+    assert "每条推荐都必须使用 [n] 引用" in prompt
+    assert "专题证据包" in prompt
+    assert "只能使用“专题证据包”和“允许使用的引用”" in prompt
+    assert "不要根据常识扩写未给来源的餐厅、酒店、票价、开放时间、演出排期或购物店名" in prompt
+    assert "美食专题应写菜品/小吃、适合安排的餐次、用餐区域、辣度/老人儿童/预算适配" in prompt
+    assert "住宿专题应写住宿片区、酒店/民宿类型、房型/电梯/早餐/行李/老幼适配" in prompt
+    assert "公交专题应写城市内地铁/公交/打车/包车接驳" in prompt
+
+
+def test_final_answer_prompt_can_defer_topic_sections():
+    prompt = build_final_answer_prompt(
+        question="山西深度游怎么安排？",
+        citation_context="[1] citation_id=1\nquote=云冈石窟。",
+        citation_lines=["[1] 云冈石窟 - 内部资料 - internal:chunk-1"],
+        detail_level="deep",
+        topic_section_mode="async_for_deep",
+    )
+
+    assert "topic_section_mode=async_for_deep" in prompt
+    assert "topic_sections 必须返回空列表" in prompt
+
+
+def test_final_answer_prompt_requires_source_fit_for_destination_claims():
+    prompt = build_final_answer_prompt(
+        question="贵州六日游",
+        citation_context="",
+        citation_lines=[],
+        detail_level="standard",
+    )
+
+    assert (
+        "景点、美食、住宿、体验类结论必须优先引用 destination、attraction、"
+        "heritage_site、local_cuisine、local_specialty、activity 或 travel_guide 证据"
+    ) in prompt
+    assert (
+        "不要用 railway、legal、regulation、contract 类证据支撑景点好不好玩或食物是否值得吃"
+        in prompt
+    )
+
+
 def test_build_final_answer_prompt_includes_deep_detail_rules():
     prompt = build_final_answer_prompt(
         question="三国历史巡礼怎么安排？",
@@ -123,6 +179,8 @@ def test_build_final_answer_prompt_includes_deep_detail_rules():
     assert "detail_level: deep" in prompt
     assert "深度旅行社方案" in prompt
     assert "历史背景" in prompt
+    assert "像真实旅行社行程单一样可执行" in prompt
+    assert "不要只写景点名称" in prompt
 
 
 def test_build_final_answer_prompt_includes_diy_plan_rules():
@@ -165,6 +223,7 @@ def test_build_final_answer_prompt_includes_diy_plan_rules():
     assert "三国历史巡礼" in prompt
     assert "required_stops" in prompt
     assert "proposed_route" in prompt
+    assert "本次请求是行程规划，generated_itinerary 必须存在" in prompt
     assert "不要把用户自定义主题路线改写成普通旅游线路" in prompt
     assert "可以重排顺序" in prompt
     assert "每个必选目的地" in prompt
@@ -284,6 +343,35 @@ def test_build_final_answer_prompt_includes_service_enrichment_context():
     assert "途牛 MCP 结果只用于酒店、门票、交通、产品和预订链接" in prompt
     assert "Firecrawl MCP 结果只用于当前网页证据" in prompt
     assert "不要声称已经完成预订或付款" in prompt
+
+
+def test_service_enrichment_context_marks_unknown_map_leg_as_unverified():
+    service_enrichment = ServiceEnrichmentContext(
+        route_feasibility=RouteFeasibilityReport(
+            provider="baidu_maps",
+            route_summary="地图 MCP 未返回可用时长。",
+            legs=[
+                RouteLegCheck(
+                    origin="上海",
+                    destination="山西",
+                    recommended_mode="driving",
+                    feasibility_level="unknown",
+                )
+            ],
+        )
+    )
+
+    prompt = build_final_answer_prompt(
+        question="上海出发山西历史人文十日游。",
+        citation_context="[1] text=山西景区资料。",
+        citation_lines=["[1] 山西景区 - internal - internal:1"],
+        service_enrichment=service_enrichment,
+    )
+
+    assert "上海 -> 山西" in prompt
+    assert "未返回可用车程/距离" in prompt
+    assert "不能作为路线可行性的正向依据" in prompt
+    assert "地图 MCP 返回 unknown 或缺少时长/距离" in prompt
 
 
 def test_tourism_agent_is_defined():

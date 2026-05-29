@@ -1,6 +1,7 @@
 """Question answering service."""
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Awaitable, Callable
 
@@ -14,6 +15,7 @@ from huaxia_tourismrag.agents.travel_checkpoints import (
 from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelChunk,
+    TravelFormRequest,
     TravelQuestion,
     TravelSearchHit,
 )
@@ -26,24 +28,35 @@ from huaxia_tourismrag.services.answer_cache import (
 )
 from huaxia_tourismrag.services.context_budgeter import ContextBudgeter
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
+from huaxia_tourismrag.services.evidence_coverage import build_evidence_coverage_report
 from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
     EvidenceRetrievalOrchestrator,
 )
+from huaxia_tourismrag.services.evidence_pack_cache import EvidencePackCache
 from huaxia_tourismrag.services.evidence_relevance import EvidenceRelevanceFilter
+from huaxia_tourismrag.services.itinerary_structure import ensure_generated_itinerary
 from huaxia_tourismrag.services.performance import (
     InferenceTimer,
     infer_retrieval_budget,
 )
 from huaxia_tourismrag.services.planning_cache import PlanningCache
+from huaxia_tourismrag.services.prompt_compaction import FinalPromptCompactor
 from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_store import TravelSessionStore
+from huaxia_tourismrag.services.topic_evidence_selector import (
+    TopicEvidenceSelector,
+    format_topic_evidence_context,
+)
+from huaxia_tourismrag.services.topic_section_generation import (
+    TopicSectionMode,
+    decide_topic_section_generation,
+)
+from huaxia_tourismrag.services.topic_section_quality import TopicSectionQualityGuard
 from huaxia_tourismrag.services.travel_checkpoints import (
     build_checkpoint_context,
     build_clarification_answer,
     build_detail_level_answer,
-    build_feasibility_answer,
-    build_intent_redirect_answer,
     clear_unbacked_reply_state,
     evaluate_checkpoint_policy,
     resolved_detail_level,
@@ -88,6 +101,10 @@ class TourismQAService:
         context_budgeter: ContextBudgeter | None = None,
         planning_cache: PlanningCache | None = None,
         answer_cache: AnswerCache | None = None,
+        evidence_pack_cache: EvidencePackCache | None = None,
+        enable_prompt_compaction: bool = True,
+        final_context_quote_caps: dict[str, int] | None = None,
+        topic_section_mode: TopicSectionMode = "inline",
     ) -> None:
         self.deps = deps
         self.merger = merger
@@ -105,18 +122,33 @@ class TourismQAService:
         self.context_budgeter = context_budgeter or ContextBudgeter()
         self.planning_cache = planning_cache
         self.answer_cache = answer_cache
+        self.evidence_pack_cache = evidence_pack_cache
+        self.enable_prompt_compaction = enable_prompt_compaction
+        self.final_context_quote_caps = final_context_quote_caps or {
+            "concise": 6,
+            "standard": 10,
+            "deep": 16,
+        }
+        self.topic_section_mode = topic_section_mode
         self.relevance_filter = EvidenceRelevanceFilter()
         self.citation_guard = CitationGuard()
+        self.topic_evidence_selector = TopicEvidenceSelector()
+        self.topic_quality_guard = TopicSectionQualityGuard()
 
     async def answer(
         self,
         question: TravelQuestion,
         progress_callback: ProgressCallback | None = None,
+        form_request: TravelFormRequest | None = None,
     ) -> TravelAnswer:
         timer = InferenceTimer()
         budget = infer_retrieval_budget(question, request_mode="general")
         retrieval_query = question.to_retrieval_query()
-        checkpoint_context = build_checkpoint_context(question, request_mode="general")
+        checkpoint_context = build_checkpoint_context(
+            question,
+            request_mode="general",
+            form_request=form_request,
+        )
         checkpoint_policy = evaluate_checkpoint_policy(checkpoint_context)
         await _report_progress(progress_callback, "checkpointing", 10)
         with timer.stage("intent_checkpoint") as stage_metadata:
@@ -133,11 +165,6 @@ class TourismQAService:
                     request_mode="general",
                     intent=checkpoint_policy.synthesized_intent,
                 )
-        if intent_decision.should_redirect:
-            answer = build_intent_redirect_answer(intent_decision)
-            answer.performance = timer.trace
-            return answer
-
         with timer.stage("preference_checkpoint") as stage_metadata:
             if checkpoint_policy.run_preference_checkpoint:
                 stage_metadata["skipped"] = False
@@ -162,6 +189,7 @@ class TourismQAService:
                 question=question,
                 pending_reason=preference_decision.reason,
                 pending_kind="preference",
+                pending_question=preference_decision.question,
             )
 
         with timer.stage("detail_checkpoint"):
@@ -175,6 +203,7 @@ class TourismQAService:
                 question=question,
                 pending_reason=detail_decision.reason,
                 pending_kind="detail_level",
+                pending_question=detail_decision.question,
             )
 
         detail_level = resolved_detail_level(question)
@@ -246,16 +275,6 @@ class TourismQAService:
                     checkpoint_policy.synthesized_feasibility_report
                     or synthesize_feasibility_report()
                 )
-        if feasibility_report.should_ask:
-            answer = build_feasibility_answer(feasibility_report)
-            answer.performance = timer.trace
-            return await self._with_pending_session(
-                answer=answer,
-                endpoint="questions",
-                question=question,
-                pending_reason="可行性检查需要用户确认。",
-                pending_kind="feasibility",
-            )
 
         ordered_tasks = self._prioritize_tasks(research_plan.tasks)[: budget.max_tasks]
         budget = budget.model_copy(
@@ -285,6 +304,43 @@ class TourismQAService:
         web_chunks = retrieval_result.web_chunks
         internal_rag_warning = retrieval_result.internal_rag_warning
 
+        with timer.stage("evidence_backfill") as stage_metadata:
+            merged_for_coverage = self.merger.merge(internal, web_chunks)
+            coverage_report = build_evidence_coverage_report(
+                research_plan,
+                merged_for_coverage,
+            )
+            missing_entities = [
+                entity
+                for entity in research_plan.required_entities
+                if entity.name in coverage_report.missing_entity_names
+            ]
+            stage_metadata["missing_entities"] = len(missing_entities)
+            if missing_entities and budget.max_pages_to_read > 0:
+                backfill_result = (
+                    await self.retrieval_orchestrator.retrieve_entity_backfill(
+                        entities=missing_entities,
+                        tenant_id=self.deps.tenant_id,
+                        budget=budget,
+                        internal_rag=self.deps.internal_rag,
+                        web_search=self.deps.web_search,
+                        webpage_reader=self.deps.webpage_reader,
+                    )
+                )
+                internal = [*internal, *backfill_result.internal_chunks]
+                web_chunks = [*web_chunks, *backfill_result.web_chunks]
+                if backfill_result.internal_rag_warning:
+                    internal_rag_warning = backfill_result.internal_rag_warning
+                stage_metadata["backfill_internal_chunks"] = len(
+                    backfill_result.internal_chunks
+                )
+                stage_metadata["backfill_web_chunks"] = len(backfill_result.web_chunks)
+                stage_metadata["backfill_pages"] = len(backfill_result.selected_hits)
+            else:
+                stage_metadata["backfill_internal_chunks"] = 0
+                stage_metadata["backfill_web_chunks"] = 0
+                stage_metadata["backfill_pages"] = 0
+
         with timer.stage("merge_filter_rerank"):
             merged = self.merger.merge(internal, web_chunks)
             relevant = self.relevance_filter.filter_for_research_plan(
@@ -309,21 +365,99 @@ class TourismQAService:
                     diy_plan=None,
                     research_plan=research_plan,
                 )
+            with timer.stage("service_citation_pack") as stage_metadata:
+                pack = self.deps.citations.extend_with_service_enrichment(
+                    pack,
+                    service_context,
+                )
+                stage_metadata["available_citations"] = len(pack.citations)
+                stage_metadata["fresh_web_evidence"] = len(
+                    service_context.fresh_web_evidence
+                )
+        if self.evidence_pack_cache:
+            with timer.stage("evidence_pack_cache_store") as stage_metadata:
+                evidence_pack_key = self.evidence_pack_cache.key(
+                    question=retrieval_query,
+                    mode="general",
+                    detail_level=detail_level,
+                    language=question.language,
+                )
+                await self.evidence_pack_cache.set_pack(evidence_pack_key, pack)
+                stage_metadata["citations"] = len(pack.citations)
+
+        topic_decision = decide_topic_section_generation(
+            mode=self.topic_section_mode,
+            detail_level=detail_level,
+        )
+        with timer.stage("topic_evidence") as stage_metadata:
+            if topic_decision.generate_inline:
+                topic_bundles = self.topic_evidence_selector.select(
+                    question=question,
+                    pack=pack,
+                    research_plan=research_plan,
+                    diy_plan=None,
+                )
+            else:
+                topic_bundles = []
+            stage_metadata["bundles"] = len(topic_bundles)
+            stage_metadata["evidence_quotes"] = sum(
+                len(bundle.evidence_quotes) for bundle in topic_bundles
+            )
+            stage_metadata["mode"] = topic_decision.mode
+            stage_metadata["deferred"] = topic_decision.deferred
+            stage_metadata["inline_fallback"] = topic_decision.inline_fallback
+
+        with timer.stage("prompt_compaction") as stage_metadata:
+            if self.enable_prompt_compaction:
+                compacted_context = FinalPromptCompactor(
+                    max_quotes=self._final_context_quote_cap(detail_level),
+                ).compact(pack, topic_bundles)
+                citation_context = compacted_context.context_text
+                stage_metadata["enabled"] = True
+                stage_metadata["included_citations"] = len(
+                    compacted_context.included_citation_ids
+                )
+                stage_metadata["omitted_citations"] = len(
+                    compacted_context.omitted_citation_ids
+                )
+            else:
+                topic_evidence_context = format_topic_evidence_context(topic_bundles)
+                citation_context = f"{pack.context_text}\n\n{topic_evidence_context}"
+                stage_metadata["enabled"] = False
 
         await _report_progress(progress_callback, "generating", 75)
         with timer.stage("llm_generation"):
-            answer = await generate_answer_with_context(
-                question=retrieval_query,
-                citation_context=pack.context_text,
-                citation_lines=pack.citations,
-                deps=self.deps,
+            generation_kwargs = {
+                "question": retrieval_query,
+                "citation_context": citation_context,
+                "citation_lines": pack.citations,
+                "deps": self.deps,
+                "research_plan": research_plan,
+                "preference_profile": preference_decision.profile,
+                "feasibility_report": feasibility_report,
+                "service_enrichment": service_context,
+                "detail_level": detail_level,
+            }
+            if _supports_topic_section_mode():
+                generation_kwargs["topic_section_mode"] = (
+                    "inline" if topic_decision.generate_inline else topic_decision.mode
+                )
+            answer = await generate_answer_with_context(**generation_kwargs)
+            answer = ensure_generated_itinerary(
+                answer,
+                question=question,
                 research_plan=research_plan,
-                preference_profile=preference_decision.profile,
-                feasibility_report=feasibility_report,
-                service_enrichment=service_context,
-                detail_level=detail_level,
             )
         await _report_progress(progress_callback, "citation-checking", 90)
+        with timer.stage("topic_section_quality") as stage_metadata:
+            topic_quality_result = self.topic_quality_guard.validate(answer, pack)
+            answer = topic_quality_result.answer
+            stage_metadata["issues"] = len(topic_quality_result.issues)
+        if topic_quality_result.issues:
+            issue_summary = "；".join(
+                issue.message for issue in topic_quality_result.issues[:3]
+            )
+            answer.warnings.append(f"专题内容校验已自动修正：{issue_summary}")
         with timer.stage("citation_guard") as stage_metadata:
             guard_result = self.citation_guard.validate_and_normalize(answer, pack)
             answer = guard_result.answer
@@ -389,6 +523,12 @@ class TourismQAService:
 
         return official_tasks + self._prioritize_general_tasks(general_tasks)
 
+    def _final_context_quote_cap(self, detail_level: str) -> int:
+        return self.final_context_quote_caps.get(
+            detail_level,
+            self.final_context_quote_caps["standard"],
+        )
+
     def _prioritize_general_tasks(
         self, tasks: list[TravelResearchTask]
     ) -> list[TravelResearchTask]:
@@ -426,9 +566,12 @@ class TourismQAService:
         question: TravelQuestion,
         pending_reason: str | None,
         pending_kind: str = "preference",
+        pending_question: str | None = None,
     ) -> TravelAnswer:
-        if self.session_store is None or not self.create_pending_sessions:
+        if self.session_store is None:
             return clear_unbacked_reply_state(answer)
+        if not self.create_pending_sessions:
+            return answer
 
         session = await self.session_store.create(
             endpoint=endpoint,
@@ -436,6 +579,8 @@ class TourismQAService:
             original_question=question,
             pending_reason=pending_reason,
             pending_kind=pending_kind,
+            pending_question=pending_question,
+            pending_quick_replies=answer.quick_replies,
         )
         answer.session_id = session.session_id
         answer.needs_reply = True
@@ -449,3 +594,7 @@ async def _report_progress(
 ) -> None:
     if progress_callback is not None:
         await progress_callback(stage, progress_percent)
+
+
+def _supports_topic_section_mode() -> bool:
+    return "topic_section_mode" in inspect.signature(generate_answer_with_context).parameters

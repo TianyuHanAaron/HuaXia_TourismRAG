@@ -5,8 +5,8 @@ from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl
 
 
-MCPProvider = Literal["baidu_maps", "tuniu", "mapbox", "firecrawl"]
-TravelServiceProvider = Literal["baidu_maps", "tuniu", "mapbox", "firecrawl"]
+MCPProvider = Literal["baidu_maps", "tuniu", "firecrawl", "tavily"]
+TravelServiceProvider = Literal["baidu_maps", "tuniu", "firecrawl", "tavily"]
 TransportMode = Literal[
     "walking",
     "driving",

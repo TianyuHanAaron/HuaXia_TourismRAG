@@ -13,10 +13,11 @@ from huaxia_tourismrag.schemas.service_enrichment import (
 from huaxia_tourismrag.services.service_enrichment import (
     TravelServiceEnrichmentService,
 )
+from huaxia_tourismrag.services.provider_budget import ProviderCooldown
 
 
 class FakeMaps:
-    provider_name = "mapbox"
+    provider_name = "baidu_maps"
 
     def __init__(self):
         self.route_calls = []
@@ -90,6 +91,24 @@ class FakeFreshWeb:
         ]
 
 
+class FakeTavilyFreshWeb(FakeFreshWeb):
+    provider_name = "tavily"
+
+    async def search_fresh_travel_pages(self, query, limit=5):
+        self.search_calls.append((query, limit))
+        return [
+            FreshWebEvidence(
+                provider="tavily",
+                query=query,
+                title="Tavily景区官方信息",
+                url="https://www.gov.cn/tavily-example",
+                summary="Tavily检索到的开放与预约信息。",
+                source_authority="official",
+                recency_label="recent",
+            )
+        ]
+
+
 class FailingMaps:
     async def check_route_leg(self, origin, destination, preferred_mode="driving"):
         raise RuntimeError("maps offline")
@@ -139,7 +158,7 @@ async def test_enrich_diy_plan_checks_route_weather_and_hotels():
     )
 
     assert context.route_feasibility is not None
-    assert context.route_feasibility.provider == "mapbox"
+    assert context.route_feasibility.provider == "baidu_maps"
     assert len(context.route_feasibility.legs) == 3
     assert maps.route_calls == [
         ("北京", "涿州", "driving"),
@@ -183,6 +202,74 @@ async def test_enrich_research_plan_uses_origin_and_destination_route():
 
 
 @pytest.mark.asyncio
+async def test_enrich_research_plan_uses_required_entities_for_route_and_fresh_web():
+    maps = FakeMaps()
+    fresh_web = FakeFreshWeb()
+    service = TravelServiceEnrichmentService(maps=maps, tuniu=None, fresh_web=fresh_web)
+    task = make_task()
+    research_plan = TravelResearchPlan(
+        original_question="上海出发山西历史人文十日游",
+        origin="上海",
+        destination="山西",
+        required_entities=[
+            {
+                "name": "太原",
+                "entity_type": "city",
+                "evidence_use": "route_feasibility",
+            },
+            {
+                "name": "大同",
+                "entity_type": "city",
+                "evidence_use": "route_feasibility",
+            },
+            {
+                "name": "平遥古城",
+                "entity_type": "attraction",
+                "evidence_use": "mainstream_attraction",
+            },
+        ],
+        tasks=[task, task, task],
+    )
+
+    context = await service.enrich(
+        question=TravelQuestion(question="上海出发山西历史人文十日游"),
+        diy_plan=None,
+        research_plan=research_plan,
+    )
+
+    assert context.route_feasibility is not None
+    assert maps.route_calls == [
+        ("上海", "太原", "driving"),
+        ("太原", "大同", "driving"),
+        ("大同", "平遥古城", "driving"),
+    ]
+    search_queries = [query for query, _limit in fresh_web.search_calls]
+    assert any("太原" in query for query in search_queries)
+    assert any("大同" in query for query in search_queries)
+    assert any("平遥古城" in query for query in search_queries)
+
+
+def test_route_summary_does_not_claim_unknown_map_route_is_executable():
+    service = TravelServiceEnrichmentService()
+
+    summary = service._route_summary(
+        "baidu_maps",
+        [
+            RouteLegCheck(
+                origin="上海",
+                destination="山西",
+                recommended_mode="driving",
+                feasibility_level="unknown",
+            )
+        ],
+    )
+
+    assert "未返回可用时长" in summary
+    assert "二次核验" in summary
+    assert "整体可执行" not in summary
+
+
+@pytest.mark.asyncio
 async def test_enrich_records_provider_failures_without_raising():
     service = TravelServiceEnrichmentService(maps=FailingMaps(), tuniu=None)
 
@@ -217,3 +304,71 @@ async def test_enrich_records_fresh_web_failures_without_raising():
     assert context.fresh_web_evidence == []
     assert context.unavailable_providers[0].provider == "firecrawl"
     assert "firecrawl offline" in context.unavailable_providers[0].reason
+
+
+@pytest.mark.asyncio
+async def test_enrich_uses_cooldown_after_provider_failure():
+    cooldown = ProviderCooldown(cooldown_seconds=60, clock=lambda: 10.0)
+    failing = FailingFreshWeb()
+    service = TravelServiceEnrichmentService(
+        fresh_web=failing,
+        provider_cooldown=cooldown,
+    )
+
+    first = await service.enrich(
+        question=TravelQuestion(question="北京出发三国路线"),
+        diy_plan=make_diy_plan(),
+        research_plan=None,
+    )
+    second = await service.enrich(
+        question=TravelQuestion(question="北京出发三国路线"),
+        diy_plan=make_diy_plan(),
+        research_plan=None,
+    )
+
+    assert "firecrawl offline" in first.unavailable_providers[0].reason
+    assert "冷却期" in second.unavailable_providers[0].reason
+
+
+@pytest.mark.asyncio
+async def test_enrich_can_use_firecrawl_and_tavily_fresh_web_providers():
+    firecrawl = FakeFreshWeb()
+    tavily = FakeTavilyFreshWeb()
+    service = TravelServiceEnrichmentService(
+        fresh_web_providers=[firecrawl, tavily],
+    )
+
+    context = await service.enrich(
+        question=TravelQuestion(question="五台山预约方式"),
+        diy_plan=None,
+        research_plan=TravelResearchPlan(
+            original_question="五台山预约方式",
+            destination="五台山",
+            tasks=[make_task(), make_task(), make_task()],
+        ),
+    )
+
+    providers = {item.provider for item in context.fresh_web_evidence}
+    assert providers == {"firecrawl", "tavily"}
+    assert firecrawl.search_calls
+    assert tavily.search_calls
+
+
+@pytest.mark.asyncio
+async def test_enrich_respects_fresh_web_provider_budget():
+    firecrawl = FakeFreshWeb()
+    service = TravelServiceEnrichmentService(
+        fresh_web=firecrawl,
+        provider_max_calls={"firecrawl": 2},
+    )
+
+    context = await service.enrich(
+        question=TravelQuestion(question="五台山预约方式"),
+        diy_plan=make_diy_plan(),
+        research_plan=None,
+    )
+
+    assert len(firecrawl.search_calls) == 2
+    assert len(context.fresh_web_evidence) == 2
+    assert context.unavailable_providers[0].provider == "firecrawl"
+    assert "调用预算" in context.unavailable_providers[0].reason

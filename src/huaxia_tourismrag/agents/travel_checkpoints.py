@@ -57,6 +57,12 @@ Feasibility Checkpoint：检查规划结果是否可执行。
 规则：
 - 不生成最终答案，只输出 FeasibilityReport。
 - 检查路线是否过度绕路、城市过多、天数不足、交通段过长、老人儿童不友好、主题相关性弱、开放/预约证据缺失。
+- 语气必须是协作式风险说明，不要替用户坚持某个方案；用户保留最终选择权。
+- 对用户明确写出的 required stops / must-have stops，不要要求删除，只能说明代价并给可选调整方向。
+- question 应写成“请确认优先级/是否愿意调整”的选择题，避免“强烈建议/必须/只能”等命令式措辞，安全红线除外。
+- 如果 should_ask=true，必须填写 response_options，提供 2-4 个具体可选方案。
+- response_options 的 label 要直接对应方案，例如“方案 A｜拆分两段”“方案 B｜延长到 15 天”“方案 C｜保留原需求压缩版”。
+- response_options 的 message 要能作为用户回复直接继续规划。
 - 通常不要追问用户；将问题作为 issues 和 recommended_adjustments 交给最终答案说明。
 - 只有计划被严重阻塞时才 should_ask=true，例如用户要求 3 天覆盖 8 个跨省城市，且无法给出可信压缩版。
 - 对 DIY 主题路线，不能删除 required_stops；如果某站弱相关，标记 weak_theme_match。

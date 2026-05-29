@@ -3,10 +3,16 @@
 from collections.abc import Callable
 from typing import Protocol
 
-from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import (
+    QuickReplyActionId,
+    QuickReplyOption,
+    TravelAnswer,
+    TravelQuestion,
+)
 from huaxia_tourismrag.schemas.jobs import TravelJobKind
 from huaxia_tourismrag.schemas.session import SessionReplyRequest, TravelSession
 from huaxia_tourismrag.services.session_store import TravelSessionStore
+from huaxia_tourismrag.services.travel_checkpoints import clear_unbacked_reply_state
 
 
 class AnswerService(Protocol):
@@ -43,11 +49,12 @@ class SessionReplyService:
             tenant_id=self.tenant_id,
             message=request.message,
         )
+        quick_reply_action_id = _resolve_quick_reply_action_id(session, request)
         service = self._service_for_session(session)
         answer = await service.answer(
             self._combined_question(
                 session,
-                quick_reply_action_id=request.quick_reply_action_id,
+                quick_reply_action_id=quick_reply_action_id,
             )
         )
 
@@ -59,8 +66,7 @@ class SessionReplyService:
             session_id=session.session_id,
             tenant_id=self.tenant_id,
         )
-        answer.session_id = session.session_id
-        return answer
+        return clear_unbacked_reply_state(answer)
 
     async def prepare_job_question(
         self,
@@ -74,9 +80,10 @@ class SessionReplyService:
             tenant_id=self.tenant_id,
             message=request.message,
         )
+        quick_reply_action_id = _resolve_quick_reply_action_id(session, request)
         question = self._combined_question(
             session,
-            quick_reply_action_id=request.quick_reply_action_id,
+            quick_reply_action_id=quick_reply_action_id,
         )
         kind: TravelJobKind = (
             "diy_itinerary" if session.endpoint == "diy" else "general_question"
@@ -111,8 +118,7 @@ class SessionReplyService:
             session_id=session_id,
             tenant_id=self.tenant_id,
         )
-        answer.session_id = session_id
-        return answer
+        return clear_unbacked_reply_state(answer)
 
     def _service_for_session(self, session: TravelSession) -> AnswerService:
         if session.endpoint == "diy":
@@ -126,22 +132,81 @@ class SessionReplyService:
         quick_reply_action_id: str | None = None,
     ) -> TravelQuestion:
         data = session.original_question.model_dump()
+        data["continuation_pending_kind"] = session.pending_kind
+        data["continuation_quick_reply_action_id"] = quick_reply_action_id
         if session.pending_kind == "detail_level":
             detail_level = _detail_level_from_action(quick_reply_action_id)
             if detail_level:
                 data["detail_level"] = detail_level
 
+        selected_option = _selected_quick_reply_option(
+            session.pending_quick_replies,
+            quick_reply_action_id,
+        )
         replies = "\n".join(
-            f"{index}. {message}"
+            _format_reply_line(index, message, selected_option)
             for index, message in enumerate(session.messages, start=1)
+        )
+        pending_question = (
+            "上一轮夏夏问题：\n"
+            f"{session.pending_question}\n\n"
+            if session.pending_question
+            else ""
         )
         data["question"] = (
             "原始请求：\n"
             f"{session.original_question.question}\n\n"
+            f"{pending_question}"
             "用户补充信息：\n"
             f"{replies}"
         )
         return TravelQuestion.model_validate(data)
+
+
+def _resolve_quick_reply_action_id(
+    session: TravelSession,
+    request: SessionReplyRequest,
+) -> QuickReplyActionId | None:
+    """Resolve exact replies against the active session's typed quick options."""
+
+    if request.quick_reply_action_id:
+        return request.quick_reply_action_id
+
+    reply = request.message.strip()
+    for option in session.pending_quick_replies:
+        if reply in {option.message.strip(), option.label.strip()}:
+            return option.action_id
+        if reply.casefold() == option.message.strip().casefold():
+            return option.action_id
+        if reply.casefold() == option.label.strip().casefold():
+            return option.action_id
+    return None
+
+
+def _selected_quick_reply_option(
+    options: list[QuickReplyOption],
+    action_id: str | None,
+) -> QuickReplyOption | None:
+    """Return the selected option stored on the pending session."""
+
+    if action_id is None:
+        return None
+    return next((option for option in options if option.action_id == action_id), None)
+
+
+def _format_reply_line(
+    index: int,
+    message: str,
+    selected_option: QuickReplyOption | None,
+) -> str:
+    """Format a reply with active checkpoint option context when available."""
+
+    if selected_option is None:
+        return f"{index}. {message}"
+    return (
+        f"{index}. 用户选择：{message}"
+        f"（对应选项：{selected_option.label} / {selected_option.message}）"
+    )
 
 
 def _detail_level_from_action(message: str | None) -> str | None:

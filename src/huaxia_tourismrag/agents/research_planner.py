@@ -35,6 +35,11 @@ RESEARCH_PLANNER_INSTRUCTIONS = """
 - 每个 task.reason 说明为什么需要这个检索任务。
 - max_results 根据任务重要性设置在 3 到 8 之间。
 - 如果提供用户偏好画像，必须让 route、food、accommodation、transport、attraction 任务反映该偏好。
+- 必须填写 required_entities：从请求中抽取城市、具名景点、具名活动、本地美食体验、住宿区域和交通枢纽。
+- required_entities 的 entity_type 只能使用 city、attraction、activity、food、accommodation_area、transport_hub、risk。
+- required_entities 的 evidence_use 只能使用 official_status、route_feasibility、mainstream_attraction、hidden_gem、local_food、hotel_zone、risk_warning。
+- 不要把泛泛的省份或大主题当作 required_entities；如果有具名景点/美食/活动，优先保留具名实体。
+- 不要从用户问题中推断私人联系方式、姓名、电话、邮箱或微信。
 - 不要回答旅行方案，只输出 TravelResearchPlan。
 """.strip()
 
@@ -87,6 +92,12 @@ def _build_research_planner_prompt(
 
 用户偏好画像：
 {_format_preference_profile(preference_profile)}
+
+required_entities 输出要求：
+- required_entities 必须列出本次回答需要证据覆盖的目的地实体。
+- entity_type: city | attraction | activity | food | accommodation_area | transport_hub | risk
+- evidence_use: official_status | route_feasibility | mainstream_attraction | hidden_gem | local_food | hotel_zone | risk_warning
+- 不要输出自然语言说明，只在 TravelResearchPlan.required_entities 中填写结构化对象。
 """.strip()
 
 

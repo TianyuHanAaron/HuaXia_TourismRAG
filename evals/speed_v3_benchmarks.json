@@ -1,0 +1,30 @@
+[
+  {
+    "id": "beijing_concise",
+    "mode": "normal",
+    "detail_level": "concise",
+    "prompt": "北京三天怎么玩，简单说一下。",
+    "expected": ["has_answer", "has_citations"]
+  },
+  {
+    "id": "chengdu_chongqing_food",
+    "mode": "normal",
+    "detail_level": "standard",
+    "prompt": "成都和重庆6天，主要想吃本地美食，也想加一点轻松景点。",
+    "expected": ["has_itinerary", "has_topic_sections", "has_citations"]
+  },
+  {
+    "id": "shanxi_deep_family",
+    "mode": "normal",
+    "detail_level": "deep",
+    "prompt": "上海出发，山西历史人文十日深度游，5人含老人儿童，豪华级别。",
+    "expected": ["uses_job_or_progress", "has_itinerary", "has_citations"]
+  },
+  {
+    "id": "three_kingdoms_diy",
+    "mode": "diy",
+    "detail_level": "deep",
+    "prompt": "我想做一条三国历史巡礼路线，从北京出发并回到北京，必须覆盖涿州、临漳、许昌、南阳、咸宁、南京、成都、汉中。10到12天，高铁优先，必要时包车。",
+    "expected": ["uses_job_or_progress", "preserves_required_stops", "has_citations"]
+  }
+]

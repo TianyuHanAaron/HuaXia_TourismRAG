@@ -138,6 +138,7 @@ def build_final_answer_prompt(
     feasibility_report: FeasibilityReport | None = None,
     service_enrichment: ServiceEnrichmentContext | None = None,
     detail_level: DetailLevel = "standard",
+    topic_section_mode: str = "inline",
 ) -> str:
     """Build the final evidence-grounded answer prompt."""
 
@@ -147,6 +148,10 @@ def build_final_answer_prompt(
     preference_profile_context = _format_preference_profile(preference_profile)
     feasibility_context = _format_feasibility_report(feasibility_report)
     service_enrichment_context = _format_service_enrichment(service_enrichment)
+    structured_itinerary_requirement = _format_structured_itinerary_requirement(
+        research_plan=research_plan,
+        diy_plan=diy_plan,
+    )
     return f"""
 用户问题：
 {question}
@@ -169,7 +174,7 @@ DIY 行程计划：
 回答详细度：
 detail_level: {detail_level}
 
-已检索证据：
+已检索证据与专题证据包：
 {citation_context}
 
 允许使用的引用：
@@ -191,6 +196,20 @@ detail_level: {detail_level}
 - 如果用户要行程，给出清晰的日程安排、地点、交通、预算或注意事项。
 - 如果用户是普通聊天式提问，没有填写结构化字段，也要从自然语言里推断目的地、天数、预算和兴趣。
 - 对“第一次去某地怎么玩”这类宽泛问题，除景点外，还应主动覆盖当地代表美食、餐厅类型或著名餐厅示例、住宿区域和不同预算住宿建议。
+- 对行程类答案，必须生成 topic_sections，供前端切换查看专题内容；能从证据支持时至少覆盖：
+  - 美食：本地小吃、当地人推荐饭店或适合用户路线的用餐区域。
+  - 住宿：星级酒店、民宿、住宿片区、老幼/亲子/预算适配。
+  - 公交：城市内公共交通、地铁/公交/打车/包车接驳的适用场景。
+  - 购物：当地土特产、工艺品、茶叶、纪念品等，例如成都蜀绣、茶叶，必须贴合用户目的地。
+  - 娱乐项目：地方戏曲、演出、非遗体验、汉服体验等，例如南阳越调、成都变脸。
+- topic_sections 只能使用“专题证据包”和“允许使用的引用”里提供的证据；不要根据常识扩写未给来源的餐厅、酒店、票价、开放时间、演出排期或购物店名。
+- topic_sections 的每条 summary、recommendation 和 items.description 都必须使用 [n] 引用；每条推荐都必须使用 [n] 引用；缺少证据时写“待核验”并说明需要查证，不要编造。
+- topic_sections 每个专题尽量包含一个路线相关摘要和 2-5 条实用建议；建议要和用户城市、天数、同行人、预算、节奏或必去点相关，不要写泛泛的城市宣传语。
+- 美食专题应写菜品/小吃、适合安排的餐次、用餐区域、辣度/老人儿童/预算适配。
+- 住宿专题应写住宿片区、酒店/民宿类型、房型/电梯/早餐/行李/老幼适配和入住动线。
+- 公交专题应写城市内地铁/公交/打车/包车接驳、火车站/机场首末段、何时不建议公共交通。
+- 购物专题应写当地土特产、工艺品、茶叶、纪念品等品类，以及适合购买的场景和真伪/邮寄提醒。
+- 娱乐项目专题应写地方戏曲、演出、非遗体验、汉服/茶馆/夜游等，说明适合放在哪天、是否需要预约、是否适合老人儿童。
 - 可以推荐证据中出现的知名餐厅、酒店或住宿类型作为“示例选择”，但价格、空房、营业时间和实时评分必须提示用户二次核验。
 - 如果提供了 DIY 行程计划，不要把用户自定义主题路线改写成普通旅游线路。
 - DIY 行程可以重排顺序以优化交通，但必须保留每个必选目的地，并说明重排原因。
@@ -199,26 +218,65 @@ detail_level: {detail_level}
 - 如果提供了可行性检查，必须把 issues 和 recommended_adjustments 融入路线说明或 warnings。
 - 如果提供了服务能力校验，必须把地图、实时网页、商业产品和可操作入口用于增强可执行性。
 - 地图 MCP 结果只用于路线顺路性、每天车程是否合理、POI/天气影响判断；不要用它替代景区官方开放公告。
+- 如果地图 MCP 返回 unknown 或缺少时长/距离，只能作为待核验提示，不能作为路线可行性的正向依据。
 - Firecrawl MCP 结果只用于当前网页证据；必须优先引用其返回的真实 title/url，不要编造网页或引用。
+- Tavily MCP 或 Tavily 搜索结果用于网页发现和当前网页证据；必须优先引用其返回或解析出的真实 title/url，不要编造网页或引用。
+- Firecrawl 新鲜网页证据必须用于开放、预约、临时变化或服务核验；如果没有可用结果，在 warnings 中说明待确认。
 - 途牛 MCP 结果只用于酒店、门票、交通、产品和预订链接；价格、库存、取消政策必须写明以途牛实时页面为准。
 - 如果服务能力校验里有 booking_actions，可以在答案末尾加入“可继续操作”小节，但不要声称已经完成预订或付款。
 - 不确定的信息要标注为待确认，不要假装确定。
 - 不要在每个活动里反复说“需核验”或“待确认”；相同类型的不确定项统一放入最后的待确认事项。
 - 如果没有检索到官方或近期来源，只在最后的待确认事项集中说明一次；不要把“缺少官方来源”重复写进每天行程。
 - 如果检索证据已经包含近期官方公告或官方页面，可以直接给出结论并引用，不要额外加重复提醒。
+- 景点、美食、住宿、体验类结论必须优先引用 destination、attraction、heritage_site、local_cuisine、local_specialty、activity 或 travel_guide 证据。
+- 不要用 railway、legal、regulation、contract 类证据支撑景点好不好玩或食物是否值得吃。
+- railway、legal、regulation、contract 类证据只用于交通规则、退改签、实名制、安全、合同、费用边界和合规提醒。
+- 如果某个景点或美食缺少直接证据，可以给出谨慎建议，但必须在提醒中说明缺少实时或直接证据，不要硬配政策引用。
 - 根据 detail_level 控制长度和信息密度：
   - concise：简洁大纲。每一天最多一行核心安排，少写背景，重点给路线顺序、关键取舍和一个待确认清单。
   - standard：标准可执行版。覆盖每日主题、交通逻辑、住宿区域、美食方向和关键提醒，避免过度展开。
   - deep：深度旅行社方案。加入历史背景、交通推理、体力强度、住宿策略、餐饮建议、备选方案、风险和引用。
+- 当 detail_level 是 deep 且生成 generated_itinerary 时，每天应像真实旅行社行程单一样可执行：activity.description 写清上午/下午或主要时段、交通衔接、讲解重点、用餐方向、住宿/休息策略和老幼体力照顾；不要只写景点名称。
+- deep 的 generated_itinerary.notes 应写每日执行提醒，例如预约、步行强度、车程、天气、老人儿童安全、行李和餐饮注意事项。
 - 不要把政策、铁路、旅游法、安检来源用于支撑景点或美食推荐；这些引用只用于对应规则或风险提醒。
 - 语气要友好、活泼、专业，适合旅游咨询场景。
 
 结构化输出要求：
 - answer、highlights、warnings、citations 必须存在。
+{structured_itinerary_requirement}
 - 如果生成 generated_itinerary，每个 activity 至少包含 name 和 description。
 - activity.category 只能使用 natural_attraction、cultural_attraction、local_restaurant、accommodation、shopping、transport、nature、special_event；不确定时可以省略。
 - activity.location 不确定时可以省略，不要编造精确地址。
+- topic_sections.category 只能使用 food、accommodation、public_transport、shopping、entertainment。
+- topic_sections.title 用中文专题名，例如“美食”“住宿”“公交”“购物”“娱乐项目”。
+- 本次 topic_section_mode={topic_section_mode}；当值不是 inline 时，topic_sections 必须返回空列表，专题内容会由后续任务或前端状态补充。
 """.strip()
+
+
+def _format_structured_itinerary_requirement(
+    *,
+    research_plan: TravelResearchPlan | None,
+    diy_plan: DIYItineraryPlan | None,
+) -> str:
+    if diy_plan is not None:
+        days = diy_plan.days or len(diy_plan.proposed_route)
+        required = [
+            "- 本次请求是行程规划，generated_itinerary 必须存在。",
+            f"- generated_itinerary.itinerary 至少包含 {days} 天；每个必选停靠点必须出现在某一天的 city、activity.name 或 description 中。",
+            "- generated_itinerary.destination 使用 DIY 主题或路线名称，不要退化成普通城市游。",
+        ]
+        return "\n".join(required)
+
+    if research_plan is not None and research_plan.trip_days and research_plan.destination:
+        return "\n".join(
+            [
+                "- 本次请求是行程规划，generated_itinerary 必须存在。",
+                f"- generated_itinerary.itinerary 至少包含 {research_plan.trip_days} 天；每天都要有 city 和至少一个 activity。",
+                "- 如果证据不足以精确到景点或酒店，把不确定项放入 notes 或 warnings，不要省略 generated_itinerary。",
+            ]
+        )
+
+    return "- 本次请求未提供完整行程规划 DTO 时，只有在答案确实包含日程安排时才生成 generated_itinerary。"
 
 
 def _format_research_plan(research_plan: TravelResearchPlan | None) -> str:
@@ -348,6 +406,20 @@ def _format_service_enrichment(context: ServiceEnrichmentContext | None) -> str:
                 else ""
             )
             notes = f"，备注：{'；'.join(leg.notes)}" if leg.notes else ""
+            if (
+                leg.feasibility_level == "unknown"
+                or (
+                    leg.estimated_duration_minutes is None
+                    and leg.distance_km is None
+                )
+            ):
+                lines.append(
+                    f"- {leg.origin} -> {leg.destination}: "
+                    f"{leg.recommended_mode}，未返回可用车程/距离；"
+                    "该 MCP 结果只能作为待核验项，不能作为路线可行性的正向依据"
+                    f"{notes}"
+                )
+                continue
             lines.append(
                 f"- {leg.origin} -> {leg.destination}: "
                 f"{leg.recommended_mode}，{duration}{distance}，"
@@ -422,8 +494,8 @@ def _format_service_enrichment(context: ServiceEnrichmentContext | None) -> str:
 def _provider_label(provider: str) -> str:
     return {
         "baidu_maps": "百度地图",
-        "mapbox": "Mapbox",
         "firecrawl": "Firecrawl",
+        "tavily": "Tavily",
         "tuniu": "途牛",
     }.get(provider, provider)
 
@@ -439,6 +511,7 @@ async def generate_answer_with_context(
     feasibility_report: FeasibilityReport | None = None,
     service_enrichment: ServiceEnrichmentContext | None = None,
     detail_level: DetailLevel = "standard",
+    topic_section_mode: str = "inline",
 ) -> TravelAnswer:
     """Run the tourism agent against prepared citation context."""
 
@@ -452,6 +525,7 @@ async def generate_answer_with_context(
         feasibility_report=feasibility_report,
         service_enrichment=service_enrichment,
         detail_level=detail_level,
+        topic_section_mode=topic_section_mode,
     )
     if is_qwen_cloud_provider():
         settings = get_settings()

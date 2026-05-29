@@ -9,11 +9,13 @@ from typing import Protocol
 
 from huaxia_tourismrag.schemas.evidence import TravelChunk, TravelSearchHit
 from huaxia_tourismrag.schemas.performance import RetrievalBudget
-from huaxia_tourismrag.schemas.research import TravelResearchTask
+from huaxia_tourismrag.schemas.research import ResearchEntity, TravelResearchTask
+from huaxia_tourismrag.services.evidence_coverage import task_type_for_entity
 from huaxia_tourismrag.services.embedding_circuit_breaker import (
     EmbeddingCircuitBreaker,
 )
 from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
+from huaxia_tourismrag.tools.web_search import WebSearchProviderUnavailable
 
 
 logger = logging.getLogger(__name__)
@@ -132,6 +134,57 @@ class EvidenceRetrievalOrchestrator:
             internal_rag_warning=internal_warning,
         )
 
+    async def retrieve_entity_backfill(
+        self,
+        *,
+        entities: list[ResearchEntity],
+        tenant_id: str,
+        budget: RetrievalBudget,
+        internal_rag: InternalRAGBatchTool,
+        web_search: ChineseTourismSearch,
+        webpage_reader: WebpageReader,
+    ) -> EvidenceRetrievalResult:
+        """Retrieve bounded supplemental evidence for missing destination entities."""
+
+        if not entities:
+            return EvidenceRetrievalResult(
+                internal_chunks=[],
+                web_chunks=[],
+                selected_hits=[],
+            )
+
+        backfill_budget = budget.model_copy(
+            update={
+                "max_tasks": min(len(entities), budget.max_tasks, 4),
+                "max_pages_to_read": min(budget.max_pages_to_read, 3),
+                "max_search_results_per_task": min(
+                    budget.max_search_results_per_task,
+                    3,
+                ),
+                "internal_rag_limit": min(budget.internal_rag_limit, 4),
+            }
+        )
+        tasks = [
+            TravelResearchTask(
+                task_type=task_type_for_entity(entity),
+                evidence_use=entity.evidence_use,
+                query=_backfill_query_for_entity(entity),
+                reason=f"Backfill evidence for structured entity: {entity.name}",
+                max_results=backfill_budget.max_search_results_per_task,
+                source_preference="mixed",
+            )
+            for entity in entities[: backfill_budget.max_tasks]
+        ]
+        return await self.retrieve(
+            tasks=tasks,
+            tenant_id=tenant_id,
+            budget=backfill_budget,
+            internal_rag=internal_rag,
+            web_search=web_search,
+            webpage_reader=webpage_reader,
+            retrieval_cache=self.retrieval_cache,
+        )
+
     async def _retrieve_internal(
         self,
         *,
@@ -222,8 +275,12 @@ class EvidenceRetrievalOrchestrator:
             return []
 
         semaphore = asyncio.Semaphore(min(self.task_concurrency, self.web_search_concurrency))
+        provider_unavailable = asyncio.Event()
+        provider_warning_lock = asyncio.Lock()
 
         async def search_one(task: TravelResearchTask) -> list[TravelSearchHit]:
+            if provider_unavailable.is_set():
+                return []
             max_results = min(task.max_results, budget.max_search_results_per_task)
             options = task.to_search_options()
 
@@ -233,12 +290,27 @@ class EvidenceRetrievalOrchestrator:
                     return cached
 
             async with semaphore:
+                if provider_unavailable.is_set():
+                    return []
                 try:
                     hits = await web_search.search_chinese_tourism(
                         task.query,
                         max_results=max_results,
                         options=options,
                     )
+                except WebSearchProviderUnavailable as exc:
+                    async with provider_warning_lock:
+                        if not provider_unavailable.is_set():
+                            logger.warning(
+                                (
+                                    "Web search provider unavailable "
+                                    "(%s status=%s); skipping remaining web searches."
+                                ),
+                                exc.provider,
+                                exc.status_code,
+                            )
+                            provider_unavailable.set()
+                    return []
                 except Exception:
                     logger.warning("Web search failed for %s", task.query, exc_info=True)
                     return []
@@ -309,3 +381,15 @@ class EvidenceRetrievalOrchestrator:
             seen_urls.add(url)
             deduped.append(hit)
         return deduped
+
+
+def _backfill_query_for_entity(entity: ResearchEntity) -> str:
+    if entity.entity_type == "food":
+        return f"{entity.name} 本地美食 旅游"
+    if entity.entity_type == "accommodation_area":
+        return f"{entity.name} 住宿区域 旅游"
+    if entity.entity_type == "transport_hub":
+        return f"{entity.name} 交通 旅游"
+    if entity.entity_type == "risk":
+        return f"{entity.name} 旅行风险"
+    return f"{entity.name} 旅游 证据"

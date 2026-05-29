@@ -36,6 +36,7 @@ class Settings(BaseSettings):
         default="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         alias="QWEN_CLOUD_BASE_URL",
     )
+    asr_model: str = Field(default="qwen3-asr-flash", alias="ASR_MODEL")
 
     tavily_api_key: str | None = Field(default=None, alias="TAVILY_API_KEY")
     exa_api_key: str | None = Field(default=None, alias="EXA_API_KEY")
@@ -104,6 +105,58 @@ class Settings(BaseSettings):
     answer_cache_ttl_seconds: int = Field(default=900, alias="ANSWER_CACHE_TTL_SECONDS")
     enable_general_deep_jobs: bool = Field(default=True, alias="ENABLE_GENERAL_DEEP_JOBS")
     page_read_concurrency: int = Field(default=3, alias="PAGE_READ_CONCURRENCY")
+    enable_prompt_compaction: bool = Field(default=True, alias="ENABLE_PROMPT_COMPACTION")
+    max_final_context_quotes_concise: int = Field(
+        default=6,
+        alias="MAX_FINAL_CONTEXT_QUOTES_CONCISE",
+    )
+    max_final_context_quotes_standard: int = Field(
+        default=10,
+        alias="MAX_FINAL_CONTEXT_QUOTES_STANDARD",
+    )
+    max_final_context_quotes_deep: int = Field(
+        default=16,
+        alias="MAX_FINAL_CONTEXT_QUOTES_DEEP",
+    )
+    enable_evidence_pack_cache: bool = Field(
+        default=True,
+        alias="ENABLE_EVIDENCE_PACK_CACHE",
+    )
+    evidence_pack_cache_ttl_seconds: int = Field(
+        default=1800,
+        alias="EVIDENCE_PACK_CACHE_TTL_SECONDS",
+    )
+    enable_provider_budgets: bool = Field(default=True, alias="ENABLE_PROVIDER_BUDGETS")
+    tavily_max_calls_per_request: int = Field(
+        default=4,
+        alias="TAVILY_MAX_CALLS_PER_REQUEST",
+    )
+    firecrawl_max_calls_per_request: int = Field(
+        default=4,
+        alias="FIRECRAWL_MAX_CALLS_PER_REQUEST",
+    )
+    page_read_max_calls_per_request: int = Field(
+        default=6,
+        alias="PAGE_READ_MAX_CALLS_PER_REQUEST",
+    )
+    provider_cooldown_seconds: int = Field(
+        default=180,
+        alias="PROVIDER_COOLDOWN_SECONDS",
+    )
+    topic_section_mode: Literal[
+        "inline",
+        "async_for_deep",
+        "async",
+        "disabled",
+    ] = Field(default="async_for_deep", alias="TOPIC_SECTION_MODE")
+    topic_section_cache_ttl_seconds: int = Field(
+        default=1800,
+        alias="TOPIC_SECTION_CACHE_TTL_SECONDS",
+    )
+    topic_section_model_name: str | None = Field(
+        default=None,
+        alias="TOPIC_SECTION_MODEL",
+    )
 
     baidu_maps_mcp_enabled: bool = Field(
         default=False,
@@ -132,18 +185,6 @@ class Settings(BaseSettings):
     tuniu_mcp_command: str | None = Field(default=None, alias="TUNIU_MCP_COMMAND")
     tuniu_api_key: str | None = Field(default=None, alias="TUNIU_API_KEY")
 
-    mapbox_mcp_enabled: bool = Field(default=False, alias="MAPBOX_MCP_ENABLED")
-    mapbox_mcp_transport: str = Field(default="http", alias="MAPBOX_MCP_TRANSPORT")
-    mapbox_mcp_url: str | None = Field(
-        default="https://mcp.mapbox.com/mcp",
-        alias="MAPBOX_MCP_URL",
-    )
-    mapbox_mcp_command: str | None = Field(default=None, alias="MAPBOX_MCP_COMMAND")
-    mapbox_access_token: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("MAPBOX_ACCESS_TOKEN", "MAPBOX_API_KEY"),
-    )
-
     firecrawl_mcp_enabled: bool = Field(default=False, alias="FIRECRAWL_MCP_ENABLED")
     firecrawl_mcp_transport: str = Field(default="http", alias="FIRECRAWL_MCP_TRANSPORT")
     firecrawl_mcp_url: str | None = Field(
@@ -151,6 +192,14 @@ class Settings(BaseSettings):
         alias="FIRECRAWL_MCP_URL",
     )
     firecrawl_mcp_command: str | None = Field(default=None, alias="FIRECRAWL_MCP_COMMAND")
+
+    tavily_mcp_enabled: bool = Field(default=False, alias="TAVILY_MCP_ENABLED")
+    tavily_mcp_transport: str = Field(default="http", alias="TAVILY_MCP_TRANSPORT")
+    tavily_mcp_url: str | None = Field(
+        default="https://mcp.tavily.com/mcp/?tavilyApiKey={TAVILY_API_KEY}",
+        alias="TAVILY_MCP_URL",
+    )
+    tavily_mcp_command: str | None = Field(default=None, alias="TAVILY_MCP_COMMAND")
 
     @property
     def checkpoint_model(self) -> str:
@@ -169,6 +218,12 @@ class Settings(BaseSettings):
         """Model used for final TravelAnswer generation."""
 
         return self.final_answer_model_name or self.tourism_agent_model
+
+    @property
+    def topic_section_model(self) -> str:
+        """Model used for deferred topic-section generation."""
+
+        return self.topic_section_model_name or self.planner_model
 
     trusted_domains: tuple[str, ...] = (
         # National tourism / culture

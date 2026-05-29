@@ -7,7 +7,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from pydantic import BaseModel
 
 from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
-from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import (
+    TravelAnswer,
+    TravelFormRequest,
+    TravelQuestion,
+)
 from huaxia_tourismrag.schemas.jobs import (
     TravelJobCreateResponse,
     TravelJobKind,
@@ -17,6 +21,7 @@ from huaxia_tourismrag.schemas.jobs import (
 from huaxia_tourismrag.schemas.sales import SalesHandoffRequest, SalesHandoffResponse
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
+from huaxia_tourismrag.services.job_errors import public_job_error
 from huaxia_tourismrag.services.job_queue import TravelJobQueue
 from huaxia_tourismrag.services.job_store import TravelJobNotFoundError, TravelJobStore
 from huaxia_tourismrag.services.qa_service import TourismQAService
@@ -35,6 +40,8 @@ class TourismCapabilitiesResponse(BaseModel):
     diy_itinerary_endpoint: str
     diy_job_endpoint: str
     general_job_endpoint: str
+    form_question_endpoint: str
+    form_job_endpoint: str
     job_status_endpoint: str
     session_reply_endpoint: str
     sales_handoff_endpoint: str
@@ -171,6 +178,8 @@ def get_capabilities() -> TourismCapabilitiesResponse:
         diy_itinerary_endpoint="/tourism/itineraries/diy",
         diy_job_endpoint="/tourism/jobs/diy",
         general_job_endpoint="/tourism/jobs/questions",
+        form_question_endpoint="/tourism/forms/questions",
+        form_job_endpoint="/tourism/forms/jobs",
         job_status_endpoint="/tourism/jobs/{job_id}",
     session_reply_endpoint="/tourism/sessions/{session_id}/reply",
         sales_handoff_endpoint="/tourism/sales/handoffs",
@@ -223,6 +232,76 @@ async def answer_diy_itinerary_question(
         return await service.answer(body)
     except AgentModelConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/forms/questions", response_model=TravelAnswer)
+async def answer_form_question(
+    body: TravelFormRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    qa_service: TourismQAService = Depends(get_tourism_qa_service),
+    diy_service: DIYItineraryService = Depends(get_diy_itinerary_service),
+) -> TravelAnswer:
+    """Answer a typed form request through the existing travel services."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    question = body.to_travel_question()
+    try:
+        if body.request_mode == "diy":
+            return await diy_service.answer(question, form_request=body)
+        return await qa_service.answer(question, form_request=body)
+    except AgentModelConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/forms/jobs", response_model=TravelJobCreateResponse, status_code=202)
+async def create_form_job(
+    body: TravelFormRequest,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    user: CurrentUser = Depends(get_current_user),
+    qa_service: TourismQAService = Depends(get_tourism_qa_service),
+    diy_service: DIYItineraryService = Depends(get_diy_itinerary_service),
+    job_store: TravelJobStore = Depends(get_travel_job_store),
+) -> TravelJobCreateResponse:
+    """Queue a typed form request for async generation."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    question = body.to_travel_question()
+    kind: TravelJobKind = (
+        "diy_itinerary" if body.request_mode == "diy" else "general_question"
+    )
+    job = await job_store.create(
+        user.tenant_id,
+        question,
+        kind=kind,
+        form_request=body,
+    )
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    if job_queue is not None:
+        await job_queue.enqueue(
+            TravelJobQueueItem(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                kind=kind,
+            )
+        )
+    else:
+        task = _run_diy_itinerary_job if kind == "diy_itinerary" else _run_general_question_job
+        service = diy_service if kind == "diy_itinerary" else qa_service
+        background_tasks.add_task(
+            task,
+            job_id=job.job_id,
+            tenant_id=user.tenant_id,
+            question=question,
+            service=service,
+            job_store=job_store,
+            form_request=body,
+        )
+    return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
 
 
 @router.post("/jobs/diy", response_model=TravelJobCreateResponse, status_code=202)
@@ -423,12 +502,13 @@ async def _run_diy_itinerary_job(
     question: TravelQuestion,
     service: DIYItineraryService,
     job_store: TravelJobStore,
+    form_request: TravelFormRequest | None = None,
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
     try:
-        answer = await service.answer(question)
+        answer = await service.answer(question, form_request=form_request)
     except Exception as exc:
-        await job_store.fail(job_id, tenant_id, str(exc))
+        await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
 
     await job_store.complete(job_id, tenant_id, answer)
@@ -440,12 +520,13 @@ async def _run_general_question_job(
     question: TravelQuestion,
     service: TourismQAService,
     job_store: TravelJobStore,
+    form_request: TravelFormRequest | None = None,
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
     try:
-        answer = await service.answer(question)
+        answer = await service.answer(question, form_request=form_request)
     except Exception as exc:
-        await job_store.fail(job_id, tenant_id, str(exc))
+        await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
 
     await job_store.complete(job_id, tenant_id, answer)
@@ -465,7 +546,7 @@ async def _run_session_reply_job(
         answer = await service.answer_prepared_question(question, kind)
         answer = await service.complete_job_session(session_id, answer)
     except Exception as exc:
-        await job_store.fail(job_id, tenant_id, str(exc))
+        await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
 
     await job_store.complete(job_id, tenant_id, answer)

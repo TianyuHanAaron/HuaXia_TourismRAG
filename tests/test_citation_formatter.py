@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
 
 from huaxia_tourismrag.schemas.evidence import TravelChunk
+from huaxia_tourismrag.schemas.service_enrichment import (
+    FreshWebEvidence,
+    ServiceEnrichmentContext,
+)
 from huaxia_tourismrag.tools.citation_formatter import CitationFormatter
 
 
@@ -97,3 +101,35 @@ def test_citation_formatter_builds_structured_evidence_quotes():
     assert "content_type=local_cuisine" in pack.context_text
     assert "source_ref=https://example.cn/food" in pack.context_text
     assert "quote=成都火锅、担担面和钟水饺适合做城市美食体验。" in pack.context_text
+
+
+def test_citation_formatter_appends_fresh_web_evidence_with_title_and_url():
+    formatter = CitationFormatter()
+    base_pack = formatter.build(
+        [_chunk("internal:shanxi", "山西国保资料", None)]
+    )
+    service_context = ServiceEnrichmentContext(
+        fresh_web_evidence=[
+            FreshWebEvidence(
+                provider="tavily",
+                query="平遥古城 官方 开放 预约 最新",
+                title="平遥古城景区官方预约说明",
+                url="https://example.cn/pingyao-booking",
+                summary="平遥古城实行实名预约，游客应提前核验开放时间。",
+                source_authority="official",
+                recency_label="recent",
+            )
+        ]
+    )
+
+    pack = formatter.extend_with_service_enrichment(base_pack, service_context)
+
+    assert pack.citations == [
+        "[1] 山西国保资料 - test - internal:internal:shanxi",
+        "[2] 平遥古城景区官方预约说明 - tavily - https://example.cn/pingyao-booking",
+    ]
+    assert pack.evidence_quotes[1].citation_id == 2
+    assert pack.evidence_quotes[1].title == "平遥古城景区官方预约说明"
+    assert pack.evidence_quotes[1].source_ref == "https://example.cn/pingyao-booking"
+    assert "provider=tavily" not in pack.context_text
+    assert "source_name=tavily" in pack.context_text

@@ -107,13 +107,20 @@ def test_diy_relevance_filter_drops_origin_city_hotel_and_food_noise():
     assert [chunk.id for chunk in filtered] == ["xuchang"]
 
 
-def test_diy_relevance_filter_keeps_generic_railway_operational_sources():
+def test_diy_relevance_filter_requires_typed_operational_sources():
     chunks = [
         _chunk(
-            "railway",
+            "text-only-railway",
             "中国铁路改签退票与目的地变更提醒",
             "12306 官方说明铁路购票、退票、改签、变更到站规则。",
             "https://www.12306.cn/en/faq.html",
+        ),
+        _chunk(
+            "typed-railway",
+            "铁路旅客运输规程",
+            "铁路购票、退票、改签规则。",
+            "https://www.12306.cn/en/faq.html",
+            content_type="railway",
         ),
         _chunk(
             "national-museum",
@@ -125,7 +132,7 @@ def test_diy_relevance_filter_keeps_generic_railway_operational_sources():
 
     filtered = EvidenceRelevanceFilter().filter_for_diy_plan(chunks, _diy_plan())
 
-    assert [chunk.id for chunk in filtered] == ["railway"]
+    assert [chunk.id for chunk in filtered] == ["typed-railway"]
 
 
 def test_diy_relevance_filter_keeps_route_stop_and_theme_anchor_sources():
@@ -184,7 +191,7 @@ def test_research_plan_filter_drops_unrelated_official_route_page():
         ),
         _chunk(
             "hainan",
-            "海南东线七日游",
+            "海南岛东线七日游",
             "海南岛海口、万宁、三亚适合带父母七天慢游。",
             "https://example.cn/hainan",
         ),

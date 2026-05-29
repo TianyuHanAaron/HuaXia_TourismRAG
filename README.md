@@ -14,7 +14,7 @@ and configured through `STREAMLIT_API_BASE_URL` for production use.
 
 Xiaxia is designed as a polished AI front desk for HuaXia Travel Agency: users can
 start with a casual travel idea, choose between mature trip planning and custom
-route co-creation, answer clarification checkpoints, and continue toward a
+route building, answer clarification checkpoints, and continue toward a
 consultant-ready itinerary.
 
 <p align="center">
@@ -35,7 +35,7 @@ consultant-ready itinerary.
       <img src="docs/assets/product/xiaxia-clarification-cn.png" alt="Xiaxia multi-hop clarification flow">
     </td>
     <td width="50%">
-      <strong>Custom route co-creation</strong><br>
+      <strong>Build a custom route</strong><br>
       <sub>DIY routes preserve user-defined cities and themes while still allowing route optimization.</sub><br><br>
       <img src="docs/assets/product/xiaxia-diy-cn.png" alt="Xiaxia DIY route co-creation flow">
     </td>
@@ -355,7 +355,7 @@ Set backend secrets on the backend host, not in GitHub:
 - `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION`
 - `REDIS_URL`
 - `EMBEDDING_PROVIDER`, `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_DIMENSIONS`
-- Optional MCP keys such as `MAPBOX_ACCESS_TOKEN` and `FIRECRAWL_MCP_*`
+- Optional MCP keys such as `FIRECRAWL_MCP_*` and `TAVILY_MCP_*`
 
 For production latency and low-memory hosts such as 512 MiB Render instances,
 prefer a remote embedding endpoint and keep local model reranking disabled

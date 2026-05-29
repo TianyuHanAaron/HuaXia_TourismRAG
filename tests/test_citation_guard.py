@@ -115,6 +115,63 @@ def test_guard_scans_highlights_warnings_and_generated_itinerary():
     ]
 
 
+def test_guard_scans_dedicated_topic_sections():
+    guard = CitationGuard()
+    answer = TravelAnswer(
+        answer="正文概览。",
+        highlights=[],
+        warnings=[],
+        citations=[],
+        topic_sections=[
+            {
+                "category": "food",
+                "title": "美食",
+                "summary": "成都可安排本地小吃和当地人常去的餐厅。[1]",
+                "recommendations": ["担担面、钟水饺适合作为轻量午餐。[2]"],
+            }
+        ],
+    )
+
+    result = guard.validate_and_normalize(answer, _pack())
+
+    assert result.used_citation_ids == {1, 2}
+    assert result.answer.citations == [
+        "[1] 来源 1 - 测试来源 - https://example.cn/1",
+        "[2] 来源 2 - 测试来源 - https://example.cn/2",
+    ]
+
+
+def test_guard_scans_structured_topic_section_items():
+    guard = CitationGuard()
+    answer = TravelAnswer(
+        answer="正文概览。",
+        highlights=[],
+        warnings=[],
+        citations=[],
+        topic_sections=[
+            {
+                "category": "entertainment",
+                "title": "娱乐项目",
+                "items": [
+                    {
+                        "title": "川剧体验",
+                        "description": "成都段可把川剧变脸安排在非转场日晚间。[1]",
+                        "kind": "booking_or_timing",
+                        "citations": [1],
+                    }
+                ],
+            }
+        ],
+    )
+
+    result = guard.validate_and_normalize(answer, _pack())
+
+    assert result.used_citation_ids == {1}
+    assert result.answer.citations == [
+        "[1] 来源 1 - 测试来源 - https://example.cn/1",
+    ]
+
+
 def test_guard_flags_policy_or_railway_citation_for_food_claims():
     guard = CitationGuard()
     pack = CitationPack(
@@ -125,12 +182,112 @@ def test_guard_flags_policy_or_railway_citation_for_food_claims():
         ],
     )
     answer = TravelAnswer(
-        answer="成都火锅、担担面适合做本地美食体验。[1]",
+        answer="成都晚餐安排如下。[1]",
         highlights=[],
         warnings=[],
         citations=["[1] 铁路规则 - 12306 - internal:railway:1"],
+        generated_itinerary={
+            "destination": "成都",
+            "itinerary": [
+                {
+                    "day": 1,
+                    "city": "成都",
+                    "activities": [
+                        {
+                            "name": "成都本地晚餐",
+                            "category": "local_restaurant",
+                            "description": "适合安排地道餐食体验。[1]",
+                        }
+                    ],
+                }
+            ],
+        },
     )
 
     result = guard.validate_and_normalize(answer, pack)
 
     assert any(issue.issue_type == "source_type_mismatch" and issue.citation_id == 1 for issue in result.issues)
+
+
+def test_citation_guard_flags_policy_citation_in_main_answer_claim() -> None:
+    answer = TravelAnswer(
+        answer="苗寨长桌宴很值得体验。[1]",
+        highlights=[],
+        warnings=[],
+        citations=["[1] 铁路旅客运输规程 - 中国政府网 - internal:rail"],
+    )
+    pack = CitationPack(
+        context_text="",
+        citations=["[1] 铁路旅客运输规程 - 中国政府网 - internal:rail"],
+        evidence_quotes=[
+            _quote(1, content_type="railway", source_ref="internal:rail"),
+        ],
+    )
+
+    result = CitationGuard().validate_and_normalize(answer, pack)
+
+    assert any(
+        issue.issue_type == "source_type_mismatch" and issue.citation_id == 1
+        for issue in result.issues
+    )
+
+
+def test_citation_guard_allows_policy_citation_in_warning() -> None:
+    answer = TravelAnswer(
+        answer="苗寨长桌宴建议用本地餐饮证据核验。",
+        highlights=[],
+        warnings=["铁路出行请注意实名制规则。[1]"],
+        citations=["[1] 铁路旅客运输规程 - 中国政府网 - internal:rail"],
+    )
+    pack = CitationPack(
+        context_text="",
+        citations=["[1] 铁路旅客运输规程 - 中国政府网 - internal:rail"],
+        evidence_quotes=[
+            _quote(1, content_type="railway", source_ref="internal:rail"),
+        ],
+    )
+
+    result = CitationGuard().validate_and_normalize(answer, pack)
+
+    assert not any(
+        issue.issue_type == "source_type_mismatch" for issue in result.issues
+    )
+
+
+def test_citation_guard_removes_policy_citation_markers_from_highlights() -> None:
+    answer = TravelAnswer(
+        answer="广西路线需要重点核验交通衔接。",
+        highlights=["桂林阳朔海岛联游很赶。[1]", "漓江和遇龙河体验应保留。[2]"],
+        warnings=["铁路出行请注意实名制规则。[1]"],
+        citations=[
+            "[1] 铁路旅客运输规程 - 中国政府网 - internal:rail",
+            "[2] 桂林阳朔旅行指南 - 文旅来源 - https://example.cn/guilin",
+        ],
+    )
+    pack = CitationPack(
+        context_text="",
+        citations=[
+            "[1] 铁路旅客运输规程 - 中国政府网 - internal:rail",
+            "[2] 桂林阳朔旅行指南 - 文旅来源 - https://example.cn/guilin",
+        ],
+        evidence_quotes=[
+            _quote(1, content_type="railway", source_ref="internal:rail"),
+            _quote(2, content_type="travel_guide", source_ref="https://example.cn/guilin"),
+        ],
+    )
+
+    result = CitationGuard().validate_and_normalize(answer, pack)
+
+    assert result.answer.highlights == [
+        "桂林阳朔海岛联游很赶。",
+        "漓江和遇龙河体验应保留。[2]",
+    ]
+    assert result.answer.warnings == ["铁路出行请注意实名制规则。[1]"]
+    assert result.answer.citations == [
+        "[1] 铁路旅客运输规程 - 中国政府网 - internal:rail",
+        "[2] 桂林阳朔旅行指南 - 文旅来源 - https://example.cn/guilin",
+    ]
+    assert any(
+        issue.issue_type == "source_type_mismatch" and issue.citation_id == 1
+        for issue in result.issues
+    )

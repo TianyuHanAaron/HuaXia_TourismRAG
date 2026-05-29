@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 
 from huaxia_tourismrag.schemas.evidence import (
     CitationPack,
@@ -27,9 +26,6 @@ class CitationGuardResult:
 class CitationGuard:
     """Keep LLM citations tied to formatter-approved evidence lines."""
 
-    _REFERENCE_PATTERN = re.compile(r"\[(\d+)\]")
-    _CITATION_LINE_PATTERN = re.compile(r"^\[(\d+)\]\s+")
-
     _POLICY_CONTENT_TYPES = {
         "transport",
         "railway",
@@ -47,61 +43,40 @@ class CitationGuard:
         "visa_exit_entry",
         "tourism_safety",
     }
-    _FOOD_HINTS = {
-        "美食",
-        "小吃",
-        "餐",
-        "菜",
-        "火锅",
-        "面",
-        "粉",
-        "糕",
-        "粑",
-        "饺",
-        "汤",
-        "茶",
-        "甜品",
-        "伴手礼",
+    _DESTINATION_SUPPORT_CONTENT_TYPES = {
+        "destination",
+        "attraction",
+        "heritage_site",
+        "local_cuisine",
+        "local_specialty",
+        "activity",
+        "travel_guide",
+        "scenic_quality",
     }
-    _SCENIC_HINTS = {
-        "景区",
-        "景点",
-        "遗址",
-        "古城",
-        "寺",
-        "石窟",
-        "博物馆",
-        "山",
-        "湖",
-        "故居",
-        "古镇",
-        "游览",
-    }
-    _POLICY_HINTS = {
-        "铁路",
-        "车票",
-        "实名",
-        "退票",
-        "改签",
-        "安检",
-        "禁限",
-        "合同",
-        "旅行社",
-        "法律",
-        "规定",
-        "政策",
-        "投诉",
-        "保险",
+    _ITINERARY_SUPPORT_ACTIVITY_CATEGORIES = {
+        "natural_attraction",
+        "cultural_attraction",
+        "local_restaurant",
+        "nature",
+        "special_event",
     }
 
-    def validate_and_normalize(self, answer: TravelAnswer, pack: CitationPack) -> CitationGuardResult:
+    def validate_and_normalize(
+        self,
+        answer: TravelAnswer,
+        pack: CitationPack,
+    ) -> CitationGuardResult:
         """Normalize returned citations to exact allowed lines and collect issues."""
 
         allowed_lines = self._allowed_lines(pack)
         quote_by_id = {quote.citation_id: quote for quote in pack.evidence_quotes}
-        used_ids = self._used_reference_ids(answer)
+        answer_to_validate, cleanup_issues = self._strip_policy_highlight_references(
+            answer,
+            quote_by_id,
+        )
+        used_ids = self._used_reference_ids(answer_to_validate)
         returned_lines = self._returned_lines(answer)
-        issues: list[CitationValidationIssue] = []
+        issues: list[CitationValidationIssue] = [*cleanup_issues]
 
         for citation_id in sorted(used_ids):
             if citation_id not in allowed_lines:
@@ -144,9 +119,9 @@ class CitationGuard:
                     )
                 )
 
-        issues.extend(self._source_mismatch_issues(answer, used_ids, quote_by_id))
+        issues.extend(self._source_mismatch_issues(answer_to_validate, used_ids, quote_by_id))
 
-        normalized = answer.model_copy(deep=True)
+        normalized = answer_to_validate.model_copy(deep=True)
         normalized.citations = [
             allowed_lines[citation_id]
             for citation_id in sorted(used_ids)
@@ -170,23 +145,83 @@ class CitationGuard:
                 returned[citation_id] = line
         return returned
 
+    def _strip_policy_highlight_references(
+        self,
+        answer: TravelAnswer,
+        quote_by_id: dict[int, EvidenceQuote],
+    ) -> tuple[TravelAnswer, list[CitationValidationIssue]]:
+        normalized = answer.model_copy(deep=True)
+        issues: list[CitationValidationIssue] = []
+        highlights: list[str] = []
+
+        for highlight in normalized.highlights:
+            cleaned = highlight
+            for citation_id in sorted(self._reference_ids_in_text(highlight)):
+                quote = quote_by_id.get(citation_id)
+                if quote is None or quote.content_type not in self._POLICY_CONTENT_TYPES:
+                    continue
+                cleaned = self._remove_reference_marker(cleaned, citation_id)
+                issues.append(
+                    CitationValidationIssue(
+                        issue_type="source_type_mismatch",
+                        citation_id=citation_id,
+                        message=(
+                            f"[{citation_id}] 是 {quote.content_type} 类来源，"
+                            "已从亮点中移除该引用标记，避免用政策/交通规则支撑目的地卖点。"
+                        ),
+                        source_ref=quote.source_ref,
+                    )
+                )
+            highlights.append(cleaned)
+
+        normalized.highlights = highlights
+        return normalized, issues
+
+    def _remove_reference_marker(self, text: str, citation_id: int) -> str:
+        marker = f"[{citation_id}]"
+        while marker in text:
+            text = text.replace(marker, "")
+        return text.strip()
+
     def _line_id(self, line: str) -> int | None:
-        match = self._CITATION_LINE_PATTERN.search(line.strip())
-        if not match:
+        text = line.strip()
+        if not text.startswith("["):
             return None
-        return int(match.group(1))
+        close_index = text.find("]")
+        if close_index <= 1:
+            return None
+        value = text[1:close_index]
+        if not value.isdecimal():
+            return None
+        return int(value)
 
     def _used_reference_ids(self, answer: TravelAnswer) -> set[int]:
         text_parts = [answer.answer, *answer.highlights, *answer.warnings]
+        text_parts.extend(self._topic_section_text_parts(answer))
 
         if answer.generated_itinerary:
             text_parts.extend(self._itinerary_text_parts(answer.generated_itinerary))
 
-        return {
-            int(match.group(1))
-            for text in text_parts
-            for match in self._REFERENCE_PATTERN.finditer(text or "")
-        }
+        used_ids: set[int] = set()
+        for text in text_parts:
+            used_ids.update(self._reference_ids_in_text(text or ""))
+        return used_ids
+
+    def _reference_ids_in_text(self, text: str) -> set[int]:
+        citation_ids: set[int] = set()
+        index = 0
+        while index < len(text):
+            if text[index] != "[":
+                index += 1
+                continue
+            close_index = text.find("]", index + 1)
+            if close_index < 0:
+                break
+            value = text[index + 1 : close_index]
+            if value.isdecimal():
+                citation_ids.add(int(value))
+            index = close_index + 1
+        return citation_ids
 
     def _itinerary_text_parts(self, itinerary: TravelItinerary) -> list[str]:
         parts = [
@@ -217,14 +252,9 @@ class CitationGuard:
         used_ids: set[int],
         quote_by_id: dict[int, EvidenceQuote],
     ) -> list[CitationValidationIssue]:
-        answer_text = self._full_answer_text(answer)
-        discusses_food_or_scenic = self._contains_any(answer_text, self._FOOD_HINTS | self._SCENIC_HINTS)
-        discusses_policy = self._contains_any(answer_text, self._POLICY_HINTS)
-        if not discusses_food_or_scenic or discusses_policy:
-            return []
-
         issues: list[CitationValidationIssue] = []
-        for citation_id in sorted(used_ids):
+        non_warning_ids = self._non_warning_reference_ids(answer) & used_ids
+        for citation_id in sorted(non_warning_ids):
             quote = quote_by_id.get(citation_id)
             if quote is None or quote.content_type not in self._POLICY_CONTENT_TYPES:
                 continue
@@ -242,11 +272,40 @@ class CitationGuard:
             )
         return issues
 
-    def _full_answer_text(self, answer: TravelAnswer) -> str:
-        parts = [answer.answer, *answer.highlights, *answer.warnings]
-        if answer.generated_itinerary:
-            parts.extend(self._itinerary_text_parts(answer.generated_itinerary))
-        return "\n".join(part for part in parts if part)
+    def _non_warning_reference_ids(self, answer: TravelAnswer) -> set[int]:
+        text_parts = [answer.answer, *answer.highlights]
+        text_parts.extend(self._topic_section_text_parts(answer))
 
-    def _contains_any(self, text: str, hints: set[str]) -> bool:
-        return any(hint in text for hint in hints)
+        itinerary = answer.generated_itinerary
+        if itinerary is not None:
+            text_parts.extend(self._itinerary_text_parts(itinerary))
+
+        citation_ids: set[int] = set()
+        for text in text_parts:
+            citation_ids.update(self._reference_ids_in_text(text or ""))
+        return citation_ids
+
+    def _topic_section_text_parts(self, answer: TravelAnswer) -> list[str]:
+        parts: list[str] = []
+        for section in answer.topic_sections:
+            parts.extend([section.title, section.summary, *section.recommendations])
+            for item in section.items:
+                parts.extend(
+                    [
+                        item.title,
+                        item.description,
+                        item.city or "",
+                        item.verification_note or "",
+                    ]
+                )
+        return parts
+
+    def _needs_destination_support(self, answer: TravelAnswer) -> bool:
+        itinerary = answer.generated_itinerary
+        if itinerary is None:
+            return False
+        for day in itinerary.itinerary:
+            for activity in day.activities:
+                if activity.category in self._ITINERARY_SUPPORT_ACTIVITY_CATEGORIES:
+                    return True
+        return False

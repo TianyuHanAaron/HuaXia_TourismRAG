@@ -1,53 +1,8 @@
 """Evidence relevance gates before reranking and citation formatting."""
 
-from urllib.parse import urlsplit
-
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
-from huaxia_tourismrag.schemas.evidence import TravelChunk
-from huaxia_tourismrag.schemas.research import TravelResearchPlan
-
-
-THEME_STOPWORDS = {
-    "历史",
-    "文化",
-    "旅行",
-    "旅游",
-    "路线",
-    "行程",
-    "深度",
-    "主题",
-    "巡礼",
-    "之旅",
-    "规划",
-    "官方",
-    "开放",
-    "时间",
-    "预约",
-    "游览",
-    "旅游",
-    "景区",
-    "景点",
-}
-
-OPERATIONAL_TRANSPORT_TERMS = {
-    "12306",
-    "铁路",
-    "高铁",
-    "动车",
-    "火车",
-    "车票",
-    "购票",
-    "退票",
-    "改签",
-    "变更到站",
-    "出发站",
-    "到达站",
-}
-
-OPERATIONAL_HOSTS = {
-    "12306.cn",
-    "www.12306.cn",
-}
+from huaxia_tourismrag.schemas.evidence import ContentType, TravelChunk
+from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
 
 DESTINATION_CONTENT_TYPES = {
     "heritage_site",
@@ -55,6 +10,74 @@ DESTINATION_CONTENT_TYPES = {
     "destination",
     "local_cuisine",
     "local_specialty",
+}
+
+TASK_CONTENT_TYPES: dict[str, set[ContentType]] = {
+    "route": {"destination", "attraction", "heritage_site", "travel_guide"},
+    "attraction": {"destination", "attraction", "heritage_site", "scenic_quality"},
+    "food": {"local_cuisine", "local_specialty"},
+    "accommodation": {"accommodation"},
+    "transport": {"transport", "railway", "aviation", "road_transport"},
+    "booking": {
+        "destination",
+        "attraction",
+        "heritage_site",
+        "accommodation",
+        "transport",
+        "railway",
+        "aviation",
+        "road_transport",
+        "scenic_quality",
+    },
+    "risk": {
+        "tourism_safety",
+        "transport",
+        "railway",
+        "aviation",
+        "road_transport",
+        "legal",
+        "regulation",
+        "medical",
+        "insurance",
+    },
+}
+
+EVIDENCE_USE_CONTENT_TYPES: dict[str, set[ContentType]] = {
+    "official_status": {
+        "destination",
+        "attraction",
+        "heritage_site",
+        "transport",
+        "railway",
+        "aviation",
+        "road_transport",
+        "scenic_quality",
+    },
+    "route_feasibility": {
+        "destination",
+        "attraction",
+        "heritage_site",
+        "transport",
+        "railway",
+        "aviation",
+        "road_transport",
+        "travel_guide",
+    },
+    "mainstream_attraction": {"destination", "attraction", "heritage_site"},
+    "hidden_gem": {"destination", "attraction", "heritage_site", "activity"},
+    "local_food": {"local_cuisine", "local_specialty"},
+    "hotel_zone": {"accommodation", "destination", "travel_guide"},
+    "risk_warning": {
+        "tourism_safety",
+        "transport",
+        "railway",
+        "aviation",
+        "road_transport",
+        "legal",
+        "regulation",
+        "medical",
+        "insurance",
+    },
 }
 
 POLICY_SUPPORT_CONTENT_TYPES = {
@@ -86,11 +109,11 @@ class EvidenceRelevanceFilter:
         research_plan: TravelResearchPlan,
     ) -> list[TravelChunk]:
         route_terms = self._research_route_terms(research_plan)
-        theme_terms = self._research_theme_terms(research_plan)
+        evidence_content_types = self._research_content_types(research_plan.tasks)
         filtered = [
             chunk
             for chunk in chunks
-            if self._is_relevant(chunk, route_terms, theme_terms)
+            if self._is_relevant(chunk, route_terms, set(), evidence_content_types)
         ]
 
         return filtered
@@ -144,10 +167,11 @@ class EvidenceRelevanceFilter:
     ) -> list[TravelChunk]:
         route_terms = self._route_terms(diy_plan)
         theme_terms = self._theme_terms(diy_plan)
+        evidence_content_types = self._research_content_types(diy_plan.tasks)
         filtered = [
             chunk
             for chunk in chunks
-            if self._is_relevant(chunk, route_terms, theme_terms)
+            if self._is_relevant(chunk, route_terms, theme_terms, evidence_content_types)
         ]
 
         return filtered
@@ -157,13 +181,19 @@ class EvidenceRelevanceFilter:
         chunk: TravelChunk,
         route_terms: set[str],
         theme_terms: set[str],
+        evidence_content_types: set[ContentType],
     ) -> bool:
-        text = self._chunk_text(chunk)
-        if self._contains_any(text, route_terms):
+        if chunk.content_type not in evidence_content_types:
+            return False
+
+        if chunk.content_type in POLICY_SUPPORT_CONTENT_TYPES:
             return True
-        if self._contains_any(text, theme_terms):
+
+        if self._matches_typed_terms(chunk, route_terms):
             return True
-        return self._is_operational_transport_source(chunk, text)
+        if self._matches_typed_terms(chunk, theme_terms):
+            return True
+        return False
 
     def _route_terms(self, diy_plan: DIYItineraryPlan) -> set[str]:
         endpoint_terms = {
@@ -188,82 +218,75 @@ class EvidenceRelevanceFilter:
             if stop and (stop not in endpoint_terms or stop in required_terms)
         }
 
-        return {
-            term.strip()
-            for term in (
-                required_terms
-                | stop_terms
-                | anchor_stops
-                | proposed_required_terms
-            )
-            if term.strip()
-        }
+        return self._clean_terms(
+            required_terms
+            | stop_terms
+            | anchor_stops
+            | proposed_required_terms
+        )
 
     def _research_route_terms(self, research_plan: TravelResearchPlan) -> set[str]:
         terms: set[str] = set()
         if research_plan.destination:
             terms.add(research_plan.destination)
-            terms.update(self._meaningful_ngrams(research_plan.destination))
 
         for interest in research_plan.interests:
             terms.add(interest)
-            terms.update(self._meaningful_ngrams(interest))
 
-        for task in research_plan.tasks:
-            terms.update(self._meaningful_ngrams(task.query))
+        if research_plan.origin:
+            terms.add(research_plan.origin)
 
-        return {term for term in terms if term and term not in THEME_STOPWORDS}
-
-    def _research_theme_terms(self, research_plan: TravelResearchPlan) -> set[str]:
-        terms: set[str] = set()
-        terms.update(self._meaningful_ngrams(research_plan.original_question))
-
-        for task in research_plan.tasks:
-            terms.update(self._meaningful_ngrams(task.reason))
-
-        return {term for term in terms if term and term not in THEME_STOPWORDS}
+        return self._clean_terms(terms)
 
     def _theme_terms(self, diy_plan: DIYItineraryPlan) -> set[str]:
         terms = set()
-        terms.update(self._meaningful_ngrams(diy_plan.theme))
 
         for anchor in diy_plan.theme_anchors:
             for keyword in anchor.keywords:
                 terms.add(keyword)
-                terms.update(self._meaningful_ngrams(keyword))
 
-        return {term for term in terms if term and term not in THEME_STOPWORDS}
+        return self._clean_terms(terms)
 
-    def _meaningful_ngrams(self, text: str) -> set[str]:
-        cjk_chars = [char for char in text if "\u4e00" <= char <= "\u9fff"]
-        terms: set[str] = set()
-        for size in (2, 3, 4):
-            terms.update(
-                "".join(cjk_chars[index : index + size])
-                for index in range(max(len(cjk_chars) - size + 1, 0))
-            )
-        return {term for term in terms if term not in THEME_STOPWORDS}
-
-    def _is_operational_transport_source(
+    def _research_content_types(
         self,
-        chunk: TravelChunk,
-        text: str,
-    ) -> bool:
-        host = urlsplit(str(chunk.url)).netloc.lower() if chunk.url else ""
-        if host in OPERATIONAL_HOSTS:
-            return True
-        return self._contains_any(text, OPERATIONAL_TRANSPORT_TERMS)
+        tasks: list[TravelResearchTask],
+    ) -> set[ContentType]:
+        content_types: set[ContentType] = set()
+        for task in tasks:
+            content_types.update(TASK_CONTENT_TYPES.get(task.task_type, set()))
+            content_types.update(
+                EVIDENCE_USE_CONTENT_TYPES.get(task.evidence_use, set())
+            )
+        return content_types
 
-    def _contains_any(self, text: str, terms: set[str]) -> bool:
-        return any(term in text for term in terms)
+    def _clean_terms(self, terms: set[str]) -> set[str]:
+        return {term.strip().lower() for term in terms if term and term.strip()}
 
-    def _chunk_text(self, chunk: TravelChunk) -> str:
-        return "\n".join(
-            [
-                chunk.title,
-                chunk.text,
-                chunk.location or "",
-                chunk.source_name,
-                str(chunk.url) if chunk.url else "",
-            ]
-        ).lower()
+    def _matches_typed_terms(self, chunk: TravelChunk, terms: set[str]) -> bool:
+        """Match DTO-derived route/theme facts against structured chunk fields."""
+
+        if not terms:
+            return False
+
+        fields = self._chunk_fields(chunk)
+        for term in terms:
+            for field in fields:
+                if field == term:
+                    return True
+                if field.startswith(term) or term.startswith(field):
+                    return True
+                if field.find(term) >= 0:
+                    return True
+        return False
+
+    def _chunk_fields(self, chunk: TravelChunk) -> set[str]:
+        values: list[object] = [
+            chunk.title,
+            chunk.location,
+            chunk.province,
+            chunk.city,
+            chunk.source_name,
+            chunk.level,
+            *chunk.tags,
+        ]
+        return {str(value).strip().lower() for value in values if str(value).strip()}

@@ -99,6 +99,8 @@ async def test_in_memory_mcp_client_rejects_unknown_tool():
 async def test_external_mcp_client_calls_http_json_rpc_endpoint():
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["authorization"] == "Bearer secret"
+        assert request.headers["accept"] == "application/json, text/event-stream"
+        assert request.headers["mcp-protocol-version"] == "2025-06-18"
         payload = request.read()
         assert b"tools/call" in payload
         assert b"route_planning" in payload
@@ -125,6 +127,39 @@ async def test_external_mcp_client_calls_http_json_rpc_endpoint():
             provider="baidu_maps",
             tool_name="route_planning",
             arguments={"origin": "北京", "destination": "涿州"},
+        )
+    )
+
+    await http_client.aclose()
+    assert response.payload == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_external_mcp_client_parses_streamable_http_sse_response():
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text=(
+                "event: message\n"
+                'data: {"jsonrpc":"2.0","id":1,'
+                '"result":{"structuredContent":{"ok":true}}}\n\n'
+            ),
+        )
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = ExternalMCPClient(
+        provider="firecrawl",
+        transport="http",
+        url="https://mcp.example/rpc",
+        http_client=http_client,
+    )
+
+    response = await client.call_tool(
+        MCPToolCallRequest(
+            provider="firecrawl",
+            tool_name="firecrawl_search",
+            arguments={"query": "山西旅游"},
         )
     )
 

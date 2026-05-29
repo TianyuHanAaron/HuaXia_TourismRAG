@@ -44,6 +44,7 @@ from huaxia_tourismrag.bootstrap import (
 )
 from huaxia_tourismrag.vector.qdrant_store import QdrantStore
 from huaxia_tourismrag.services.job_worker import TravelJobWorker
+from huaxia_tourismrag.services.project_health import ProjectHealthAuditor
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -299,6 +300,47 @@ def health(
         _get(base_url=base_url, path="/tourism/health", timeout=timeout),
         raw=raw,
     )
+
+
+@app.command("project-health")
+def project_health(
+    root: Annotated[
+        Path,
+        typer.Option(
+            "--root",
+            help="Project root to audit.",
+        ),
+    ] = Path("."),
+    raw: RawOpt = False,
+    fail_on_warning: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-warning",
+            help="Exit non-zero when warnings are present.",
+        ),
+    ] = False,
+) -> None:
+    """Audit project data, source manifests, eval fixtures, and stale references."""
+
+    report = ProjectHealthAuditor(root).audit()
+    if raw:
+        console.print(JSON.from_data(report.model_dump(mode="json")))
+    else:
+        status = "[green]OK[/green]" if report.ok else "[red]Errors found[/red]"
+        console.print(
+            f"{status} | checked files: {report.checked_files} | "
+            f"errors: {report.error_count} | warnings: {report.warning_count}"
+        )
+        for issue in report.issues:
+            color = "red" if issue.severity == "error" else "yellow"
+            location = f" [{issue.path}]" if issue.path else ""
+            console.print(
+                f"[{color}]{issue.severity.upper()}[/{color}] "
+                f"{issue.category}.{issue.code}{location}: {issue.message}"
+            )
+
+    if report.error_count or (fail_on_warning and report.warning_count):
+        raise typer.Exit(1)
 
 
 @app.command("build-internal-corpus")

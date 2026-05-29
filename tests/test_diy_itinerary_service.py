@@ -3,12 +3,17 @@ from datetime import datetime, timezone
 import pytest
 
 from huaxia_tourismrag.agents.tourism_agent import TourismDeps
-from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan, DIYRouteSegment
+from huaxia_tourismrag.schemas.diy_itinerary import (
+    DIYItineraryPlan,
+    DIYRouteSegment,
+    DIYThemeAnchor,
+)
 from huaxia_tourismrag.schemas.evidence import (
     CitationPack,
     EvidenceQuote,
     TravelAnswer,
     TravelChunk,
+    TravelFormRequest,
     TravelQuestion,
     TravelSearchHit,
 )
@@ -134,6 +139,13 @@ class FakeCitationFormatter:
             context_text="\n".join(chunk.text for chunk in chunks),
             citations=["[1] 三国主题资料 - internal - internal"],
         )
+
+    def extend_with_service_enrichment(
+        self,
+        pack: CitationPack,
+        service_context: ServiceEnrichmentContext | None,
+    ) -> CitationPack:
+        return pack
 
 
 @pytest.fixture(autouse=True)
@@ -322,7 +334,7 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
         top_k=4,
     )
 
-    await service.answer(
+    answer = await service.answer(
         TravelQuestion(
             question="从北京出发，北京结束，三国历史巡礼：涿州-安阳-许昌-南阳-成都-汉中。"
         )
@@ -332,6 +344,11 @@ async def test_diy_itinerary_service_uses_diy_plan_and_passes_it_to_final_agent(
     assert final_diy_plan.required_stops == ["涿州", "安阳", "许昌", "南阳", "成都", "汉中"]
     assert final_diy_plan.proposed_route[0] == "北京"
     assert final_diy_plan.proposed_route[-1] == "北京"
+    assert answer.generated_itinerary is not None
+    assert answer.generated_itinerary.destination == "三国历史巡礼"
+    assert len(answer.generated_itinerary.itinerary) == 10
+    planned_cities = [day.city for day in answer.generated_itinerary.itinerary]
+    assert planned_cities[:4] == ["北京", "涿州", "安阳", "许昌"]
     assert internal_rag.queries[:3] == [
         "许昌 曹魏 三国 遗址 博物馆 官方",
         "成都 三国 主题 本地美食 特色小吃",
@@ -1009,3 +1026,283 @@ async def test_diy_endpoint_skips_intent_but_keeps_preference_checkpoint(monkeyp
         "preference_option_b",
         "default_preferences",
     ]
+
+
+@pytest.mark.asyncio
+async def test_diy_planner_validation_failure_returns_recoverable_clarification(
+    monkeypatch,
+):
+    async def fake_preference(
+        question: TravelQuestion,
+        request_mode: str,
+        intent_decision: IntentDecision,
+    ) -> ClarificationDecision:
+        return ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="偏好已足够明确。",
+            profile=PreferenceProfile(
+                travel_mode="mixed",
+                pace="balanced",
+                attraction_mix="natural",
+                detail_level="deep",
+            ),
+        )
+
+    async def fail_create_diy_itinerary_plan(*args, **kwargs):
+        raise ValueError(
+            "Qwen Cloud response was not valid JSON for DIYItineraryPlan: "
+            "required_stops List should have at least 2 items after validation"
+        )
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_preference_decision",
+        fake_preference,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fail_create_diy_itinerary_plan,
+    )
+    session_store = InMemoryTravelSessionStore()
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=session_store,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(
+            question="陪爸妈去川西和西藏7天，人均8000，想看自然美景",
+            detail_level="deep",
+        )
+    )
+
+    assert answer.needs_reply is True
+    assert answer.session_id
+    assert "还需要一个明确的必去城市或景点清单" in answer.answer
+    assert "Qwen Cloud response" not in answer.answer
+
+
+@pytest.mark.asyncio
+async def test_diy_planner_recovery_preserves_pending_reply_for_existing_session(
+    monkeypatch,
+):
+    async def fake_preference(
+        question: TravelQuestion,
+        request_mode: str,
+        intent_decision: IntentDecision,
+    ) -> ClarificationDecision:
+        return ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="偏好已足够明确。",
+            profile=PreferenceProfile(detail_level="deep"),
+        )
+
+    async def fail_create_diy_itinerary_plan(*args, **kwargs):
+        raise ValueError("Qwen Cloud response was not valid JSON for DIYItineraryPlan")
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_preference_decision",
+        fake_preference,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fail_create_diy_itinerary_plan,
+    )
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=InMemoryTravelSessionStore(),
+        create_pending_sessions=False,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(
+            question="原始请求：川西和西藏7天\n\n用户补充信息：平衡型，自驾/包车",
+            detail_level="deep",
+        )
+    )
+
+    assert answer.needs_reply is True
+    assert answer.session_id is None
+
+
+@pytest.mark.asyncio
+async def test_complete_form_diy_skips_preference_checkpoint(monkeypatch):
+    async def fail_preference(*args, **kwargs):
+        raise AssertionError("form completeness should skip preference checkpoint")
+
+    async def fake_create_diy_itinerary_plan(*args, **kwargs) -> DIYItineraryPlan:
+        return DIYItineraryPlan(
+            original_question="三国历史巡礼",
+            theme="三国历史",
+            origin="北京",
+            return_city="北京",
+            required_stops=["涿州", "许昌", "成都"],
+            proposed_route=["北京", "涿州", "许昌", "成都", "北京"],
+            tasks=[
+                TravelResearchTask(
+                    task_type="attraction",
+                    query="许昌 三国 遗址",
+                    reason="景点。",
+                ),
+                TravelResearchTask(
+                    task_type="transport",
+                    query="北京 许昌 成都 交通",
+                    reason="交通。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="成都 本地美食",
+                    reason="美食。",
+                ),
+            ],
+        )
+
+    async def fake_generate_answer_with_context(*args, **kwargs) -> TravelAnswer:
+        return TravelAnswer(answer="ok", highlights=[], warnings=[], citations=[])
+
+    monkeypatch.setattr(diy_service_module, "create_preference_decision", fail_preference)
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fake_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+    )
+    form = TravelFormRequest(
+        request_mode="diy",
+        origin_city="北京",
+        return_city="北京",
+        required_stops=["涿州", "许昌", "成都"],
+        duration_days=10,
+        traveler_composition={"adults": 2, "elders": 1, "children": 1},
+        budget_level="luxury",
+        route_strictness="must_cover_all",
+        travel_mode_preference="train_first",
+        attraction_preferences=["history_culture", "theme_route"],
+        detail_level="deep",
+    )
+
+    answer = await service.answer(form.to_travel_question(), form_request=form)
+
+    assert answer.answer == "ok"
+
+
+@pytest.mark.asyncio
+async def test_diy_backfills_missing_destination_entity(monkeypatch):
+    async def fake_create_diy_itinerary_plan(*args, **kwargs) -> DIYItineraryPlan:
+        return DIYItineraryPlan(
+            original_question="三国历史巡礼",
+            theme="三国历史",
+            origin="北京",
+            return_city="北京",
+            required_stops=["北京", "赤壁", "成都"],
+            proposed_route=["北京", "赤壁", "成都", "北京"],
+            theme_anchors=[
+                DIYThemeAnchor(
+                    stop="赤壁",
+                    keywords=["赤壁古战场"],
+                    reason="三国战役主题核心点。",
+                )
+            ],
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="北京 赤壁 成都 交通",
+                    reason="交通。",
+                ),
+                TravelResearchTask(
+                    task_type="attraction",
+                    query="三国历史 遗址",
+                    reason="景点。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="成都 本地美食",
+                    reason="美食。",
+                ),
+            ],
+        )
+
+    seen_queries: list[str] = []
+
+    class BackfillWebSearch(FakeWebSearch):
+        async def search_chinese_tourism(
+            self,
+            question: str,
+            max_results: int,
+            options: SearchOptions | None = None,
+        ) -> list[TravelSearchHit]:
+            seen_queries.append(question)
+            return await super().search_chinese_tourism(question, max_results, options)
+
+    async def fake_generate_answer_with_context(*args, **kwargs) -> TravelAnswer:
+        return TravelAnswer(answer="ok", highlights=[], warnings=[], citations=[])
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fake_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=BackfillWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=1,
+        top_k=4,
+    )
+
+    await service.answer(TravelQuestion(question="三国历史巡礼 北京 赤壁 成都"))
+
+    assert any("赤壁古战场" in query for query in seen_queries)

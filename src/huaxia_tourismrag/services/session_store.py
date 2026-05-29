@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from redis.asyncio import Redis
 
-from huaxia_tourismrag.schemas.evidence import TravelQuestion
+from huaxia_tourismrag.schemas.evidence import QuickReplyOption, TravelQuestion
 from huaxia_tourismrag.schemas.session import PendingKind, SessionEndpoint, TravelSession
 
 
@@ -28,6 +28,8 @@ class TravelSessionStore(Protocol):
         original_question: TravelQuestion,
         pending_reason: str | None,
         pending_kind: PendingKind = "preference",
+        pending_question: str | None = None,
+        pending_quick_replies: list[QuickReplyOption] | None = None,
     ) -> TravelSession:
         """Create a new pending session."""
 
@@ -59,6 +61,8 @@ class InMemoryTravelSessionStore:
         original_question: TravelQuestion,
         pending_reason: str | None,
         pending_kind: PendingKind = "preference",
+        pending_question: str | None = None,
+        pending_quick_replies: list[QuickReplyOption] | None = None,
     ) -> TravelSession:
         session = TravelSession(
             session_id=str(uuid4()),
@@ -67,6 +71,8 @@ class InMemoryTravelSessionStore:
             original_question=original_question,
             pending_reason=pending_reason,
             pending_kind=pending_kind,
+            pending_question=pending_question,
+            pending_quick_replies=pending_quick_replies or [],
         )
         self._sessions[session.session_id] = session
         return session
@@ -112,6 +118,8 @@ class RedisTravelSessionStore:
         original_question: TravelQuestion,
         pending_reason: str | None,
         pending_kind: PendingKind = "preference",
+        pending_question: str | None = None,
+        pending_quick_replies: list[QuickReplyOption] | None = None,
     ) -> TravelSession:
         session = TravelSession(
             session_id=str(uuid4()),
@@ -120,6 +128,8 @@ class RedisTravelSessionStore:
             original_question=original_question,
             pending_reason=pending_reason,
             pending_kind=pending_kind,
+            pending_question=pending_question,
+            pending_quick_replies=pending_quick_replies or [],
         )
         await self._save(session)
         return session

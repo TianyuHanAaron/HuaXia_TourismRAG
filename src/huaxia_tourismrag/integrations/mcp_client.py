@@ -1,6 +1,7 @@
 """Typed boundary for MCP tool calls."""
 
 from collections.abc import Callable
+import json
 from typing import Any, Protocol
 
 import httpx
@@ -91,6 +92,7 @@ class ExternalMCPClient:
         command: str | None = None,
         api_key: str | None = None,
         timeout_seconds: float = 30.0,
+        protocol_version: str = "2025-06-18",
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self.provider = provider
@@ -99,6 +101,7 @@ class ExternalMCPClient:
         self.command = command
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
+        self.protocol_version = protocol_version
         self._http_client = http_client
         self._request_id = 0
 
@@ -146,7 +149,11 @@ class ExternalMCPClient:
                 "arguments": request.arguments,
             },
         }
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": self.protocol_version,
+        }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
@@ -157,7 +164,7 @@ class ExternalMCPClient:
         try:
             response = await client.post(self.url, json=payload, headers=headers)
             response.raise_for_status()
-            data = response.json()
+            data = self._decode_http_response(response, request)
         except httpx.HTTPError as exc:
             raise MCPClientError(
                 request.provider,
@@ -188,6 +195,39 @@ class ExternalMCPClient:
             tool_name=request.tool_name,
             payload=self._extract_result_payload(data.get("result")),
         )
+
+    def _decode_http_response(
+        self,
+        response: httpx.Response,
+        request: MCPToolCallRequest,
+    ) -> dict[str, Any]:
+        content_type = response.headers.get("content-type", "").lower()
+        if "text/event-stream" in content_type:
+            data = self._decode_sse_response(response.text)
+        else:
+            data = response.json()
+
+        if not isinstance(data, dict):
+            raise MCPClientError(
+                request.provider,
+                request.tool_name,
+                "HTTP MCP response was not a JSON object",
+            )
+        return data
+
+    def _decode_sse_response(self, text: str) -> object:
+        for line in text.splitlines():
+            clean_line = line.strip()
+            if not clean_line.startswith("data:"):
+                continue
+            payload = clean_line.removeprefix("data:").strip()
+            if not payload or payload == "[DONE]":
+                continue
+            try:
+                return json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+        return {}
 
     def _extract_result_payload(self, result: object) -> object:
         if isinstance(result, dict):

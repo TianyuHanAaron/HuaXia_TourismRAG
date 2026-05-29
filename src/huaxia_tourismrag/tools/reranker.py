@@ -1,6 +1,5 @@
 """Retrieved evidence reranking tool."""
 import logging
-import re
 
 from huaxia_tourismrag.schemas.evidence import TravelChunk
 
@@ -81,7 +80,18 @@ class BgeRerankerTool:
 
     def _terms(self, text: str) -> set[str]:
         normalized = text.lower()
-        terms = set(re.findall(r"[a-z0-9]+", normalized))
+        terms: set[str] = set()
+        current_ascii: list[str] = []
+        for char in normalized:
+            if char.isascii() and char.isalnum():
+                current_ascii.append(char)
+                continue
+            if current_ascii:
+                terms.add("".join(current_ascii))
+                current_ascii = []
+        if current_ascii:
+            terms.add("".join(current_ascii))
+
         cjk_chars = [
             char for char in normalized if "\u4e00" <= char <= "\u9fff"
         ]

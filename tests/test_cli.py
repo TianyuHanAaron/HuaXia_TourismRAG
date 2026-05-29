@@ -13,6 +13,10 @@ from huaxia_tourismrag.indexing.source_registry import (
     RowImportResult,
     ScaffoldResult,
 )
+from huaxia_tourismrag.services.project_health import (
+    ProjectHealthIssue,
+    ProjectHealthReport,
+)
 
 
 class FakeResponse:
@@ -199,6 +203,63 @@ def test_cli_health_gets_health_endpoint(monkeypatch):
         {"method": "GET", "url": "http://testserver/tourism/health"}
     ]
     assert '"status": "ok"' in result.output
+
+
+def test_cli_project_health_prints_raw_report(monkeypatch):
+    class FakeAuditor:
+        def __init__(self, root):
+            self.root = root
+
+        def audit(self):
+            return ProjectHealthReport(
+                checked_files=3,
+                issues=[
+                    ProjectHealthIssue(
+                        severity="warning",
+                        category="eval",
+                        code="sample_warning",
+                        path="evals/sample.json",
+                        message="Sample warning.",
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(cli, "ProjectHealthAuditor", FakeAuditor)
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["project-health", "--root", ".", "--raw"])
+
+    assert result.exit_code == 0
+    assert '"checked_files": 3' in result.output
+    assert '"sample_warning"' in result.output
+
+
+def test_cli_project_health_exits_nonzero_on_error(monkeypatch):
+    class FakeAuditor:
+        def __init__(self, root):
+            self.root = root
+
+        def audit(self):
+            return ProjectHealthReport(
+                checked_files=1,
+                issues=[
+                    ProjectHealthIssue(
+                        severity="error",
+                        category="data",
+                        code="invalid_json",
+                        path="data/bad.json",
+                        message="Bad JSON.",
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(cli, "ProjectHealthAuditor", FakeAuditor)
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["project-health", "--root", "."])
+
+    assert result.exit_code == 1
+    assert "invalid_json" in result.output
 
 
 def test_cli_index_internal_indexes_jsonl(monkeypatch, tmp_path):

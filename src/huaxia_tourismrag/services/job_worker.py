@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
+from huaxia_tourismrag.services.job_errors import public_job_error
 from huaxia_tourismrag.services.job_queue import TravelJobQueue
 from huaxia_tourismrag.services.job_store import TravelJobNotFoundError, TravelJobStore
 from huaxia_tourismrag.services.qa_service import TourismQAService
@@ -50,9 +51,13 @@ class TravelJobWorker:
         else:
             service = self.diy_service_factory(item.tenant_id)
         try:
-            answer = await service.answer(job.question)
+            answer = await service.answer(job.question, form_request=job.form_request)
         except Exception as exc:
-            await self.job_store.fail(item.job_id, item.tenant_id, str(exc))
+            await self.job_store.fail(
+                item.job_id,
+                item.tenant_id,
+                public_job_error(exc),
+            )
             return True
 
         await self.job_store.complete(item.job_id, item.tenant_id, answer)

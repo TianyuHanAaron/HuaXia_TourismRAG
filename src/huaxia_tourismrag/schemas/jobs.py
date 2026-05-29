@@ -5,7 +5,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import (
+    TravelAnswer,
+    TravelFormRequest,
+    TravelQuestion,
+)
 from huaxia_tourismrag.schemas.performance import PerformanceTrace
 
 
@@ -21,6 +25,7 @@ class TravelJob(BaseModel):
     kind: TravelJobKind = "diy_itinerary"
     status: TravelJobStatus = "queued"
     question: TravelQuestion
+    form_request: TravelFormRequest | None = None
     session_id: str | None = None
     answer: TravelAnswer | None = None
     error: str | None = Field(default=None, max_length=1000)

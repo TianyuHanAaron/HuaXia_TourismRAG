@@ -28,6 +28,27 @@ EvidenceUse = Literal[
 ]
 
 SourcePreference = Literal["official", "local_experience", "mixed"]
+ResearchEntityType = Literal[
+    "city",
+    "attraction",
+    "activity",
+    "food",
+    "accommodation_area",
+    "transport_hub",
+    "risk",
+]
+
+
+class ResearchEntity(BaseModel):
+    """Structured destination item that retrieved evidence should cover."""
+
+    name: str = Field(min_length=1, max_length=120)
+
+    entity_type: ResearchEntityType
+
+    evidence_use: EvidenceUse
+
+    optional: bool = False
 
 
 class TravelResearchTask(BaseModel):
@@ -76,6 +97,8 @@ class TravelResearchPlan(BaseModel):
     budget_level: Literal["budget", "mid_range", "luxury"] | None = None
 
     interests: list[str] = Field(default_factory=list, max_length=12)
+
+    required_entities: list[ResearchEntity] = Field(default_factory=list, max_length=24)
 
     answer_language: Literal["zh-CN", "en"] = "zh-CN"
 

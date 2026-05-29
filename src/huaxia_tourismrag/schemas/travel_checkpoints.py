@@ -17,7 +17,11 @@ IntentType = Literal[
 CheckpointReason = Literal[
     "endpoint_diy_mode",
     "explicit_concise_detail",
+    "explicit_detail_general_preferences",
+    "answered_preference_checkpoint",
+    "answered_feasibility_checkpoint",
     "typed_short_single_destination",
+    "complete_form_preferences",
 ]
 
 
@@ -120,6 +124,14 @@ class FeasibilityIssue(BaseModel):
     stop: str | None = Field(default=None, max_length=80)
 
 
+class CheckpointResponseOption(BaseModel):
+    """One concrete user-selectable response to a checkpoint."""
+
+    label: str = Field(min_length=1, max_length=40)
+
+    message: str = Field(min_length=1, max_length=200)
+
+
 class FeasibilityReport(BaseModel):
     """Post-planning feasibility checkpoint result."""
 
@@ -132,6 +144,11 @@ class FeasibilityReport(BaseModel):
     issues: list[FeasibilityIssue] = Field(default_factory=list, max_length=20)
 
     recommended_adjustments: list[str] = Field(default_factory=list, max_length=12)
+
+    response_options: list[CheckpointResponseOption] = Field(
+        default_factory=list,
+        max_length=4,
+    )
 
     @model_validator(mode="after")
     def validate_question_when_blocked(self) -> "FeasibilityReport":
@@ -162,6 +179,74 @@ class CheckpointContext(BaseModel):
     budget_level: Literal["budget", "mid_range", "luxury"] | None = None
 
     interest_count: int = Field(default=0, ge=0, le=12)
+
+    from_form_template: bool = False
+
+    has_origin_city: bool = False
+
+    has_return_city: bool = False
+
+    required_stop_count: int = Field(default=0, ge=0, le=12)
+
+    has_traveler_composition: bool = False
+
+    has_transport_preference: bool = False
+
+    has_pace_preference: bool = False
+
+    has_route_strictness: bool = False
+
+    has_food_preference: bool = False
+
+    has_accommodation_preference: bool = False
+
+    form_travel_mode: Literal[
+        "self_drive",
+        "train",
+        "flight",
+        "mixed",
+        "unknown",
+    ] | None = None
+
+    form_pace: Literal["relaxed", "balanced", "intensive", "unknown"] | None = None
+
+    form_theme_strictness: Literal[
+        "theme_pure",
+        "balanced_city",
+        "unknown",
+    ] | None = None
+
+    form_food_preference: Literal[
+        "local",
+        "fine_dining",
+        "balanced",
+        "unknown",
+    ] | None = None
+
+    form_accommodation_preference: Literal[
+        "luxury",
+        "boutique",
+        "convenient",
+        "budget",
+        "unknown",
+    ] | None = None
+
+    continuation_pending_kind: Literal[
+        "preference",
+        "feasibility",
+        "detail_level",
+    ] | None = None
+
+    continuation_quick_reply_action_id: Literal[
+        "preference_option_a",
+        "preference_option_b",
+        "default_preferences",
+        "detail_concise",
+        "detail_standard",
+        "detail_deep",
+        "feasibility_accept_adjustment",
+        "feasibility_keep_original",
+    ] | None = None
 
 
 class CheckpointPolicyDecision(BaseModel):

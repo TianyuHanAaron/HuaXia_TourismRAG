@@ -350,7 +350,7 @@ uv run --no-sync uvicorn huaxia_tourismrag.main:app --host 0.0.0.0 --port $PORT
 - `QDRANT_URL`、`QDRANT_API_KEY`、`QDRANT_COLLECTION`
 - `REDIS_URL`
 - `EMBEDDING_PROVIDER`、`EMBEDDING_API_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_DIMENSIONS`
-- 可选 MCP 服务密钥，例如 `MAPBOX_ACCESS_TOKEN` 和 `FIRECRAWL_MCP_*`
+- 可选 MCP 服务密钥，例如 `FIRECRAWL_MCP_*` 和 `TAVILY_MCP_*`
 
 为了降低生产响应延迟，并适配 Render 512 MiB 这类低内存实例，建议优先使用远程
 embedding endpoint，并在没有足够 CPU/GPU 内存前关闭本地模型 reranker：

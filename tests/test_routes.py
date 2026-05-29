@@ -16,7 +16,7 @@ class FakeTourismQAService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
 
-    async def answer(self, question: TravelQuestion) -> TravelAnswer:
+    async def answer(self, question: TravelQuestion, form_request=None) -> TravelAnswer:
         self.questions.append(question)
         return TravelAnswer(
             answer=f"{self.tenant_id}: {question.question}",
@@ -32,7 +32,7 @@ class FakeDIYItineraryService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
 
-    async def answer(self, question: TravelQuestion) -> TravelAnswer:
+    async def answer(self, question: TravelQuestion, form_request=None) -> TravelAnswer:
         self.questions.append(question)
         return TravelAnswer(
             answer=f"diy {self.tenant_id}: {question.question}",
@@ -106,7 +106,7 @@ class MisconfiguredTourismQAService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
 
-    async def answer(self, question: TravelQuestion) -> TravelAnswer:
+    async def answer(self, question: TravelQuestion, form_request=None) -> TravelAnswer:
         raise AgentModelConfigurationError("OPENAI_API_KEY is required for testing")
 
 
@@ -193,6 +193,55 @@ def test_diy_itinerary_route_uses_same_question_request_and_answer_response():
     assert response.headers["x-request-id"]
     assert response.json()["answer"].startswith("diy demo-tenant:")
     assert FakeDIYItineraryService.questions[0].question.startswith("从北京出发")
+
+
+def test_form_question_route_converts_form_to_existing_qa_service():
+    client = make_client()
+
+    response = client.post(
+        "/tourism/forms/questions",
+        json={
+            "request_mode": "normal",
+            "destination": "山西",
+            "duration_days": 10,
+            "traveler_composition": {"adults": 3, "elders": 1, "children": 1},
+            "budget_level": "luxury",
+            "attraction_preferences": ["history_culture", "heritage"],
+            "detail_level": "deep",
+        },
+    )
+
+    assert response.status_code == 200
+    assert FakeTourismQAService.questions[0].travelers == 5
+    assert "目的地: 山西" in FakeTourismQAService.questions[0].question
+
+
+def test_form_diy_job_route_queues_deep_diy_job():
+    client = make_client(configure_job_queue=True)
+
+    response = client.post(
+        "/tourism/forms/jobs",
+        json={
+            "request_mode": "diy",
+            "origin_city": "北京",
+            "return_city": "北京",
+            "required_stops": ["涿州", "许昌", "成都", "汉中"],
+            "duration_days": 12,
+            "traveler_composition": {"adults": 2, "elders": 1, "children": 1},
+            "budget_level": "luxury",
+            "route_strictness": "must_cover_all",
+            "detail_level": "deep",
+        },
+    )
+
+    assert response.status_code == 202
+    queue = client.app.state.travel_job_queue
+    assert queue.items[0].kind == "diy_itinerary"
+    job_id = response.json()["job_id"]
+    job = client.app.state.travel_job_store._jobs[job_id]
+    assert job.form_request is not None
+    assert job.form_request.request_mode == "diy"
+    assert job.form_request.required_stops == ["涿州", "许昌", "成都", "汉中"]
 
 
 def test_diy_itinerary_job_route_queues_and_completes_job():

@@ -6,7 +6,11 @@ from uuid import uuid4
 
 from redis.asyncio import Redis
 
-from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import (
+    TravelAnswer,
+    TravelFormRequest,
+    TravelQuestion,
+)
 from huaxia_tourismrag.schemas.jobs import TravelJob, TravelJobKind
 
 
@@ -27,6 +31,7 @@ class TravelJobStore(Protocol):
         question: TravelQuestion,
         kind: TravelJobKind = "diy_itinerary",
         session_id: str | None = None,
+        form_request: TravelFormRequest | None = None,
     ) -> TravelJob:
         """Create a queued job."""
 
@@ -69,12 +74,14 @@ class InMemoryTravelJobStore:
         question: TravelQuestion,
         kind: TravelJobKind = "diy_itinerary",
         session_id: str | None = None,
+        form_request: TravelFormRequest | None = None,
     ) -> TravelJob:
         job = TravelJob(
             job_id=str(uuid4()),
             tenant_id=tenant_id,
             kind=kind,
             question=question,
+            form_request=form_request,
             session_id=session_id,
         )
         self._jobs[job.job_id] = job
@@ -149,12 +156,14 @@ class RedisTravelJobStore:
         question: TravelQuestion,
         kind: TravelJobKind = "diy_itinerary",
         session_id: str | None = None,
+        form_request: TravelFormRequest | None = None,
     ) -> TravelJob:
         job = TravelJob(
             job_id=str(uuid4()),
             tenant_id=tenant_id,
             kind=kind,
             question=question,
+            form_request=form_request,
             session_id=session_id,
         )
         await self._save(job)

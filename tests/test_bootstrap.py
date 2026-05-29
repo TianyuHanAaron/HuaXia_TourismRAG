@@ -4,7 +4,7 @@ from huaxia_tourismrag import bootstrap
 from huaxia_tourismrag.core.config import Settings
 from huaxia_tourismrag.integrations.baidu_maps_mcp import BaiduMapsMCPAdapter
 from huaxia_tourismrag.integrations.firecrawl_mcp import FirecrawlMCPAdapter
-from huaxia_tourismrag.integrations.mapbox_mcp import MapboxMCPAdapter
+from huaxia_tourismrag.integrations.tavily_mcp import TavilyMCPAdapter
 from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
 from huaxia_tourismrag.rag.embeddings import QwenCloudEmbedder, RemoteHttpEmbedder
 from huaxia_tourismrag.services.answer_cache import AnswerCache
@@ -12,6 +12,7 @@ from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
     EvidenceRetrievalOrchestrator,
 )
+from huaxia_tourismrag.services.evidence_pack_cache import EvidencePackCache
 from huaxia_tourismrag.services.job_store import RedisTravelJobStore
 from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
 from huaxia_tourismrag.services.planning_cache import PlanningCache
@@ -129,12 +130,20 @@ def test_mcp_provider_flags_default_to_disabled():
 
     assert settings.baidu_maps_mcp_enabled is False
     assert settings.tuniu_mcp_enabled is False
-    assert settings.mapbox_mcp_enabled is False
     assert settings.firecrawl_mcp_enabled is False
+    assert settings.tavily_mcp_enabled is False
     assert settings.baidu_maps_mcp_transport == "stdio"
     assert settings.tuniu_mcp_transport == "stdio"
-    assert settings.mapbox_mcp_transport == "http"
     assert settings.firecrawl_mcp_transport == "http"
+    assert settings.tavily_mcp_transport == "http"
+
+
+def test_removed_map_mcp_settings_are_removed():
+    settings = Settings(_env_file=None)
+    removed_prefix = "map" + "box"
+
+    assert not hasattr(settings, f"{removed_prefix}_mcp_enabled")
+    assert not hasattr(settings, f"{removed_prefix}_access_token")
 
 
 def test_speed_controls_default_to_safe_values():
@@ -160,6 +169,17 @@ def test_speed_controls_default_to_safe_values():
     assert settings.job_queue_key == "tourism:job_queue:travel"
     assert settings.embedding_max_retries == 2
     assert settings.embedding_retry_delay_seconds == 0.5
+    assert settings.enable_prompt_compaction is True
+    assert settings.max_final_context_quotes_concise == 6
+    assert settings.max_final_context_quotes_standard == 10
+    assert settings.max_final_context_quotes_deep == 16
+    assert settings.enable_evidence_pack_cache is True
+    assert settings.evidence_pack_cache_ttl_seconds == 1800
+    assert settings.enable_provider_budgets is True
+    assert settings.tavily_max_calls_per_request == 4
+    assert settings.firecrawl_max_calls_per_request == 4
+    assert settings.provider_cooldown_seconds == 180
+    assert settings.topic_section_mode == "async_for_deep"
 
 
 def test_build_retrieval_cache_respects_enable_flag():
@@ -190,6 +210,18 @@ def test_build_answer_cache_respects_enable_flag():
     )
 
     assert isinstance(cache, AnswerCache)
+
+
+def test_build_evidence_pack_cache_respects_enable_flag():
+    disabled_settings = Settings(ENABLE_EVIDENCE_PACK_CACHE=False, _env_file=None)
+    assert bootstrap.build_evidence_pack_cache(disabled_settings) is None
+
+    cache = bootstrap.build_evidence_pack_cache(
+        Settings(ENABLE_EVIDENCE_PACK_CACHE=True, _env_file=None),
+        redis=object(),
+    )
+
+    assert isinstance(cache, EvidencePackCache)
 
 
 def test_build_retrieval_orchestrator_uses_speed_settings():
@@ -232,6 +264,8 @@ def test_build_service_enrichment_keeps_providers_disabled_by_default():
     assert service.maps is None
     assert service.tuniu is None
     assert service.fresh_web is None
+    assert service.provider_max_calls["tavily"] == 4
+    assert service.provider_cooldown is not None
 
 
 def test_build_service_enrichment_requires_baidu_transport_details():
@@ -248,13 +282,6 @@ def test_build_service_enrichment_requires_tuniu_transport_details():
         bootstrap.build_service_enrichment(settings)
 
 
-def test_build_service_enrichment_requires_mapbox_key():
-    settings = Settings(MAPBOX_MCP_ENABLED=True, _env_file=None)
-
-    with pytest.raises(RuntimeError, match="MAPBOX_ACCESS_TOKEN"):
-        bootstrap.build_service_enrichment(settings)
-
-
 def test_build_service_enrichment_requires_firecrawl_key():
     settings = Settings(
         FIRECRAWL_MCP_ENABLED=True,
@@ -263,6 +290,17 @@ def test_build_service_enrichment_requires_firecrawl_key():
     )
 
     with pytest.raises(RuntimeError, match="FIRECRAWL_API_KEY"):
+        bootstrap.build_service_enrichment(settings)
+
+
+def test_build_service_enrichment_requires_tavily_key():
+    settings = Settings(
+        TAVILY_MCP_ENABLED=True,
+        TAVILY_API_KEY=None,
+        _env_file=None,
+    )
+
+    with pytest.raises(RuntimeError, match="TAVILY_API_KEY"):
         bootstrap.build_service_enrichment(settings)
 
 
@@ -279,22 +317,6 @@ def test_build_service_enrichment_wires_baidu_http_adapter():
 
     assert isinstance(service.maps, BaiduMapsMCPAdapter)
     assert service.maps.client.provider == "baidu_maps"
-    assert service.maps.client.transport == "http"
-
-
-def test_build_service_enrichment_wires_mapbox_http_adapter():
-    settings = Settings(
-        _env_file=None,
-        MAPBOX_MCP_ENABLED=True,
-        MAPBOX_MCP_TRANSPORT="http",
-        MAPBOX_MCP_URL="https://mcp.mapbox.example/mcp",
-        MAPBOX_ACCESS_TOKEN="mapbox-key",
-    )
-
-    service = bootstrap.build_service_enrichment(settings)
-
-    assert isinstance(service.maps, MapboxMCPAdapter)
-    assert service.maps.client.provider == "mapbox"
     assert service.maps.client.transport == "http"
 
 
@@ -316,18 +338,43 @@ def test_build_service_enrichment_wires_firecrawl_http_adapter():
     )
 
 
-def test_build_service_enrichment_accepts_legacy_mapbox_api_key_alias():
+def test_build_service_enrichment_wires_tavily_http_adapter():
     settings = Settings(
-        MAPBOX_MCP_ENABLED=True,
-        MAPBOX_MCP_TRANSPORT="http",
-        MAPBOX_MCP_URL="https://mcp.mapbox.example/mcp",
-        MAPBOX_API_KEY="mapbox-key",
+        _env_file=None,
+        TAVILY_MCP_ENABLED=True,
+        TAVILY_MCP_TRANSPORT="http",
+        TAVILY_MCP_URL="https://mcp.tavily.com/mcp/?tavilyApiKey={TAVILY_API_KEY}",
+        TAVILY_API_KEY="tavily-key",
     )
 
     service = bootstrap.build_service_enrichment(settings)
 
-    assert isinstance(service.maps, MapboxMCPAdapter)
-    assert service.maps.client.api_key == "mapbox-key"
+    assert service.fresh_web_providers
+    assert isinstance(service.fresh_web_providers[0], TavilyMCPAdapter)
+    assert service.fresh_web_providers[0].client.provider == "tavily"
+    assert service.fresh_web_providers[0].client.transport == "http"
+    assert service.fresh_web_providers[0].client.url == (
+        "https://mcp.tavily.com/mcp/?tavilyApiKey=tavily-key"
+    )
+
+
+def test_resolve_mcp_url_handles_literal_braced_api_key():
+    assert bootstrap._resolve_mcp_url(
+        "https://mcp.firecrawl.example/{FIRECRAWL_API_KEY}/v2/mcp",
+        "firecrawl-key",
+    ) == "https://mcp.firecrawl.example/firecrawl-key/v2/mcp"
+    assert bootstrap._resolve_mcp_url(
+        "https://mcp.firecrawl.example/{firecrawl-key}/v2/mcp",
+        "firecrawl-key",
+    ) == "https://mcp.firecrawl.example/firecrawl-key/v2/mcp"
+    assert bootstrap._resolve_mcp_url(
+        "https://mcp.firecrawl.example/%7Bfirecrawl-key%7D/v2/mcp",
+        "firecrawl-key",
+    ) == "https://mcp.firecrawl.example/firecrawl-key/v2/mcp"
+    assert bootstrap._resolve_mcp_url(
+        "https://mcp.tavily.com/mcp/?tavilyApiKey={TAVILY_API_KEY}",
+        "tavily-key",
+    ) == "https://mcp.tavily.com/mcp/?tavilyApiKey=tavily-key"
 
 
 def test_build_service_enrichment_wires_tuniu_http_adapter():

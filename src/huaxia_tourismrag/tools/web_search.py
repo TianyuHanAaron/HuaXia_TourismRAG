@@ -101,6 +101,24 @@ class WebSearchProvider(Protocol):
         """Search the web and return travel search hits."""
 
 
+class WebSearchProviderUnavailable(RuntimeError):
+    """A web search provider is temporarily unavailable or over quota."""
+
+    def __init__(
+        self,
+        provider: str,
+        status_code: int | None,
+        message: str,
+    ) -> None:
+        self.provider = provider
+        self.status_code = status_code
+        self.message = message
+        super().__init__(f"{provider} unavailable ({status_code}): {message}")
+
+
+UNAVAILABLE_SEARCH_STATUS_CODES = {401, 402, 403, 429, 432}
+
+
 class TavilySearchProvider:
     """Tavily search provider configured for Chinese-first tourism search."""
 
@@ -129,7 +147,7 @@ class TavilySearchProvider:
             "https://api.tavily.com/search",
             json=payload,
         )
-        response.raise_for_status()
+        self._raise_for_provider_status(response)
 
         return [
             TravelSearchHit(
@@ -163,6 +181,19 @@ class TavilySearchProvider:
             return "month"
         return "year"
 
+    def _raise_for_provider_status(self, response: httpx.Response) -> None:
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            if status_code in UNAVAILABLE_SEARCH_STATUS_CODES:
+                raise WebSearchProviderUnavailable(
+                    provider="tavily",
+                    status_code=status_code,
+                    message=str(exc),
+                ) from exc
+            raise
+
 
 class ExaSearchProvider:
     """Exa search provider."""
@@ -189,7 +220,7 @@ class ExaSearchProvider:
             headers={"x-api-key": self.api_key},
             json=payload,
         )
-        response.raise_for_status()
+        self._raise_for_provider_status(response)
 
         return [
             TravelSearchHit(
@@ -214,6 +245,19 @@ class ExaSearchProvider:
             payload["startPublishedDate"] = start.date().isoformat()
 
         return payload
+
+    def _raise_for_provider_status(self, response: httpx.Response) -> None:
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            if status_code in UNAVAILABLE_SEARCH_STATUS_CODES:
+                raise WebSearchProviderUnavailable(
+                    provider="exa",
+                    status_code=status_code,
+                    message=str(exc),
+                ) from exc
+            raise
 
 
 class ChineseTourismSearchTool:
