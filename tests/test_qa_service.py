@@ -469,6 +469,103 @@ async def test_answer_synthesizes_structured_itinerary_when_final_agent_omits_it
 
 
 @pytest.mark.asyncio
+async def test_qa_service_normalizes_invalid_itinerary_time_range(monkeypatch):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="成都",
+            trip_days=1,
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="成都一日游",
+                    reason="规划路线。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="成都 本地美食",
+                    reason="规划餐饮。",
+                ),
+                TravelResearchTask(
+                    task_type="accommodation",
+                    query="成都 住宿区域",
+                    reason="规划住宿。",
+                ),
+            ],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="夏夏整理好了。",
+            highlights=[],
+            warnings=[],
+            citations=[],
+            generated_itinerary={
+                "destination": "成都",
+                "itinerary": [
+                    {
+                        "day": 1,
+                        "city": "成都",
+                        "activities": [
+                            {
+                                "start_time": "20:00",
+                                "end_time": "18:00",
+                                "name": "错误时段",
+                                "description": "时间错误。",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=1,
+        top_k=3,
+    )
+
+    answer = await service.answer(TravelQuestion(question="成都一日游。"))
+
+    activity = answer.generated_itinerary.itinerary[0].activities[0]
+    assert activity.end_time is None
+    assert any("行程时间结构" in warning for warning in answer.warnings)
+
+
+@pytest.mark.asyncio
 async def test_answer_performance_reports_retrieval_cache_hits(monkeypatch):
     async def fake_create_research_plan(
         question: TravelQuestion,

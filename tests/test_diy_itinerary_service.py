@@ -447,6 +447,96 @@ async def test_diy_answer_continues_with_web_evidence_when_internal_rag_is_unava
 
 
 @pytest.mark.asyncio
+async def test_diy_service_normalizes_invalid_itinerary_time_range(monkeypatch):
+    async def fake_create_diy_itinerary_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> DIYItineraryPlan:
+        task = TravelResearchTask(
+            task_type="route",
+            query="成都 三国 路线",
+            reason="核验路线。",
+            max_results=1,
+        )
+        return DIYItineraryPlan(
+            original_question=question.question,
+            theme="三国历史巡礼",
+            origin="成都",
+            return_city="成都",
+            required_stops=["成都", "汉中"],
+            proposed_route=["成都", "汉中", "成都"],
+            tasks=[task, task, task],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan=None,
+        diy_plan: DIYItineraryPlan | None = None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+    ) -> TravelAnswer:
+        return TravelAnswer(
+            answer="夏夏整理好了。",
+            highlights=[],
+            warnings=[],
+            citations=[],
+            generated_itinerary={
+                "destination": "三国历史巡礼",
+                "itinerary": [
+                    {
+                        "day": 1,
+                        "city": "成都",
+                        "activities": [
+                            {
+                                "start_time": "20:00",
+                                "end_time": "18:00",
+                                "name": "错误时段",
+                                "description": "时间错误。",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fake_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=1,
+        top_k=4,
+    )
+
+    answer = await service.answer(TravelQuestion(question="成都汉中三国路线。"))
+
+    activity = answer.generated_itinerary.itinerary[0].activities[0]
+    assert activity.end_time is None
+    assert any("行程时间结构" in warning for warning in answer.warnings)
+
+
+@pytest.mark.asyncio
 async def test_diy_itinerary_service_asks_theme_strictness_before_planning(
     monkeypatch,
 ):

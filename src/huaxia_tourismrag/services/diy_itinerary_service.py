@@ -39,6 +39,9 @@ from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
 )
 from huaxia_tourismrag.services.evidence_pack_cache import EvidencePackCache
 from huaxia_tourismrag.services.evidence_relevance import EvidenceRelevanceFilter
+from huaxia_tourismrag.services.itinerary_schedule_quality import (
+    ItineraryScheduleQualityGuard,
+)
 from huaxia_tourismrag.services.itinerary_structure import ensure_generated_itinerary
 from huaxia_tourismrag.services.performance import (
     InferenceTimer,
@@ -159,6 +162,7 @@ class DIYItineraryService:
         self.citation_guard = CitationGuard()
         self.topic_evidence_selector = TopicEvidenceSelector()
         self.topic_quality_guard = TopicSectionQualityGuard()
+        self.schedule_quality_guard = ItineraryScheduleQualityGuard()
 
     async def answer(
         self,
@@ -495,6 +499,12 @@ class DIYItineraryService:
                 question=question,
                 diy_plan=diy_plan,
             )
+            schedule_quality_result = self.schedule_quality_guard.validate(answer)
+            answer = schedule_quality_result.answer
+            if schedule_quality_result.issues:
+                answer.warnings.append(
+                    f"行程时间结构已自动校正：{len(schedule_quality_result.issues)} 项。"
+                )
         await _report_progress(progress_callback, "citation-checking", 90)
         with timer.stage("topic_section_quality") as stage_metadata:
             topic_quality_result = self.topic_quality_guard.validate(answer, pack)
