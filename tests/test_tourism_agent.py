@@ -178,6 +178,45 @@ def test_build_final_answer_prompt_includes_deep_detail_rules():
 
     assert "detail_level: deep" in prompt
     assert "深度旅行社方案" in prompt
+
+
+def test_final_answer_prompt_requires_timed_itinerary_choices():
+    prompt = build_final_answer_prompt(
+        question="上海出发，山西历史人文十日深度游，5人含老人儿童，豪华级别。",
+        citation_context="证据",
+        citation_lines=["[1] 山西景区 - 测试来源 - internal:shanxi"],
+        detail_level="deep",
+        research_plan=TravelResearchPlan(
+            original_question="上海出发，山西历史人文十日深度游",
+            destination="山西",
+            trip_days=10,
+            required_entities=[],
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="山西十日人文路线",
+                    reason="规划路线。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="山西本地美食",
+                    reason="规划餐饮。",
+                ),
+                TravelResearchTask(
+                    task_type="accommodation",
+                    query="山西豪华住宿",
+                    reason="规划住宿。",
+                ),
+            ],
+        ),
+        topic_section_mode="inline",
+    )
+
+    assert "start_time / end_time" in prompt
+    assert "08:30 到达景区" in prompt
+    assert "12:00 午餐" in prompt
+    assert "alternatives" in prompt
+    assert "同一时段提供 1-3 个可选择方案" in prompt
     assert "历史背景" in prompt
     assert "像真实旅行社行程单一样可执行" in prompt
     assert "不要只写景点名称" in prompt
@@ -460,3 +499,48 @@ def test_travel_answer_accepts_partial_generated_itinerary_activities():
     assert activity.name == "故宫主线"
     assert activity.category is None
     assert activity.location is None
+
+
+def test_activity_item_accepts_time_slots_and_alternatives():
+    answer = TravelAnswer.model_validate(
+        {
+            "answer": "夏夏整理好了。[1]",
+            "highlights": [],
+            "warnings": [],
+            "citations": ["[1] 成都美食 - 测试来源 - internal:food"],
+            "generated_itinerary": {
+                "destination": "成都",
+                "itinerary": [
+                    {
+                        "day": 1,
+                        "city": "成都",
+                        "activities": [
+                            {
+                                "start_time": "08:30",
+                                "end_time": "10:30",
+                                "name": "武侯祠深度讲解",
+                                "category": "cultural_attraction",
+                                "description": "08:30 到达武侯祠，安排讲解员讲三国人物线索。[1]",
+                                "citations": [1],
+                                "alternatives": [
+                                    {
+                                        "title": "轻松版",
+                                        "description": "如果同行人想少走路，可缩短讲解时间并增加茶馆休息。[1]",
+                                        "category": "special_event",
+                                        "citations": [1],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+
+    assert answer.generated_itinerary is not None
+    activity = answer.generated_itinerary.itinerary[0].activities[0]
+    assert activity.start_time.strftime("%H:%M") == "08:30"
+    assert activity.end_time.strftime("%H:%M") == "10:30"
+    assert activity.citations == [1]
+    assert activity.alternatives[0].title == "轻松版"

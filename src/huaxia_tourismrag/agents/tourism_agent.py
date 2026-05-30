@@ -237,6 +237,11 @@ detail_level: {detail_level}
   - standard：标准可执行版。覆盖每日主题、交通逻辑、住宿区域、美食方向和关键提醒，避免过度展开。
   - deep：深度旅行社方案。加入历史背景、交通推理、体力强度、住宿策略、餐饮建议、备选方案、风险和引用。
 - 当 detail_level 是 deep 且生成 generated_itinerary 时，每天应像真实旅行社行程单一样可执行：activity.description 写清上午/下午或主要时段、交通衔接、讲解重点、用餐方向、住宿/休息策略和老幼体力照顾；不要只写景点名称。
+- 当 detail_level 是 deep 且生成 generated_itinerary 时，每个主要 activity 应尽量填写 start_time / end_time，使用 24 小时 HH:MM，例如 08:30 到达景区、12:00 午餐、18:00 搭乘火车、20:00 入住酒店。
+- deep 行程每天至少覆盖上午、午餐、下午、晚餐或夜间、住宿/休息这几个执行节点；如果当天有跨城移动，必须单独写 transport activity。
+- activity.description 要把美食、住宿、公交/接驳、购物、娱乐项目自然融入当天安排，例如“12:00 午餐：体验钟水饺、龙抄手、甜水面等成都小吃 [n]”，但只能写证据支持的名称。
+- 对可弹性安排的晚间、用餐、购物或体验时段，activity.alternatives 应提供同一时段提供 1-3 个可选择方案，让游客决定，例如“锦里美食街”和“宽窄巷子茶馆夜游”；每个 alternative.description 必须有 [n] 引用。
+- alternatives 不是泛泛备选景点清单，必须对应同一个时间槽内的真实选择，并说明适合哪类用户、体力强度、交通便利性或预约要求。
 - deep 的 generated_itinerary.notes 应写每日执行提醒，例如预约、步行强度、车程、天气、老人儿童安全、行李和餐饮注意事项。
 - 不要把政策、铁路、旅游法、安检来源用于支撑景点或美食推荐；这些引用只用于对应规则或风险提醒。
 - 语气要友好、活泼、专业，适合旅游咨询场景。
@@ -245,6 +250,9 @@ detail_level: {detail_level}
 - answer、highlights、warnings、citations 必须存在。
 {structured_itinerary_requirement}
 - 如果生成 generated_itinerary，每个 activity 至少包含 name 和 description。
+- activity.start_time / activity.end_time 使用 HH:MM；不知道准确时间时可以省略，但不要编造火车/航班的精确时刻。
+- activity.alternatives 最多 4 条；每条 alternative 必须有 title、description，且 description 必须带 [n] 引用。
+- activity.citations 应包含 description 中使用的引用编号。
 - activity.category 只能使用 natural_attraction、cultural_attraction、local_restaurant、accommodation、shopping、transport、nature、special_event；不确定时可以省略。
 - activity.location 不确定时可以省略，不要编造精确地址。
 - topic_sections.category 只能使用 food、accommodation、public_transport、shopping、entertainment。

@@ -1,6 +1,6 @@
 """Evidence schemas for retrieval and citation."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
@@ -410,20 +410,41 @@ class TravelSearchHit(BaseModel):
 # Activity / Place
 # =========================================================
 
+ActivityCategory = Literal[
+    "natural_attraction",
+    "cultural_attraction",
+    "local_restaurant",
+    "accommodation",
+    "shopping",
+    "transport",
+    "nature",
+    "special_event",
+]
+
+
+class ActivityAlternative(BaseModel):
+    """One optional choice for a scheduled itinerary slot."""
+
+    title: str = Field(min_length=1, max_length=80)
+
+    description: str = Field(min_length=1, max_length=800)
+
+    category: ActivityCategory | None = None
+
+    location: str | None = Field(default=None, max_length=120)
+
+    citations: list[int] = Field(default_factory=list, max_length=8)
+
+
 class ActivityItem(BaseModel):
+
+    start_time: time | None = None
+
+    end_time: time | None = None
 
     name: str
 
-    category: Literal[
-        "natural_attraction",
-        "cultural_attraction",
-        "local_restaurant",
-        "accommodation",
-        "shopping",
-        "transport",
-        "nature",
-        "special_event",
-    ] | None = None
+    category: ActivityCategory | None = None
 
     description: str
 
@@ -438,6 +459,10 @@ class ActivityItem(BaseModel):
     opening_hours: str | None = None
 
     rating: float | None = None
+
+    citations: list[int] = Field(default_factory=list, max_length=8)
+
+    alternatives: list[ActivityAlternative] = Field(default_factory=list, max_length=4)
 
 
 # =========================================================
