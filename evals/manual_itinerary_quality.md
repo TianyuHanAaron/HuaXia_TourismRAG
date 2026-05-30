@@ -144,3 +144,22 @@ Pass criteria:
 - Scenic and food highlights do not cite policy/legal/railway sources except for explicit transport or risk warnings.
 - Each expected entity is either planned with direct destination evidence or explicitly marked as missing/needs real-time verification.
 - Deep job runtime should trend below 60 seconds for cached/common routes and below 90 seconds uncached.
+
+## Rich Itinerary Schedule QA
+
+Run these prompts after changing itinerary generation:
+
+1. `上海出发，山西历史人文十日深度游，5人含老人儿童，豪华级别。`
+2. `成都和重庆6天，主要想吃本地美食，也想加一点轻松景点。`
+3. `/diy 三国历史巡礼，北京往返，覆盖涿州、临漳、许昌、南阳、咸宁、南京、成都、汉中。10到12天，高铁优先，必要时包车。`
+
+Pass criteria:
+
+- Deep itinerary days include visible clock times such as `08:30`, `12:00`, `18:00`, and `20:00` where evidence supports the schedule.
+- Lunch/dinner slots include evidence-backed local food suggestions when available.
+- Hotel/rest slots say the lodging area or lodging type rather than only “入住酒店”.
+- Cross-city movement appears as a separate transport activity.
+- At least one flexible evening/food/experience slot includes two or more alternatives when evidence supports them.
+- Timeline and professional text views both show times and alternatives.
+- CSV and PDF exports include time and alternative columns/content.
+- Unsupported food, hotel, shopping, or entertainment claims are omitted rather than filled with `待核验`.
