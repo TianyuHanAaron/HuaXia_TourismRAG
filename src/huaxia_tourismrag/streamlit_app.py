@@ -2563,8 +2563,34 @@ def _activity_text_lines(activities: list[Any]) -> list[str]:
         if duration:
             parts.append(f"建议停留：{duration}小时")
         body = "；".join(parts) if parts else "按正文方案执行。"
+        time_label = _activity_time_label(activity)
         label = name or f"安排{index}"
+        if time_label:
+            label = f"{time_label}｜{label}"
         lines.append(f"- **{label}**：{body}")
+        lines.extend(_activity_alternative_lines(activity))
+    return lines
+
+
+def _activity_time_label(activity: dict[str, Any]) -> str:
+    start = str(activity.get("start_time") or "").strip()
+    end = str(activity.get("end_time") or "").strip()
+    if start and end:
+        return f"{start}-{end}"
+    return start or end
+
+
+def _activity_alternative_lines(activity: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for alternative in activity.get("alternatives") or []:
+        if not isinstance(alternative, dict):
+            continue
+        title = str(alternative.get("title") or "").strip()
+        description = str(alternative.get("description") or "").strip()
+        if title and description:
+            lines.append(f"  - 可选：{title}｜{description}")
+        elif title:
+            lines.append(f"  - 可选：{title}")
     return lines
 
 
@@ -2595,10 +2621,33 @@ def _itinerary_timeline_html(
                 continue
             name = str(activity.get("name") or "").strip()
             description = str(activity.get("description") or "").strip()
-            if name and description:
-                activities.append(f"<strong>{html.escape(name)}</strong>：{html.escape(description)}")
-            elif name:
-                activities.append(f"<strong>{html.escape(name)}</strong>")
+            time_label = _activity_time_label(activity)
+            label = name
+            if time_label and label:
+                label = f"{time_label}｜{label}"
+            elif time_label:
+                label = time_label
+            if label and description:
+                activities.append(f"<strong>{html.escape(label)}</strong>：{html.escape(description)}")
+            elif label:
+                activities.append(f"<strong>{html.escape(label)}</strong>")
+            alternatives = []
+            for alternative in activity.get("alternatives") or []:
+                if not isinstance(alternative, dict):
+                    continue
+                title = str(alternative.get("title") or "").strip()
+                alternative_description = str(
+                    alternative.get("description") or ""
+                ).strip()
+                if title and alternative_description:
+                    alternatives.append(
+                        f'<div class="timeline-alt"><strong>{html.escape(title)}</strong>：'
+                        f"{html.escape(alternative_description)}</div>"
+                    )
+            if alternatives:
+                activities.append(
+                    f'<div class="timeline-alternatives">{"".join(alternatives)}</div>'
+                )
         notes = str(day.get("notes") or "").strip()
         body = "；".join(activities[:5])
         if notes:
@@ -2621,24 +2670,31 @@ def _itinerary_rows(itinerary: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(day, dict):
             continue
         activities = day.get("activities") or []
-        rows.append(
-            {
-                "天数": day.get("day"),
-                "城市": day.get("city"),
-                "主题/安排": "；".join(
-                    str(activity.get("name", ""))
-                    for activity in activities[:4]
-                    if isinstance(activity, dict)
-                ),
-                "备注": day.get("notes"),
-            }
-        )
+        for activity in activities:
+            if not isinstance(activity, dict):
+                continue
+            rows.append(
+                {
+                    "天数": day.get("day"),
+                    "城市": day.get("city"),
+                    "时间": _activity_time_label(activity),
+                    "主题/安排": str(activity.get("name") or ""),
+                    "说明": str(activity.get("description") or ""),
+                    "可选方案": "；".join(
+                        str(option.get("title") or "").strip()
+                        for option in activity.get("alternatives") or []
+                        if isinstance(option, dict)
+                        and str(option.get("title") or "").strip()
+                    ),
+                    "备注": day.get("notes"),
+                }
+            )
     return rows
 
 
 def _itinerary_csv_bytes(itinerary: dict[str, Any]) -> bytes:
     output = io.StringIO()
-    fieldnames = ["天数", "城市", "主题/安排", "备注"]
+    fieldnames = ["天数", "城市", "时间", "主题/安排", "说明", "可选方案", "备注"]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     writer.writerows(_itinerary_rows(itinerary))
@@ -2689,7 +2745,10 @@ def _itinerary_pdf_lines(
                 description = str(activity.get("description") or "").strip()
                 location = str(activity.get("location") or "").strip()
                 duration = activity.get("duration_hours")
+                time_label = _activity_time_label(activity)
                 label = name or "当日安排"
+                if time_label:
+                    label = f"{time_label} | {label}"
                 lines.append(_PdfLine(label, "activity", indent=12, gap_before=3))
                 details = [description] if description else []
                 if location:
@@ -2698,6 +2757,21 @@ def _itinerary_pdf_lines(
                     details.append(f"建议停留：{duration}小时")
                 if details:
                     lines.append(_PdfLine("；".join(details), "body", indent=24))
+                for alternative in activity.get("alternatives") or []:
+                    if not isinstance(alternative, dict):
+                        continue
+                    title = str(alternative.get("title") or "").strip()
+                    alternative_description = str(
+                        alternative.get("description") or ""
+                    ).strip()
+                    if title and alternative_description:
+                        lines.append(
+                            _PdfLine(
+                                f"可选：{title}｜{alternative_description}",
+                                "note",
+                                indent=30,
+                            )
+                        )
 
             notes = str(day.get("notes") or "").strip()
             if notes:
@@ -3517,6 +3591,17 @@ def _css() -> str:
         margin-top: 8px;
         color: var(--hx-muted);
         font-weight: 650;
+      }
+      .timeline-alternatives {
+        margin-top: 8px;
+        display: grid;
+        gap: 6px;
+      }
+      .timeline-alt {
+        padding: 8px 10px;
+        border-left: 3px solid rgba(0, 170, 180, 0.42);
+        background: rgba(255, 255, 255, 0.52);
+        border-radius: 6px;
       }
       .topic-card {
         margin: 10px 0;

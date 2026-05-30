@@ -223,6 +223,135 @@ def test_itinerary_rendering_has_text_and_timeline_versions():
     assert "\n        <div" not in timeline
 
 
+def test_itinerary_text_version_renders_time_slots_and_alternatives():
+    itinerary = {
+        "destination": "成都",
+        "itinerary": [
+            {
+                "day": 1,
+                "city": "成都",
+                "activities": [
+                    {
+                        "start_time": "12:00",
+                        "end_time": "13:00",
+                        "name": "午餐",
+                        "description": "体验钟水饺、龙抄手、甜水面。[1]",
+                        "alternatives": [
+                            {
+                                "title": "锦里美食街",
+                                "description": "适合想边逛边吃的游客。[1]",
+                            },
+                            {
+                                "title": "宽窄巷子茶馆",
+                                "description": "适合想坐下来喝茶休息的游客。[1]",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    text = streamlit_app._itinerary_text_version(itinerary, streamlit_app.UI_TEXT["zh"])
+
+    assert "12:00-13:00" in text
+    assert "午餐" in text
+    assert "可选" in text
+    assert "锦里美食街" in text
+    assert "宽窄巷子茶馆" in text
+
+
+def test_itinerary_timeline_renders_time_slots_and_alternatives():
+    itinerary = {
+        "destination": "成都",
+        "itinerary": [
+            {
+                "day": 1,
+                "city": "成都",
+                "activities": [
+                    {
+                        "start_time": "19:00",
+                        "name": "夜间选择",
+                        "description": "夜间自由安排。",
+                        "alternatives": [
+                            {
+                                "title": "看变脸",
+                                "description": "适合想看演出的游客。[1]",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    timeline = streamlit_app._itinerary_timeline_html(
+        itinerary,
+        streamlit_app.UI_TEXT["zh"],
+    )
+
+    assert "19:00" in timeline
+    assert "timeline-alternatives" in timeline
+    assert "看变脸" in timeline
+
+
+def test_itinerary_rows_include_time_and_choice_summary():
+    itinerary = {
+        "destination": "成都",
+        "itinerary": [
+            {
+                "day": 1,
+                "city": "成都",
+                "activities": [
+                    {
+                        "start_time": "12:00",
+                        "end_time": "13:00",
+                        "name": "午餐",
+                        "description": "体验成都小吃。",
+                        "alternatives": [
+                            {"title": "锦里", "description": "边逛边吃。"},
+                            {"title": "宽窄巷子", "description": "茶馆休息。"},
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    rows = streamlit_app._itinerary_rows(itinerary)
+
+    assert rows[0]["时间"] == "12:00-13:00"
+    assert "锦里" in rows[0]["可选方案"]
+
+
+def test_itinerary_pdf_lines_include_time_and_alternatives():
+    itinerary = {
+        "destination": "成都",
+        "itinerary": [
+            {
+                "day": 1,
+                "city": "成都",
+                "activities": [
+                    {
+                        "start_time": "19:00",
+                        "name": "夜间选择",
+                        "description": "夜间自由安排。",
+                        "alternatives": [
+                            {"title": "看变脸", "description": "适合想看演出的游客。"}
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    lines = streamlit_app._itinerary_pdf_lines(itinerary, streamlit_app.UI_TEXT["zh"])
+    text = "\n".join(line.text for line in lines)
+
+    assert "19:00" in text
+    assert "可选：看变脸" in text
+
+
 def test_itinerary_download_exports_csv_and_pdf_bytes():
     itinerary = {
         "destination": "山西",
