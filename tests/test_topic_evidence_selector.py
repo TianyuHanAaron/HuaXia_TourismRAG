@@ -119,12 +119,12 @@ def test_selector_prefers_category_compatible_quotes():
     assert [quote.citation_id for quote in transport_bundle.evidence_quotes] == [1]
 
 
-def test_selector_includes_fresh_web_style_travel_guide_quotes_with_url():
+def test_selector_includes_fresh_web_style_entertainment_quotes_with_url():
     pack = _pack(
         [
             _quote(
                 1,
-                content_type="travel_guide",
+                content_type="entertainment",
                 title="成都川剧演出预约",
                 quote="成都川剧演出需要提前核验场次。",
                 source_type="web",
@@ -147,6 +147,31 @@ def test_selector_includes_fresh_web_style_travel_guide_quotes_with_url():
     assert entertainment.evidence_quotes[0].source_ref == "https://example.cn/chengdu-opera"
     assert "专题证据包" in context
     assert "成都川剧演出预约" in context
+
+
+def test_selector_excludes_generic_travel_guides_from_food_section():
+    pack = _pack(
+        [
+            _quote(
+                1,
+                content_type="travel_guide",
+                title="北京旅游预约指南",
+                quote="北京热门景区和餐饮常需预约。",
+                source_type="web",
+                source_ref="https://example.cn/beijing-guide",
+            )
+        ]
+    )
+
+    bundles = TopicEvidenceSelector().select(
+        question=TravelQuestion(question="三国巡礼路线，想吃本地小吃。"),
+        pack=pack,
+        research_plan=_research_plan(),
+        diy_plan=None,
+    )
+
+    food_bundle = next(bundle for bundle in bundles if bundle.category == "food")
+    assert food_bundle.evidence_quotes == []
 
 
 def test_selector_caps_evidence_per_category():

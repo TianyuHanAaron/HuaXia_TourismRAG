@@ -24,33 +24,23 @@ TOPIC_SECTION_TITLES: dict[TopicSectionCategory, str] = {
 TOPIC_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
     "food": {
         "local_cuisine",
-        "local_specialty",
-        "destination",
-        "travel_guide",
     },
     "accommodation": {
         "accommodation",
-        "destination",
-        "travel_guide",
     },
     "public_transport": {
         "transport",
         "railway",
         "aviation",
         "road_transport",
-        "travel_guide",
     },
     "shopping": {
         "local_specialty",
         "shopping",
-        "destination",
-        "travel_guide",
     },
     "entertainment": {
         "activity",
         "entertainment",
-        "heritage_site",
-        "travel_guide",
     },
 }
 
@@ -114,7 +104,7 @@ class TopicEvidenceSelector:
             source_gaps = []
             if not selected:
                 source_gaps.append(
-                    f"{title}缺少可直接引用的专题证据；只能输出待核验项，不能编造具体名称、价格或时间。"
+                    f"{title}缺少可直接引用的专题证据；不要生成该专题栏或该专题建议。"
                 )
             bundles.append(
                 TopicEvidenceBundle(

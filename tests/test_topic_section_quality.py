@@ -63,7 +63,7 @@ def test_quality_guard_keeps_compatible_topic_recommendations():
     assert result.issues == []
 
 
-def test_quality_guard_downgrades_missing_citations():
+def test_quality_guard_drops_missing_citation_sections():
     answer = TravelAnswer(
         answer="夏夏整理好了。",
         highlights=[],
@@ -81,15 +81,11 @@ def test_quality_guard_downgrades_missing_citations():
 
     result = TopicSectionQualityGuard().validate(answer, _pack())
 
-    section = result.answer.topic_sections[0]
-    assert section.summary.startswith("待核验")
-    assert section.recommendations == [
-        "待核验：该专题建议缺少可追溯来源，需要补充网页或内部资料后再确认。"
-    ]
+    assert result.answer.topic_sections == []
     assert result.issues
 
 
-def test_quality_guard_rejects_policy_source_for_food_claims():
+def test_quality_guard_drops_policy_source_food_section():
     answer = TravelAnswer(
         answer="夏夏整理好了。[1]",
         highlights=[],
@@ -107,13 +103,11 @@ def test_quality_guard_rejects_policy_source_for_food_claims():
 
     result = TopicSectionQualityGuard().validate(answer, _pack(_quote(1, content_type="railway")))
 
-    section = result.answer.topic_sections[0]
-    assert section.summary.startswith("待核验")
-    assert section.recommendations[0].startswith("待核验")
+    assert result.answer.topic_sections == []
     assert any(issue.issue_type == "source_type_mismatch" for issue in result.issues)
 
 
-def test_quality_guard_updates_structured_items_without_source_support():
+def test_quality_guard_drops_structured_items_without_source_support():
     answer = TravelAnswer(
         answer="夏夏整理好了。[1]",
         highlights=[],
@@ -137,7 +131,4 @@ def test_quality_guard_updates_structured_items_without_source_support():
 
     result = TopicSectionQualityGuard().validate(answer, _pack(_quote(1, content_type="insurance")))
 
-    item = result.answer.topic_sections[0].items[0]
-    assert item.kind == "verification_needed"
-    assert item.description.startswith("待核验")
-    assert item.verification_note is not None
+    assert result.answer.topic_sections == []
