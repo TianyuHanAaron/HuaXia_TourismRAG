@@ -1,6 +1,6 @@
 """Service for continuing pending multi-hop tourism sessions."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Protocol
 
 from huaxia_tourismrag.schemas.evidence import (
@@ -18,7 +18,11 @@ from huaxia_tourismrag.services.travel_checkpoints import clear_unbacked_reply_s
 class AnswerService(Protocol):
     """Minimal interface shared by tourism answer services."""
 
-    async def answer(self, question: TravelQuestion) -> TravelAnswer:
+    async def answer(
+        self,
+        question: TravelQuestion,
+        progress_callback: Callable[[str, int], Awaitable[None]] | None = None,
+    ) -> TravelAnswer:
         """Answer a tourism question."""
 
 
@@ -94,6 +98,7 @@ class SessionReplyService:
         self,
         question: TravelQuestion,
         kind: TravelJobKind,
+        progress_callback: Callable[[str, int], Awaitable[None]] | None = None,
     ) -> TravelAnswer:
         """Run the answer service that matches a prepared session job."""
 
@@ -101,7 +106,7 @@ class SessionReplyService:
             service = self.diy_itinerary_service_factory(self.tenant_id)
         else:
             service = self.tourism_qa_service_factory(self.tenant_id)
-        return await service.answer(question)
+        return await service.answer(question, progress_callback=progress_callback)
 
     async def complete_job_session(
         self,

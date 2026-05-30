@@ -304,22 +304,50 @@ curl http://127.0.0.1:8000/tourism/health
 curl http://127.0.0.1:8000/tourism/capabilities
 ```
 
+## React 前端
+
+生产/公开用户界面正在迁移到由 FastAPI 直接托管的 React SPA。本地开发时，
+先在 `8000` 端口启动 FastAPI，再启动 Vite：
+
+```bash
+cd frontend
+cp .env.example .env.local
+npm install
+npm run assets:sync
+npm run api:generate
+npm run dev
+```
+
+打开 `http://127.0.0.1:5173`。React 前端使用 Orval 从
+`frontend/openapi.json` 生成 Axios + TanStack Query hooks，用 Zod 校验快速
+表单，用 Zustand 存 UI 状态，用 MUI 搭建品牌化界面，并通过
+`@google/model-viewer` 展示夏夏的 GLB 头像。生产同源托管方式：
+
+```bash
+cd frontend && npm run build
+SERVE_REACT_FRONTEND=true uv run uvicorn huaxia_tourismrag.main:app
+```
+
 ## Streamlit 前端
 
-如果想先体验一个更接近真实用户界面的本地版本，先启动 FastAPI，再运行：
+Streamlit 暂时保留为内部 QA fallback，方便快速检查 RAG 输出。先启动
+FastAPI，再运行：
 
 ```bash
 uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
 ```
 
-这个 Streamlit 页面是夏夏当前的用户端原型，采用极简 kiosk 风格：用户打开后只需要选择“成熟旅行方案”或“专属路线共创”，输入旅行想法即可开始。页面支持 `concise`、`standard`、`deep` 三种回答深度，能继续多轮澄清会话，并用中文栏目展示回答、亮点、提醒、结构化行程、引用来源和服务校验。页面会在新的 UI 会话中从本地中国旅行图片中随机选择背景。它调用现有 FastAPI 端点，因此后续切换 React 前端时可以沿用同一套后端 API 契约。
+这个 Streamlit 页面调用与 React 相同的 FastAPI 端点，适合做内部验证、
+fallback 演示和快速调试。
 
 ## 部署
 
-生产部署建议拆成两个服务：
+React 第一阶段上线建议采用单服务部署：
 
-1. **FastAPI/RAG 后端**：部署到 Render、Railway、Fly.io、Google Cloud Run 或其他 Python 后端平台。
-2. **Streamlit 前端**：部署到 Streamlit Community Cloud。
+1. 构建 `frontend/dist`。
+2. 设置 `SERVE_REACT_FRONTEND=true`。
+3. 将 FastAPI/RAG 后端部署到 Render、Railway、Fly.io、Google Cloud Run
+   或其他 Python 后端平台。
 
 ### 后端部署
 

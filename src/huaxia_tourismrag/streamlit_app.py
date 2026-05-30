@@ -61,6 +61,7 @@ BACKGROUND_IMAGE_PATHS = (
     ASSET_ROOT / "travel" / "beijing-forbidden-city.jpg",
     ASSET_ROOT / "travel" / "hangzhou-west-lake.jpg",
 )
+ENGAGEMENT_BATCH_ROTATION_SECONDS = 25.0
 
 
 @dataclass(frozen=True)
@@ -1610,18 +1611,30 @@ def _submit_and_poll_form_job(
     job = client.create_form_job(payload)
     job_id = str(job["job_id"])
     progress_bar = st.progress(0)
+    engagement_container = st.empty()
+    last_engagement_feed: dict[str, Any] | None = None
 
     while time.monotonic() - started < timeout_seconds:
         status = client.job_status(job_id)
+        feed = status.get("engagement_feed")
+        if isinstance(feed, dict):
+            last_engagement_feed = feed
         progress = int(status.get("progress_percent") or 0)
         progress_bar.progress(min(max(progress, 0), 100))
         stage = str(status.get("current_stage") or "")
         if status.get("status") == "completed" and status.get("answer"):
             progress_bar.empty()
-            return status["answer"]
+            engagement_container.empty()
+            answer = status["answer"]
+            if last_engagement_feed:
+                answer["_engagement_feed"] = last_engagement_feed
+                st.session_state["last_engagement_feed"] = last_engagement_feed
+            return answer
         if status.get("status") == "failed":
             progress_bar.empty()
+            engagement_container.empty()
             raise TourismFrontendError(str(status.get("error") or "job failed"))
+        _render_engagement_waiting_room(feed, engagement_container)
         if status_container is not None and copy is not None:
             status_container.update(
                 label=_job_status_label(copy, stage=stage, progress=progress)
@@ -1943,13 +1956,25 @@ def _submit_and_poll_travel_job(
             language=language,
         )
     job_id = str(job["job_id"])
+    engagement_container = st.empty()
+    last_engagement_feed: dict[str, Any] | None = None
 
     while time.monotonic() - started < timeout_seconds:
         status = client.job_status(job_id)
+        feed = status.get("engagement_feed")
+        if isinstance(feed, dict):
+            last_engagement_feed = feed
         if status.get("status") == "completed" and status.get("answer"):
-            return status["answer"]
+            engagement_container.empty()
+            answer = status["answer"]
+            if last_engagement_feed:
+                answer["_engagement_feed"] = last_engagement_feed
+                st.session_state["last_engagement_feed"] = last_engagement_feed
+            return answer
         if status.get("status") == "failed":
+            engagement_container.empty()
             raise TourismFrontendError(str(status.get("error") or "job failed"))
+        _render_engagement_waiting_room(feed, engagement_container)
         if status_container is not None and copy is not None:
             progress = int(status.get("progress_percent") or 0)
             stage = str(status.get("current_stage") or "")
@@ -2087,6 +2112,7 @@ def _render_answer(
         _render_service_enrichment(service_enrichment, copy)
 
     _render_performance_trace(payload, copy)
+    _render_engagement_archive(payload)
 
 
 def _render_sales_handoff_panel(copy: dict[str, Any]) -> None:
@@ -2371,6 +2397,217 @@ def _render_list(values: list[Any], empty: str) -> None:
         st.markdown(f"- {value}")
 
 
+def _render_engagement_waiting_room(
+    feed: object,
+    container: Any,
+) -> None:
+    """Render waiting-room mini encyclopedia cards while async jobs run."""
+
+    feed_dict = feed if isinstance(feed, dict) else {"status": "loading", "batches": []}
+    language = _answer_language()
+    refresh_label = "Refresh cards" if language == "en" else "换一组小百科"
+    refresh_disabled = not _engagement_has_multiple_batches(feed_dict)
+    with container.container():
+        _spacer, refresh_col = st.columns([0.74, 0.26])
+        with refresh_col:
+            if st.button(
+                refresh_label,
+                key="engagement-refresh-cards",
+                disabled=refresh_disabled,
+                width="stretch",
+            ):
+                _advance_engagement_batch(feed_dict)
+        batch_index = _engagement_active_batch(feed_dict)
+        st.markdown(
+            _engagement_feed_html(feed_dict, language=language, batch_index=batch_index),
+            unsafe_allow_html=True,
+        )
+
+
+def _engagement_has_multiple_batches(feed: dict[str, Any]) -> bool:
+    batches = feed.get("batches") if isinstance(feed, dict) else []
+    return isinstance(batches, list) and len(batches) > 1
+
+
+def _advance_engagement_batch(feed: dict[str, Any]) -> int:
+    batches = feed.get("batches") if isinstance(feed, dict) else []
+    if not isinstance(batches, list) or not batches:
+        st.session_state["engagement_batch_index"] = 0
+        st.session_state["engagement_last_rotated_at"] = time.monotonic()
+        return 0
+
+    current = int(st.session_state.get("engagement_batch_index", 0))
+    next_index = (current + 1) % len(batches)
+    st.session_state["engagement_batch_index"] = next_index
+    st.session_state["engagement_last_rotated_at"] = time.monotonic()
+    return next_index
+
+
+def _engagement_active_batch(feed: dict[str, Any]) -> int:
+    batches = feed.get("batches") if isinstance(feed, dict) else []
+    if not isinstance(batches, list) or not batches:
+        st.session_state["engagement_batch_index"] = 0
+        st.session_state["engagement_last_rotated_at"] = time.monotonic()
+        return 0
+
+    now = time.monotonic()
+    last = float(st.session_state.get("engagement_last_rotated_at", now))
+    current = int(st.session_state.get("engagement_batch_index", 0))
+    if now - last >= ENGAGEMENT_BATCH_ROTATION_SECONDS:
+        current = (current + 1) % len(batches)
+        st.session_state["engagement_batch_index"] = current
+        st.session_state["engagement_last_rotated_at"] = now
+    else:
+        st.session_state.setdefault("engagement_last_rotated_at", now)
+    return min(max(current, 0), len(batches) - 1)
+
+
+def _engagement_feed_html(
+    feed: dict[str, Any],
+    *,
+    language: AnswerLanguage = "zh-CN",
+    batch_index: int = 0,
+) -> str:
+    """Return the waiting-room feed as one safe HTML block."""
+
+    is_en = language == "en"
+    title = (
+        "Xiaxia is building your cited itinerary. Here is a travel almanac meanwhile."
+        if is_en
+        else "夏夏正在整理正式行程，先给你翻几页目的地小百科"
+    )
+    subtitle = (
+        "These cards are inspiration while you wait; the final itinerary is citation-checked separately."
+        if is_en
+        else "这些是旅途中可读的小知识，最终行程会另外做引用校验。"
+    )
+    batches = feed.get("batches") if isinstance(feed, dict) else []
+    cards: list[dict[str, Any]] = []
+    if isinstance(batches, list) and batches:
+        selected = batches[min(max(batch_index, 0), len(batches) - 1)]
+        if isinstance(selected, dict) and isinstance(selected.get("cards"), list):
+            cards = [card for card in selected["cards"] if isinstance(card, dict)][:6]
+
+    loading = False
+    if not cards:
+        loading = True
+        cards = [
+            {
+                "_loading": True,
+                "card_type": "attraction_knowledge",
+                "entity": "Destination" if is_en else "目的地",
+                "title": "Loading travel almanac" if is_en else "小百科正在生成",
+                "body": "",
+                "confidence": "general_knowledge",
+            }
+            for _ in range(6)
+        ]
+
+    card_html = "\n".join(
+        _engagement_card_html(
+            card,
+            language=language,
+            index=index,
+            loading=loading or bool(card.get("_loading")),
+        )
+        for index, card in enumerate(cards)
+    )
+    dots = ""
+    if isinstance(batches, list) and len(batches) > 1:
+        dot_items = []
+        for index, _batch in enumerate(batches):
+            active = " active" if index == batch_index else ""
+            dot_items.append(f'<span class="engagement-dot{active}"></span>')
+        dots = f'<div class="engagement-batch-dots">{"".join(dot_items)}</div>'
+
+    return f"""
+    <div class="engagement-feed-shell">
+      <div class="engagement-feed-header">
+        <div>
+          <div class="engagement-feed-kicker">灵感小百科</div>
+          <h3>{html.escape(title)}</h3>
+          <p>{html.escape(subtitle)}</p>
+        </div>
+        {dots}
+      </div>
+      <div class="engagement-grid">
+        {card_html}
+      </div>
+    </div>
+    """
+
+
+def _engagement_card_html(
+    card: dict[str, Any],
+    *,
+    language: AnswerLanguage,
+    index: int = 0,
+    loading: bool = False,
+) -> str:
+    labels = {
+        "zh-CN": {
+            "attraction_knowledge": "景点冷知识",
+            "city_folk_custom": "城市民俗",
+            "local_flavor": "本地味道",
+            "traveler_reminder": "旅客提醒",
+            "footer": "灵感小百科，不作为实时政策或票务依据",
+        },
+        "en": {
+            "attraction_knowledge": "Attraction note",
+            "city_folk_custom": "Local culture",
+            "local_flavor": "Local flavor",
+            "traveler_reminder": "Traveler note",
+            "footer": "Travel almanac, not live ticketing or policy advice",
+        },
+    }
+    copy = labels["en" if language == "en" else "zh-CN"]
+    card_type = str(card.get("card_type") or "")
+    label = copy.get(card_type, copy["attraction_knowledge"])
+    entity = html.escape(str(card.get("entity") or ""))
+    title = html.escape(str(card.get("title") or ""))
+    footer = html.escape(copy["footer"])
+    style = f' style="--engagement-index: {index};"'
+    if loading:
+        return f"""
+    <article class="engagement-card engagement-card-loading"{style}>
+      <div class="engagement-pill">{html.escape(label)}</div>
+      <div class="engagement-entity">{entity}</div>
+      <strong>{title}</strong>
+      <div class="engagement-skeleton-line wide"></div>
+      <div class="engagement-skeleton-line"></div>
+      <div class="engagement-skeleton-line short"></div>
+      <div class="engagement-footer">{footer}</div>
+    </article>
+    """
+
+    body = html.escape(str(card.get("body") or ""))
+    return f"""
+    <article class="engagement-card engagement-card-ready"{style}>
+      <div class="engagement-pill">{html.escape(label)}</div>
+      <div class="engagement-entity">{entity}</div>
+      <strong>{title}</strong>
+      <p class="engagement-body">{body}</p>
+      <div class="engagement-footer">{footer}</div>
+    </article>
+    """
+
+
+def _render_engagement_archive(payload: dict[str, Any]) -> None:
+    feed = payload.get("_engagement_feed")
+    if not isinstance(feed, dict) or not feed.get("batches"):
+        return
+    label = (
+        "Travel almanac from the wait"
+        if _answer_language() == "en"
+        else "刚才路上看的小百科"
+    )
+    with st.expander(label, expanded=False):
+        st.markdown(
+            _engagement_feed_html(feed, language=_answer_language(), batch_index=0),
+            unsafe_allow_html=True,
+        )
+
+
 def _topic_sections(
     payload: dict[str, Any],
     copy: dict[str, Any],
@@ -2532,7 +2769,10 @@ def _itinerary_text_version(
         if city:
             heading = f"{heading}｜{city}"
         lines.append(f"\n**{heading}**")
-        activity_lines = _activity_text_lines(day.get("activities") or [])
+        activity_lines = _activity_text_lines(
+            day.get("activities") or [],
+            language=_copy_language(copy),
+        )
         lines.extend(activity_lines or ["- 按正文方案安排当天行程。"])
         notes = str(day.get("notes") or "").strip()
         if notes:
@@ -2548,7 +2788,7 @@ def _itinerary_text_version(
     return "\n".join(lines)
 
 
-def _activity_text_lines(activities: list[Any]) -> list[str]:
+def _activity_text_lines(activities: list[Any], *, language: str = "zh") -> list[str]:
     lines: list[str] = []
     for index, activity in enumerate(activities, start=1):
         if not isinstance(activity, dict):
@@ -2563,7 +2803,7 @@ def _activity_text_lines(activities: list[Any]) -> list[str]:
         if duration:
             parts.append(f"建议停留：{duration}小时")
         body = "；".join(parts) if parts else "按正文方案执行。"
-        time_label = _activity_time_label(activity)
+        time_label = _activity_time_label(activity, language=language)
         label = name or f"安排{index}"
         if time_label:
             label = f"{time_label}｜{label}"
@@ -2572,12 +2812,53 @@ def _activity_text_lines(activities: list[Any]) -> list[str]:
     return lines
 
 
-def _activity_time_label(activity: dict[str, Any]) -> str:
+def _activity_time_label(activity: dict[str, Any], *, language: str = "zh") -> str:
     start = str(activity.get("start_time") or "").strip()
     end = str(activity.get("end_time") or "").strip()
-    if start and end:
-        return f"{start}-{end}"
-    return start or end
+    start_label = _format_clock_label(start, language=language) if start else ""
+    end_label = _format_clock_label(end, language=language) if end else ""
+    if start_label and end_label:
+        return f"{start_label}-{end_label}"
+    return start_label or end_label
+
+
+def _format_clock_label(value: str, *, language: str) -> str:
+    parts = value.strip().split(":")
+    if len(parts) < 2:
+        return value.strip()
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except ValueError:
+        return value.strip()
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        return value.strip()
+    if language == "en":
+        suffix = "am" if hour < 12 else "pm"
+        display_hour = hour % 12 or 12
+        return f"{display_hour}:{minute:02d} {suffix}"
+    period = _chinese_day_period(hour)
+    display_hour = hour % 12 or 12
+    return f"{period}{display_hour}:{minute:02d}"
+
+
+def _chinese_day_period(hour: int) -> str:
+    if 6 <= hour < 12:
+        return "上午"
+    if hour == 12:
+        return "中午"
+    if 13 <= hour <= 18:
+        return "下午"
+    if 19 <= hour <= 23:
+        return "晚上"
+    return "凌晨"
+
+
+def _copy_language(copy: dict[str, Any]) -> str:
+    tabs = copy.get("tabs")
+    if isinstance(tabs, list) and tabs and tabs[0] == "Itinerary":
+        return "en"
+    return "zh"
 
 
 def _activity_alternative_lines(activity: dict[str, Any]) -> list[str]:
@@ -2621,16 +2902,25 @@ def _itinerary_timeline_html(
                 continue
             name = str(activity.get("name") or "").strip()
             description = str(activity.get("description") or "").strip()
-            time_label = _activity_time_label(activity)
+            time_label = _activity_time_label(activity, language=_copy_language(copy))
             label = name
             if time_label and label:
                 label = f"{time_label}｜{label}"
             elif time_label:
                 label = time_label
             if label and description:
-                activities.append(f"<strong>{html.escape(label)}</strong>：{html.escape(description)}")
+                activities.append(
+                    '<div class="timeline-activity">'
+                    f"<strong>{html.escape(label)}</strong>"
+                    f"<span>{html.escape(description)}</span>"
+                    "</div>"
+                )
             elif label:
-                activities.append(f"<strong>{html.escape(label)}</strong>")
+                activities.append(
+                    '<div class="timeline-activity">'
+                    f"<strong>{html.escape(label)}</strong>"
+                    "</div>"
+                )
             alternatives = []
             for alternative in activity.get("alternatives") or []:
                 if not isinstance(alternative, dict):
@@ -2649,7 +2939,7 @@ def _itinerary_timeline_html(
                     f'<div class="timeline-alternatives">{"".join(alternatives)}</div>'
                 )
         notes = str(day.get("notes") or "").strip()
-        body = "；".join(activities[:5])
+        body = "".join(activities[:5])
         if notes:
             body = f"{body}<div class=\"timeline-note\">{html.escape(notes)}</div>" if body else html.escape(notes)
         if not body:
@@ -2745,7 +3035,10 @@ def _itinerary_pdf_lines(
                 description = str(activity.get("description") or "").strip()
                 location = str(activity.get("location") or "").strip()
                 duration = activity.get("duration_hours")
-                time_label = _activity_time_label(activity)
+                time_label = _activity_time_label(
+                    activity,
+                    language=_copy_language(copy),
+                )
                 label = name or "当日安排"
                 if time_label:
                     label = f"{time_label} | {label}"
@@ -3587,6 +3880,18 @@ def _css() -> str:
         line-height: 1.75;
         padding: 0 0 26px 8px;
       }
+      .timeline-activity {
+        display: block;
+        margin: 0 0 12px;
+      }
+      .timeline-activity strong {
+        display: block;
+        font-weight: 850;
+        margin-bottom: 2px;
+      }
+      .timeline-activity span {
+        display: block;
+      }
       .timeline-note {
         margin-top: 8px;
         color: var(--hx-muted);
@@ -3602,6 +3907,154 @@ def _css() -> str:
         border-left: 3px solid rgba(0, 170, 180, 0.42);
         background: rgba(255, 255, 255, 0.52);
         border-radius: 6px;
+      }
+      .engagement-feed-shell {
+        margin: 18px 0 20px;
+        padding: 18px;
+        border: 1px solid rgba(7, 26, 51, 0.12);
+        border-radius: 8px;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+      .engagement-feed-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 14px;
+      }
+      .engagement-feed-kicker {
+        color: var(--hx-jade);
+        font-size: 12px;
+        font-weight: 900;
+        margin-bottom: 4px;
+      }
+      .engagement-feed-header h3 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.3;
+      }
+      .engagement-feed-header p {
+        margin: 6px 0 0;
+        font-weight: 650;
+        line-height: 1.55;
+      }
+      .engagement-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .engagement-card {
+        padding: 14px 15px;
+        border-radius: 8px;
+        border: 1px solid rgba(7, 26, 51, 0.12);
+        background: rgba(255, 255, 255, 0.74);
+        box-shadow: 0 7px 18px rgba(7, 26, 51, 0.055);
+        opacity: 0;
+        transform: translateY(10px);
+        animation: engagement-card-fade-in 540ms ease forwards;
+        animation-delay: calc(var(--engagement-index, 0) * 130ms);
+      }
+      @keyframes engagement-card-fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .engagement-card-loading {
+        overflow: hidden;
+        position: relative;
+      }
+      .engagement-card-loading::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-110%);
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0),
+          rgba(255, 255, 255, 0.62),
+          rgba(255, 255, 255, 0)
+        );
+        animation: engagement-skeleton-shimmer 1.35s ease-in-out infinite;
+      }
+      @keyframes engagement-skeleton-shimmer {
+        100% {
+          transform: translateX(110%);
+        }
+      }
+      .engagement-skeleton-line {
+        height: 12px;
+        margin-top: 10px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(7, 26, 51, 0.08), rgba(8, 199, 217, 0.16));
+      }
+      .engagement-skeleton-line.wide {
+        width: 96%;
+      }
+      .engagement-skeleton-line.short {
+        width: 58%;
+      }
+      .engagement-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(8, 199, 217, 0.13);
+        color: var(--hx-jade);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .engagement-entity {
+        margin-top: 9px;
+        color: var(--hx-muted);
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .engagement-card strong {
+        display: block;
+        margin-top: 4px;
+        font-size: 16px;
+        line-height: 1.35;
+      }
+      .engagement-body {
+        margin: 9px 0 0;
+        line-height: 1.62;
+        font-weight: 650;
+      }
+      .engagement-footer {
+        margin-top: 10px;
+        color: rgba(7, 26, 51, 0.62);
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .engagement-batch-dots {
+        display: flex;
+        gap: 7px;
+        padding-top: 6px;
+      }
+      .engagement-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(7, 26, 51, 0.22);
+      }
+      .engagement-dot.active {
+        background: var(--hx-cyan);
+        box-shadow: 0 0 0 4px rgba(8, 199, 217, 0.13);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .engagement-card,
+        .engagement-card-loading::after {
+          animation: none;
+          opacity: 1;
+          transform: none;
+        }
       }
       .topic-card {
         margin: 10px 0;
@@ -3697,6 +4150,9 @@ def _css() -> str:
         }
         .lead {
           font-size: 16px;
+        }
+        .engagement-grid {
+          grid-template-columns: 1fr;
         }
       }
     </style>

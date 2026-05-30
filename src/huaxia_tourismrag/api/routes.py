@@ -1,12 +1,27 @@
 """FastAPI route definitions."""
 
-from collections.abc import Callable
+import base64
+import asyncio
+import io
+from collections.abc import Awaitable, Callable
+from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from pydantic import BaseModel
 
 from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
+from huaxia_tourismrag.core.config import Settings, get_settings
 from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelFormRequest,
@@ -59,6 +74,12 @@ class CurrentUser(BaseModel):
     role: str
 
 
+class VoiceTranscriptionResponse(BaseModel):
+    """Text extracted from a browser-recorded audio clip."""
+
+    text: str
+
+
 async def get_current_user() -> CurrentUser:
     """Return the current user.
 
@@ -70,6 +91,12 @@ async def get_current_user() -> CurrentUser:
         tenant_id="demo-tenant",
         role="tourism_user",
     )
+
+
+def get_app_settings() -> Settings:
+    """Return application settings for route-level helpers."""
+
+    return get_settings()
 
 
 def require_tourism_access(user: CurrentUser) -> None:
@@ -280,6 +307,14 @@ async def create_form_job(
         kind=kind,
         form_request=body,
     )
+    await _schedule_engagement_feed(
+        request=request,
+        job_id=job.job_id,
+        tenant_id=user.tenant_id,
+        question=question,
+        form_request=body,
+        job_store=job_store,
+    )
     job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
     if job_queue is not None:
         await job_queue.enqueue(
@@ -319,6 +354,14 @@ async def create_diy_itinerary_job(
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
     job = await job_store.create(user.tenant_id, body, kind="diy_itinerary")
+    await _schedule_engagement_feed(
+        request=request,
+        job_id=job.job_id,
+        tenant_id=user.tenant_id,
+        question=body,
+        form_request=None,
+        job_store=job_store,
+    )
     job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
     if job_queue is not None:
         await job_queue.enqueue(
@@ -355,6 +398,14 @@ async def create_general_question_job(
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
     job = await job_store.create(user.tenant_id, body, kind="general_question")
+    await _schedule_engagement_feed(
+        request=request,
+        job_id=job.job_id,
+        tenant_id=user.tenant_id,
+        question=body,
+        form_request=None,
+        job_store=job_store,
+    )
     job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
     if job_queue is not None:
         await job_queue.enqueue(
@@ -445,6 +496,14 @@ async def create_session_reply_job(
         kind=kind,
         session_id=session_id,
     )
+    await _schedule_engagement_feed(
+        request=request,
+        job_id=job.job_id,
+        tenant_id=user.tenant_id,
+        question=question,
+        form_request=None,
+        job_store=job_store,
+    )
     job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
     if job_queue is not None:
         await job_queue.enqueue(
@@ -496,6 +555,154 @@ async def create_sales_handoff(
     return SalesHandoffResponse(lead_id=record.lead_id, message=message)
 
 
+@router.post("/voice/transcriptions", response_model=VoiceTranscriptionResponse)
+async def transcribe_voice_upload(
+    file: UploadFile = File(...),
+    language: Literal["zh-CN", "en"] = Form(default="zh-CN"),
+    settings: Settings = Depends(get_app_settings),
+) -> VoiceTranscriptionResponse:
+    """Transcribe recorded browser audio without exposing provider keys."""
+
+    audio_bytes = await file.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="audio file is empty")
+
+    try:
+        text = await _transcribe_audio_bytes(
+            audio_bytes=audio_bytes,
+            content_type=file.content_type or "audio/wav",
+            language=language,
+            settings=settings,
+        )
+    except AgentModelConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return VoiceTranscriptionResponse(text=text)
+
+
+async def _transcribe_audio_bytes(
+    *,
+    audio_bytes: bytes,
+    content_type: str,
+    language: Literal["zh-CN", "en"],
+    settings: Settings,
+) -> str:
+    model = settings.asr_model
+    if _is_qwen_asr_model(model):
+        return await _transcribe_audio_bytes_with_qwen(
+            audio_bytes=audio_bytes,
+            content_type=content_type,
+            language=language,
+            settings=settings,
+        )
+    return await _transcribe_audio_bytes_with_openai(
+        audio_bytes=audio_bytes,
+        content_type=content_type,
+        language=language,
+        settings=settings,
+    )
+
+
+async def _transcribe_audio_bytes_with_qwen(
+    *,
+    audio_bytes: bytes,
+    content_type: str,
+    language: Literal["zh-CN", "en"],
+    settings: Settings,
+) -> str:
+    if not settings.dashscope_api_key:
+        raise AgentModelConfigurationError("DASHSCOPE_API_KEY is required for voice input")
+
+    def call_qwen() -> str:
+        from openai import OpenAI
+
+        client = OpenAI(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.qwen_cloud_base_url,
+        )
+        result = client.chat.completions.create(
+            model=settings.asr_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_audio",
+                            "input_audio": {
+                                "data": _voice_audio_data_url(audio_bytes, content_type),
+                                "format": _voice_audio_format(content_type),
+                            },
+                        }
+                    ],
+                }
+            ],
+            extra_body={
+                "asr_options": {
+                    "language": _voice_transcription_language(language),
+                }
+            },
+        )
+        return str(result.choices[0].message.content or "").strip()
+
+    return await asyncio.to_thread(call_qwen)
+
+
+async def _transcribe_audio_bytes_with_openai(
+    *,
+    audio_bytes: bytes,
+    content_type: str,
+    language: Literal["zh-CN", "en"],
+    settings: Settings,
+) -> str:
+    if not settings.openai_api_key:
+        raise AgentModelConfigurationError("OPENAI_API_KEY is required for voice input")
+
+    def call_openai() -> str:
+        from openai import OpenAI
+
+        file_obj = io.BytesIO(audio_bytes)
+        file_obj.name = _voice_audio_filename(content_type)
+        client = OpenAI(api_key=settings.openai_api_key)
+        result = client.audio.transcriptions.create(
+            model=settings.asr_model,
+            file=file_obj,
+            language=_voice_transcription_language(language),
+        )
+        return str(getattr(result, "text", "") or "").strip()
+
+    return await asyncio.to_thread(call_openai)
+
+
+def _is_qwen_asr_model(model: str) -> bool:
+    normalized = model.lower()
+    return normalized.startswith("qwen") or normalized.startswith("paraformer")
+
+
+def _voice_audio_data_url(audio_bytes: bytes, content_type: str) -> str:
+    mime = content_type or "audio/wav"
+    encoded = base64.b64encode(audio_bytes).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _voice_audio_format(content_type: str) -> str:
+    filename = _voice_audio_filename(content_type)
+    return filename.rsplit(".", 1)[-1]
+
+
+def _voice_audio_filename(content_type: str) -> str:
+    normalized = content_type.lower()
+    if "webm" in normalized:
+        return "xiaxia-voice.webm"
+    if "mp4" in normalized or "m4a" in normalized:
+        return "xiaxia-voice.mp4"
+    if "mpeg" in normalized or "mp3" in normalized:
+        return "xiaxia-voice.mp3"
+    return "xiaxia-voice.wav"
+
+
+def _voice_transcription_language(language: Literal["zh-CN", "en"]) -> str:
+    return "en" if language == "en" else "zh"
+
+
 async def _run_diy_itinerary_job(
     job_id: str,
     tenant_id: str,
@@ -506,7 +713,11 @@ async def _run_diy_itinerary_job(
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
     try:
-        answer = await service.answer(question, form_request=form_request)
+        answer = await service.answer(
+            question,
+            progress_callback=_job_progress_callback(job_store, job_id, tenant_id),
+            form_request=form_request,
+        )
     except Exception as exc:
         await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
@@ -524,7 +735,11 @@ async def _run_general_question_job(
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
     try:
-        answer = await service.answer(question, form_request=form_request)
+        answer = await service.answer(
+            question,
+            progress_callback=_job_progress_callback(job_store, job_id, tenant_id),
+            form_request=form_request,
+        )
     except Exception as exc:
         await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
@@ -543,10 +758,56 @@ async def _run_session_reply_job(
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
     try:
-        answer = await service.answer_prepared_question(question, kind)
+        answer = await service.answer_prepared_question(
+            question,
+            kind,
+            progress_callback=_job_progress_callback(job_store, job_id, tenant_id),
+        )
         answer = await service.complete_job_session(session_id, answer)
     except Exception as exc:
         await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
 
     await job_store.complete(job_id, tenant_id, answer)
+
+
+def _job_progress_callback(
+    job_store: TravelJobStore,
+    job_id: str,
+    tenant_id: str,
+) -> Callable[[str, int], Awaitable[None]]:
+    async def report(stage: str, progress_percent: int) -> None:
+        await job_store.update_progress(job_id, tenant_id, stage, progress_percent)
+
+    return report
+
+
+async def _schedule_engagement_feed(
+    *,
+    request: Request,
+    job_id: str,
+    tenant_id: str,
+    question: TravelQuestion,
+    form_request: TravelFormRequest | None,
+    job_store: TravelJobStore,
+) -> None:
+    """Initialize and start the non-authoritative waiting-room sidecar."""
+
+    service: Any | None = getattr(request.app.state, "engagement_feed_service", None)
+    if service is None:
+        return
+    await job_store.update_engagement_feed(
+        job_id,
+        tenant_id,
+        service.initial_feed(),
+    )
+    asyncio.create_task(
+        service.start_for_job(
+            job_id=job_id,
+            tenant_id=tenant_id,
+            question=question,
+            form_request=form_request,
+            job_store=job_store,
+            initialize=False,
+        )
+    )

@@ -1,0 +1,260 @@
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body::-webkit-scrollbar {
+  width: 12px;
+}
+
+body::-webkit-scrollbar-track {
+  background: rgba(248, 243, 236, 0.75);
+}
+
+body::-webkit-scrollbar-thumb {
+  background: rgba(47, 111, 115, 0.34);
+  border: 3px solid rgba(248, 243, 236, 0.75);
+  border-radius: 999px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: rgba(47, 111, 115, 0.52);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-root {
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+.huaxia-surface,
+.hero-panel,
+.composer-card,
+.answer-panel,
+.checkpoint-panel,
+.engagement-room {
+  padding: 28px;
+  border: 1px solid rgba(31, 41, 51, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(31, 41, 51, 0.10);
+}
+
+.huaxia-surface {
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.huaxia-surface:hover {
+  border-color: rgba(217, 72, 52, 0.22);
+  box-shadow: 0 22px 54px rgba(31, 41, 51, 0.12);
+}
+
+.avatar-shell {
+  width: 250px;
+  height: 290px;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.38) !important;
+}
+
+.hero-panel {
+  overflow: hidden;
+  position: relative;
+}
+
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  inset: auto -120px -160px auto;
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, rgba(217, 72, 52, 0.14), transparent 70%);
+  pointer-events: none;
+}
+
+.animated-presence {
+  animation: surface-rise 440ms ease both;
+}
+
+.soft-loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.soft-loading::after {
+  animation: shimmer 1.4s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.68), transparent);
+  content: "";
+  inset: 0;
+  position: absolute;
+  transform: translateX(-100%);
+}
+
+.engagement-card {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: card-fade-in 540ms ease forwards;
+}
+
+@keyframes card-fade-in {
+  to {
+    opacity: 1;
+  transform: translateY(0);
+  }
+}
+
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.voice-pulse {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: 8px auto 0;
+  color: #d94834;
+  background: rgba(217, 72, 52, 0.12);
+}
+
+.voice-pulse.active {
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 72, 52, 0.28);
+  }
+
+  50% {
+    box-shadow: 0 0 0 18px rgba(217, 72, 52, 0);
+  }
+}
+
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 112px;
+  width: 2px;
+  background: rgba(47, 111, 115, 0.22);
+}
+
+.timeline-day {
+  display: grid;
+  grid-template-columns: 94px 1fr;
+  gap: 54px;
+  position: relative;
+}
+
+.timeline-date {
+  text-align: right;
+  font-weight: 900;
+  color: #2f6f73;
+  padding-top: 4px;
+}
+
+.timeline-date span {
+  display: block;
+  font-size: 13px;
+  color: #5d6572;
+  margin-top: 6px;
+}
+
+.timeline-body {
+  position: relative;
+  padding-left: 22px;
+}
+
+.timeline-body::before {
+  content: "";
+  position: absolute;
+  left: -39px;
+  top: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #d94834;
+}
+
+.timeline-slot {
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(31, 41, 51, 0.10);
+}
+
+.timeline-slot-time {
+  display: block;
+  margin-bottom: 4px;
+  color: #2f6f73;
+}
+
+.stagger-item {
+  animation: card-fade-in 520ms ease both;
+}
+
+.timeline-note {
+  margin-top: 12px;
+  color: #5d6572;
+}
+
+@media (max-width: 720px) {
+  .hero-panel,
+  .composer-card,
+  .answer-panel,
+  .checkpoint-panel,
+  .engagement-room {
+    padding: 18px;
+  }
+
+  .timeline::before {
+    left: 64px;
+  }
+
+  .timeline-day {
+    grid-template-columns: 52px 1fr;
+    gap: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}

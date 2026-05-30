@@ -10,7 +10,7 @@ from huaxia_tourismrag.agents.travel_checkpoints import (
     intent_checkpoint_agent,
     preference_checkpoint_agent,
 )
-from huaxia_tourismrag.schemas.evidence import TravelFormRequest, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelFormRequest, TravelQuestion
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     CheckpointResponseOption,
     ClarificationDecision,
@@ -156,6 +156,44 @@ def test_clear_unbacked_reply_state_removes_stale_completed_session():
     )
     answer.needs_reply = False
     answer.session_id = "stale-session"
+
+    normalized = clear_unbacked_reply_state(answer)
+
+    assert normalized.needs_reply is False
+    assert normalized.session_id is None
+    assert normalized.quick_replies == []
+
+
+def test_clear_unbacked_reply_state_removes_model_created_session_on_itinerary():
+    answer = TravelAnswer(
+        answer="已生成完整行程。",
+        highlights=[],
+        warnings=[],
+        citations=[],
+        generated_itinerary={
+            "destination": "河南",
+            "itinerary": [
+                {
+                    "day": 1,
+                    "city": "郑州",
+                    "activities": [
+                        {
+                            "name": "抵达郑州",
+                            "description": "入住酒店。",
+                        }
+                    ],
+                }
+            ],
+        },
+        needs_reply=True,
+        session_id="model-made-session",
+        quick_replies=[
+            {
+                "label": "继续追问",
+                "message": "继续追问",
+            }
+        ],
+    )
 
     normalized = clear_unbacked_reply_state(answer)
 

@@ -1,0 +1,2916 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HuaXia Tourism RAG",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/tourism/health": {
+      "get": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Health Check",
+        "description": "Return a simple service health response.",
+        "operationId": "health_check_tourism_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Tourism Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/capabilities": {
+      "get": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Get Capabilities",
+        "description": "Describe the tourism RAG API surface for clients.",
+        "operationId": "get_capabilities_tourism_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TourismCapabilitiesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/questions": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Answer Tourism Question",
+        "description": "Answer a Chinese tourism question using the RAG service.",
+        "operationId": "answer_tourism_question_tourism_questions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/ask": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Answer Tourism Question",
+        "description": "Answer a Chinese tourism question using the RAG service.",
+        "operationId": "answer_tourism_question_tourism_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/itineraries/diy": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Answer Diy Itinerary Question",
+        "description": "Answer a user-defined, non-standard DIY itinerary request.",
+        "operationId": "answer_diy_itinerary_question_tourism_itineraries_diy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/forms/questions": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Answer Form Question",
+        "description": "Answer a typed form request through the existing travel services.",
+        "operationId": "answer_form_question_tourism_forms_questions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelFormRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/forms/jobs": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Create Form Job",
+        "description": "Queue a typed form request for async generation.",
+        "operationId": "create_form_job_tourism_forms_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelFormRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelJobCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/jobs/diy": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Create Diy Itinerary Job",
+        "description": "Queue a long-running DIY itinerary job.",
+        "operationId": "create_diy_itinerary_job_tourism_jobs_diy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelJobCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/jobs/questions": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Create General Question Job",
+        "description": "Queue a long-running general tourism question job.",
+        "operationId": "create_general_question_job_tourism_jobs_questions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelJobCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Get Travel Job Status",
+        "description": "Return status and result for a long-running travel job.",
+        "operationId": "get_travel_job_status_tourism_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelJobStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/sessions/{session_id}/reply": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Reply To Tourism Session",
+        "description": "Continue a pending multi-hop tourism session.",
+        "operationId": "reply_to_tourism_session_tourism_sessions__session_id__reply_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/sessions/{session_id}/reply/job": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Create Session Reply Job",
+        "description": "Queue a deep reply to a pending multi-hop tourism session.",
+        "operationId": "create_session_reply_job_tourism_sessions__session_id__reply_job_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelJobCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/sales/handoffs": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Create Sales Handoff",
+        "description": "Capture a generated itinerary and route it to HuaXia sales.",
+        "operationId": "create_sales_handoff_tourism_sales_handoffs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesHandoffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesHandoffResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tourism/voice/transcriptions": {
+      "post": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Transcribe Voice Upload",
+        "description": "Transcribe recorded browser audio without exposing provider keys.",
+        "operationId": "transcribe_voice_upload_tourism_voice_transcriptions_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_voice_upload_tourism_voice_transcriptions_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceTranscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActivityAlternative": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "natural_attraction",
+                  "cultural_attraction",
+                  "local_restaurant",
+                  "accommodation",
+                  "shopping",
+                  "transport",
+                  "nature",
+                  "special_event"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "citations": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Citations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "ActivityAlternative",
+        "description": "One optional choice for a scheduled itinerary slot."
+      },
+      "ActivityItem": {
+        "properties": {
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "natural_attraction",
+                  "cultural_attraction",
+                  "local_restaurant",
+                  "accommodation",
+                  "shopping",
+                  "transport",
+                  "nature",
+                  "special_event"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "duration_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Hours"
+          },
+          "booking_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Url"
+          },
+          "opening_hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Hours"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "citations": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Citations"
+          },
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityAlternative"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Alternatives"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "ActivityItem"
+      },
+      "Body_transcribe_voice_upload_tourism_voice_transcriptions_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en"
+            ],
+            "title": "Language",
+            "default": "zh-CN"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_voice_upload_tourism_voice_transcriptions_post"
+      },
+      "BookingAction": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "baidu_maps",
+              "tuniu",
+              "firecrawl",
+              "tavily"
+            ],
+            "title": "Provider"
+          },
+          "action_type": {
+            "type": "string",
+            "enum": [
+              "open_booking_link",
+              "open_product_page",
+              "request_live_price"
+            ],
+            "title": "Action Type"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "safety_note": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Safety Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "action_type",
+          "label",
+          "safety_note"
+        ],
+        "title": "BookingAction",
+        "description": "A safe user-facing action that can move from planning to booking."
+      },
+      "BookingProduct": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "baidu_maps",
+              "tuniu",
+              "firecrawl",
+              "tavily"
+            ],
+            "title": "Provider"
+          },
+          "product_type": {
+            "type": "string",
+            "enum": [
+              "hotel",
+              "ticket",
+              "flight",
+              "train",
+              "package",
+              "activity"
+            ],
+            "title": "Product Type"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "price_cny": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Cny"
+          },
+          "price_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Note"
+          },
+          "availability_status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "limited",
+              "unavailable",
+              "unknown"
+            ],
+            "title": "Availability Status",
+            "default": "unknown"
+          },
+          "booking_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Url"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Highlights"
+          },
+          "cancellation_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "product_type",
+          "title"
+        ],
+        "title": "BookingProduct",
+        "description": "One commercial travel product candidate returned by Tuniu."
+      },
+      "DailyPlan": {
+        "properties": {
+          "day": {
+            "type": "integer",
+            "title": "Day"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "activities": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityItem"
+            },
+            "type": "array",
+            "title": "Activities"
+          },
+          "estimated_daily_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Daily Cost"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "city",
+          "activities"
+        ],
+        "title": "DailyPlan"
+      },
+      "EngagementBatch": {
+        "properties": {
+          "batch_index": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Batch Index"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementCard"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Cards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch_index",
+          "cards"
+        ],
+        "title": "EngagementBatch",
+        "description": "A six-card waiting-room batch."
+      },
+      "EngagementCard": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Card Id"
+          },
+          "card_type": {
+            "type": "string",
+            "enum": [
+              "attraction_knowledge",
+              "city_folk_custom",
+              "local_flavor",
+              "traveler_reminder"
+            ],
+            "title": "Card Type"
+          },
+          "entity": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Entity"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 650,
+            "minLength": 80,
+            "title": "Body"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "general_knowledge",
+              "soft_legend",
+              "culture_note",
+              "travel_common_sense"
+            ],
+            "title": "Confidence",
+            "default": "general_knowledge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id",
+          "card_type",
+          "entity",
+          "title",
+          "body"
+        ],
+        "title": "EngagementCard",
+        "description": "A mini-encyclopedia card shown while a deep itinerary job runs."
+      },
+      "EngagementFeed": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "loading",
+              "partial",
+              "ready",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "loading"
+          },
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementBatch"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Batches"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 240
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "title": "EngagementFeed",
+        "description": "Public feed persisted on a long-running travel job."
+      },
+      "FreshWebEvidence": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "baidu_maps",
+              "tuniu",
+              "firecrawl",
+              "tavily"
+            ],
+            "title": "Provider"
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Query"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Summary"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "official",
+              "commercial",
+              "review",
+              "blog",
+              "unknown"
+            ],
+            "title": "Source Authority",
+            "default": "unknown"
+          },
+          "recency_label": {
+            "type": "string",
+            "enum": [
+              "today",
+              "recent",
+              "stale",
+              "unknown"
+            ],
+            "title": "Recency Label",
+            "default": "unknown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "query",
+          "title",
+          "summary"
+        ],
+        "title": "FreshWebEvidence",
+        "description": "One current web page found through a live web-research provider."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PerformanceStageTiming": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "duration_ms": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Duration Ms"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "duration_ms"
+        ],
+        "title": "PerformanceStageTiming",
+        "description": "Elapsed time for one inference stage."
+      },
+      "PerformanceTrace": {
+        "properties": {
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceStageTiming"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "total_ms": {
+            "type": "number",
+            "title": "Total Ms",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_ms"
+        ],
+        "title": "PerformanceTrace",
+        "description": "Optional debug trace for one answer generation request."
+      },
+      "QuickReplyOption": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "action_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "preference_option_a",
+                  "preference_option_b",
+                  "default_preferences",
+                  "detail_concise",
+                  "detail_standard",
+                  "detail_deep",
+                  "feasibility_accept_adjustment",
+                  "feasibility_keep_original"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "message"
+        ],
+        "title": "QuickReplyOption",
+        "description": "A typed UI quick reply for pending multi-hop checkpoints."
+      },
+      "RouteFeasibilityReport": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "baidu_maps",
+              "tuniu",
+              "firecrawl",
+              "tavily"
+            ],
+            "title": "Provider"
+          },
+          "route_summary": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Route Summary"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/RouteLegCheck"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Legs"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "route_summary"
+        ],
+        "title": "RouteFeasibilityReport",
+        "description": "Aggregated route sanity check for a generated itinerary."
+      },
+      "RouteLegCheck": {
+        "properties": {
+          "origin": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Destination"
+          },
+          "recommended_mode": {
+            "type": "string",
+            "enum": [
+              "walking",
+              "driving",
+              "transit",
+              "train",
+              "flight",
+              "mixed",
+              "unknown"
+            ],
+            "title": "Recommended Mode",
+            "default": "unknown"
+          },
+          "estimated_duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Duration Minutes"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "feasibility_level": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "reasonable",
+              "tight",
+              "not_recommended",
+              "unknown"
+            ],
+            "title": "Feasibility Level",
+            "default": "unknown"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Notes"
+          },
+          "provider_reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "origin",
+          "destination"
+        ],
+        "title": "RouteLegCheck",
+        "description": "One checked route leg returned by a map/transport provider."
+      },
+      "SalesHandoffRequest": {
+        "properties": {
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          },
+          "contact": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 3,
+            "title": "Contact"
+          },
+          "preferred_channel": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "wechat",
+              "email",
+              "any"
+            ],
+            "title": "Preferred Channel",
+            "default": "any"
+          },
+          "original_request": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 5,
+            "title": "Original Request"
+          },
+          "itinerary_snapshot": {
+            "type": "string",
+            "maxLength": 12000,
+            "minLength": 20,
+            "title": "Itinerary Snapshot"
+          },
+          "must_keep": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Must Keep"
+          },
+          "flexible_items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Flexible Items"
+          },
+          "quote_items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Quote Items"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en"
+            ],
+            "title": "Language",
+            "default": "zh-CN"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contact",
+          "original_request",
+          "itinerary_snapshot"
+        ],
+        "title": "SalesHandoffRequest",
+        "description": "Request sent when a traveler wants a human advisor to arrange a trip."
+      },
+      "SalesHandoffResponse": {
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "title": "Lead Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "received",
+            "title": "Status",
+            "default": "received"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lead_id",
+          "message"
+        ],
+        "title": "SalesHandoffResponse",
+        "description": "Public response after a sales handoff is accepted."
+      },
+      "ServiceEnrichmentContext": {
+        "properties": {
+          "route_feasibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteFeasibilityReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weather_impacts": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherImpact"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Weather Impacts"
+          },
+          "booking_products": {
+            "items": {
+              "$ref": "#/components/schemas/BookingProduct"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Booking Products"
+          },
+          "booking_actions": {
+            "items": {
+              "$ref": "#/components/schemas/BookingAction"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Booking Actions"
+          },
+          "fresh_web_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/FreshWebEvidence"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Fresh Web Evidence"
+          },
+          "unavailable_providers": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceProviderUnavailable"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Unavailable Providers"
+          }
+        },
+        "type": "object",
+        "title": "ServiceEnrichmentContext",
+        "description": "All external service evidence available to final answer generation."
+      },
+      "ServiceProviderUnavailable": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "baidu_maps",
+              "tuniu",
+              "firecrawl",
+              "tavily"
+            ],
+            "title": "Provider"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "reason"
+        ],
+        "title": "ServiceProviderUnavailable",
+        "description": "Typed provider failure that is safe to show or log."
+      },
+      "SessionReplyRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "quick_reply_action_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "preference_option_a",
+                  "preference_option_b",
+                  "default_preferences",
+                  "detail_concise",
+                  "detail_standard",
+                  "detail_deep",
+                  "feasibility_accept_adjustment",
+                  "feasibility_keep_original"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quick Reply Action Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "SessionReplyRequest",
+        "description": "User reply to a pending session clarification."
+      },
+      "TopicRecommendation": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "signature_item",
+              "area_strategy",
+              "booking_or_timing",
+              "accessibility",
+              "budget_fit",
+              "verification_needed"
+            ],
+            "title": "Kind",
+            "default": "area_strategy"
+          },
+          "citations": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Citations"
+          },
+          "verification_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "TopicRecommendation",
+        "description": "One structured, citeable recommendation inside a topic section."
+      },
+      "TourismCapabilitiesResponse": {
+        "properties": {
+          "primary_endpoint": {
+            "type": "string",
+            "title": "Primary Endpoint"
+          },
+          "legacy_endpoint": {
+            "type": "string",
+            "title": "Legacy Endpoint"
+          },
+          "diy_itinerary_endpoint": {
+            "type": "string",
+            "title": "Diy Itinerary Endpoint"
+          },
+          "diy_job_endpoint": {
+            "type": "string",
+            "title": "Diy Job Endpoint"
+          },
+          "general_job_endpoint": {
+            "type": "string",
+            "title": "General Job Endpoint"
+          },
+          "form_question_endpoint": {
+            "type": "string",
+            "title": "Form Question Endpoint"
+          },
+          "form_job_endpoint": {
+            "type": "string",
+            "title": "Form Job Endpoint"
+          },
+          "job_status_endpoint": {
+            "type": "string",
+            "title": "Job Status Endpoint"
+          },
+          "session_reply_endpoint": {
+            "type": "string",
+            "title": "Session Reply Endpoint"
+          },
+          "sales_handoff_endpoint": {
+            "type": "string",
+            "title": "Sales Handoff Endpoint"
+          },
+          "supported_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Languages"
+          },
+          "supported_budget_levels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Budget Levels"
+          },
+          "supported_detail_levels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Detail Levels"
+          },
+          "optional_context_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Optional Context Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary_endpoint",
+          "legacy_endpoint",
+          "diy_itinerary_endpoint",
+          "diy_job_endpoint",
+          "general_job_endpoint",
+          "form_question_endpoint",
+          "form_job_endpoint",
+          "job_status_endpoint",
+          "session_reply_endpoint",
+          "sales_handoff_endpoint",
+          "supported_languages",
+          "supported_budget_levels",
+          "supported_detail_levels",
+          "optional_context_fields"
+        ],
+        "title": "TourismCapabilitiesResponse",
+        "description": "Public API capability description."
+      },
+      "TravelAnswer": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Highlights"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "citations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "generated_itinerary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelItinerary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_enrichment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceEnrichmentContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "topic_sections": {
+            "items": {
+              "$ref": "#/components/schemas/TravelTopicSection"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Topic Sections"
+          },
+          "quick_replies": {
+            "items": {
+              "$ref": "#/components/schemas/QuickReplyOption"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Quick Replies"
+          },
+          "performance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PerformanceTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "needs_reply": {
+            "type": "boolean",
+            "title": "Needs Reply",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer",
+          "highlights",
+          "warnings",
+          "citations"
+        ],
+        "title": "TravelAnswer"
+      },
+      "TravelFormRequest": {
+        "properties": {
+          "request_mode": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "diy"
+            ],
+            "title": "Request Mode",
+            "default": "normal"
+          },
+          "origin_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin City"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "return_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return City"
+          },
+          "required_stops": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Required Stops"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "duration_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Days"
+          },
+          "traveler_group": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "solo",
+                  "couple",
+                  "family",
+                  "friends",
+                  "parents",
+                  "business"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Traveler Group"
+          },
+          "traveler_composition": {
+            "$ref": "#/components/schemas/TravelerComposition"
+          },
+          "budget_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "budget",
+                  "mid_range",
+                  "luxury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Level"
+          },
+          "travel_mode_preference": {
+            "type": "string",
+            "enum": [
+              "train_first",
+              "flight_first",
+              "self_drive",
+              "charter_when_needed",
+              "mixed"
+            ],
+            "title": "Travel Mode Preference",
+            "default": "mixed"
+          },
+          "pace": {
+            "type": "string",
+            "enum": [
+              "relaxed",
+              "balanced",
+              "intensive"
+            ],
+            "title": "Pace",
+            "default": "balanced"
+          },
+          "route_strictness": {
+            "type": "string",
+            "enum": [
+              "flexible",
+              "must_cover_all",
+              "theme_pure",
+              "balanced_city"
+            ],
+            "title": "Route Strictness",
+            "default": "flexible"
+          },
+          "attraction_preferences": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "history_culture",
+                "nature",
+                "food",
+                "family_friendly",
+                "photography",
+                "theme_route",
+                "heritage",
+                "city_classics"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Attraction Preferences"
+          },
+          "accommodation_preference": {
+            "type": "string",
+            "enum": [
+              "convenient",
+              "luxury",
+              "boutique",
+              "budget"
+            ],
+            "title": "Accommodation Preference",
+            "default": "convenient"
+          },
+          "food_preference": {
+            "type": "string",
+            "enum": [
+              "local_snacks",
+              "classic_restaurants",
+              "fine_dining",
+              "balanced"
+            ],
+            "title": "Food Preference",
+            "default": "balanced"
+          },
+          "must_have": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Must Have"
+          },
+          "avoid": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Avoid"
+          },
+          "extra_notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Notes"
+          },
+          "detail_level": {
+            "type": "string",
+            "enum": [
+              "concise",
+              "standard",
+              "deep"
+            ],
+            "title": "Detail Level",
+            "default": "deep"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en"
+            ],
+            "title": "Language",
+            "default": "zh-CN"
+          }
+        },
+        "type": "object",
+        "title": "TravelFormRequest",
+        "description": "Typed travel-intake form that serializes into the existing question DTO."
+      },
+      "TravelItinerary": {
+        "properties": {
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "travelers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travelers"
+          },
+          "budget_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "budget",
+                  "mid_range",
+                  "luxury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Level"
+          },
+          "itinerary": {
+            "items": {
+              "$ref": "#/components/schemas/DailyPlan"
+            },
+            "type": "array",
+            "title": "Itinerary",
+            "default": []
+          },
+          "total_estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Estimated Cost"
+          },
+          "travel_tips": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Travel Tips",
+            "default": []
+          },
+          "citations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Citations",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "destination"
+        ],
+        "title": "TravelItinerary"
+      },
+      "TravelJobCreateResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "TravelJobCreateResponse",
+        "description": "Response returned when a long-running job is queued."
+      },
+      "TravelJobStatusResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage"
+          },
+          "progress_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percent"
+          },
+          "engagement_feed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngagementFeed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "performance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PerformanceTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TravelJobStatusResponse",
+        "description": "Public status response for a long-running job."
+      },
+      "TravelQuestion": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 5,
+            "title": "Question"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "travelers": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 20.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travelers"
+          },
+          "budget_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "budget",
+                  "mid_range",
+                  "luxury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Level"
+          },
+          "detail_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "concise",
+                  "standard",
+                  "deep"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail Level"
+          },
+          "interests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Interests"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en"
+            ],
+            "title": "Language",
+            "default": "zh-CN"
+          },
+          "continuation_pending_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "preference",
+                  "feasibility",
+                  "detail_level"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continuation Pending Kind"
+          },
+          "continuation_quick_reply_action_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "preference_option_a",
+                  "preference_option_b",
+                  "default_preferences",
+                  "detail_concise",
+                  "detail_standard",
+                  "detail_deep",
+                  "feasibility_accept_adjustment",
+                  "feasibility_keep_original"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continuation Quick Reply Action Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "TravelQuestion",
+        "description": "Validated user request for a tourism RAG answer."
+      },
+      "TravelTopicSection": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "food",
+              "accommodation",
+              "public_transport",
+              "shopping",
+              "entertainment"
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 1200,
+            "title": "Summary",
+            "default": ""
+          },
+          "recommendations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Recommendations"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicRecommendation"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "title"
+        ],
+        "title": "TravelTopicSection",
+        "description": "One focused, citeable topic section for a generated trip response."
+      },
+      "TravelerComposition": {
+        "properties": {
+          "adults": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Adults",
+            "default": 1
+          },
+          "elders": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Elders",
+            "default": 0
+          },
+          "children": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Children",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TravelerComposition",
+        "description": "Structured traveler counts captured by the quick form."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VoiceTranscriptionResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "VoiceTranscriptionResponse",
+        "description": "Text extracted from a browser-recorded audio clip."
+      },
+      "WeatherImpact": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "baidu_maps",
+              "tuniu",
+              "firecrawl",
+              "tavily"
+            ],
+            "title": "Provider"
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "City"
+          },
+          "date_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Label"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
+          },
+          "temperature_summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Summary"
+          },
+          "impact_level": {
+            "type": "string",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "unknown"
+            ],
+            "title": "Impact Level",
+            "default": "unknown"
+          },
+          "recommendation": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Recommendation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "city",
+          "recommendation"
+        ],
+        "title": "WeatherImpact",
+        "description": "Weather impact for a city/day from a provider such as Baidu Maps."
+      }
+    }
+  }
+}

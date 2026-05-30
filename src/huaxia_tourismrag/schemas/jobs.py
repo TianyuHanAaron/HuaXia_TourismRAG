@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from huaxia_tourismrag.schemas.engagement import EngagementFeed
 from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelFormRequest,
@@ -31,6 +32,7 @@ class TravelJob(BaseModel):
     error: str | None = Field(default=None, max_length=1000)
     current_stage: str | None = Field(default="queued", max_length=80)
     progress_percent: int | None = Field(default=0, ge=0, le=100)
+    engagement_feed: EngagementFeed | None = None
     performance: PerformanceTrace | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -52,6 +54,7 @@ class TravelJobStatusResponse(BaseModel):
     error: str | None = None
     current_stage: str | None = None
     progress_percent: int | None = None
+    engagement_feed: EngagementFeed | None = None
     performance: PerformanceTrace | None = None
     created_at: datetime
     updated_at: datetime
@@ -65,6 +68,7 @@ class TravelJobStatusResponse(BaseModel):
             error=job.error,
             current_stage=job.current_stage,
             progress_percent=job.progress_percent,
+            engagement_feed=job.engagement_feed,
             performance=job.performance,
             created_at=job.created_at,
             updated_at=job.updated_at,

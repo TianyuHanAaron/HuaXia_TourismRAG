@@ -21,7 +21,7 @@ TOPIC_SECTION_TITLES: dict[TopicSectionCategory, str] = {
     "entertainment": "娱乐项目",
 }
 
-TOPIC_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
+TOPIC_PRIMARY_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
     "food": {
         "local_cuisine",
     },
@@ -42,6 +42,38 @@ TOPIC_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
         "activity",
         "entertainment",
     },
+}
+
+TOPIC_FALLBACK_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
+    "food": {
+        "destination",
+        "travel_guide",
+    },
+    "accommodation": {
+        "destination",
+        "travel_guide",
+    },
+    "public_transport": {
+        "destination",
+        "travel_guide",
+    },
+    "shopping": {
+        "destination",
+        "travel_guide",
+    },
+    "entertainment": {
+        "attraction",
+        "destination",
+        "heritage_site",
+        "scenic_quality",
+        "travel_guide",
+    },
+}
+
+TOPIC_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
+    category: TOPIC_PRIMARY_CONTENT_TYPES[category]
+    | TOPIC_FALLBACK_CONTENT_TYPES[category]
+    for category in TOPIC_SECTION_TITLES
 }
 
 TOPIC_EVIDENCE_CAPS: dict[TopicSectionCategory, int] = {
@@ -87,11 +119,11 @@ class TopicEvidenceSelector:
         )
         bundles: list[TopicEvidenceBundle] = []
         for category, title in TOPIC_SECTION_TITLES.items():
-            compatible = [
-                quote
-                for quote in pack.evidence_quotes
-                if quote.content_type in TOPIC_CONTENT_TYPES[category]
-            ]
+            compatible = self._compatible_quotes(
+                category=category,
+                quotes=pack.evidence_quotes,
+                route_terms=route_terms,
+            )
             ranked = sorted(
                 compatible,
                 key=lambda quote: (
@@ -116,6 +148,31 @@ class TopicEvidenceSelector:
                 )
             )
         return bundles
+
+    def _compatible_quotes(
+        self,
+        *,
+        category: TopicSectionCategory,
+        quotes: list[EvidenceQuote],
+        route_terms: list[str],
+    ) -> list[EvidenceQuote]:
+        primary = TOPIC_PRIMARY_CONTENT_TYPES[category]
+        fallback = TOPIC_FALLBACK_CONTENT_TYPES[category]
+        compatible: list[EvidenceQuote] = []
+        seen_ids: set[int] = set()
+        for quote in quotes:
+            is_primary = quote.content_type in primary
+            is_fallback = quote.content_type in fallback and self._matches_route_scope(
+                quote,
+                route_terms,
+            )
+            if not is_primary and not is_fallback:
+                continue
+            if quote.citation_id in seen_ids:
+                continue
+            compatible.append(quote)
+            seen_ids.add(quote.citation_id)
+        return compatible
 
     def _route_terms(
         self,

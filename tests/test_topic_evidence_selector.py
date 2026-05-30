@@ -149,7 +149,40 @@ def test_selector_includes_fresh_web_style_entertainment_quotes_with_url():
     assert "成都川剧演出预约" in context
 
 
-def test_selector_excludes_generic_travel_guides_from_food_section():
+def test_selector_uses_route_matched_travel_guides_as_topic_fallback():
+    pack = _pack(
+        [
+            _quote(
+                1,
+                content_type="travel_guide",
+                title="深圳五一旅游指南",
+                quote="深圳五一行程可结合海边民宿、本地餐饮、公共交通和大鹏半岛预约提醒。",
+                source_type="web",
+                source_ref="https://example.cn/shenzhen-guide",
+            )
+        ]
+    )
+
+    bundles = TopicEvidenceSelector().select(
+        question=TravelQuestion(question="深圳五一海边古村5天。", destination="深圳"),
+        pack=pack,
+        research_plan=None,
+        diy_plan=None,
+    )
+
+    section_quotes = {
+        bundle.category: [quote.citation_id for quote in bundle.evidence_quotes]
+        for bundle in bundles
+    }
+
+    assert section_quotes["food"] == [1]
+    assert section_quotes["accommodation"] == [1]
+    assert section_quotes["public_transport"] == [1]
+    assert section_quotes["shopping"] == [1]
+    assert section_quotes["entertainment"] == [1]
+
+
+def test_selector_excludes_unrelated_generic_travel_guides_from_food_section():
     pack = _pack(
         [
             _quote(

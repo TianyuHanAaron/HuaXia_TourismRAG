@@ -84,6 +84,27 @@ def test_settings_accepts_fast_path_model_overrides():
     assert settings.final_answer_model == "qwen3.7-max"
 
 
+def test_settings_engagement_model_defaults_to_checkpoint_model():
+    settings = Settings(
+        _env_file=None,
+        TOURISM_AGENT_MODEL="qwen3.7-max",
+        CHECKPOINT_MODEL="qwen3.6-flash",
+    )
+
+    assert settings.engagement_model == "qwen3.6-flash"
+
+
+def test_settings_accepts_engagement_model_override():
+    settings = Settings(
+        _env_file=None,
+        TOURISM_AGENT_MODEL="qwen3.7-max",
+        CHECKPOINT_MODEL="qwen3.6-flash",
+        ENGAGEMENT_MODEL="qwen3.6-plus",
+    )
+
+    assert settings.engagement_model == "qwen3.6-plus"
+
+
 def test_ensure_agent_model_ready_exports_dashscope_key(monkeypatch):
     monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     settings = Settings(

@@ -137,6 +137,23 @@ def test_final_answer_prompt_requires_dedicated_trip_topic_sections():
     assert "公交专题应写城市内地铁/公交/打车/包车接驳" in prompt
 
 
+def test_final_answer_prompt_prevents_single_block_deep_itinerary_days():
+    prompt = build_final_answer_prompt(
+        question="甘肃石窟14天深度游怎么安排？",
+        citation_context="[1] citation_id=1\nquote=麦积山石窟预约讲解。",
+        citation_lines=["[1] 麦积山石窟 - 官方 - https://example.cn/maiji"],
+        detail_level="deep",
+    )
+
+    assert "不要把一天压缩成单个全天 activity" in prompt
+    assert "非纯休息日每天至少 3 个 activity" in prompt
+    assert "转场日也要拆成出发交通、午餐或中途休息、抵达入住/晚餐" in prompt
+    assert "不要因为航班或火车精确时刻未知就省略所有 start_time" in prompt
+    assert "宁可压缩每条 description，也不要减少 activity 数量" in prompt
+    assert "优先保证 generated_itinerary 的多时间节点" in prompt
+    assert "topic_sections 可以简洁" in prompt
+
+
 def test_final_answer_prompt_can_defer_topic_sections():
     prompt = build_final_answer_prompt(
         question="山西深度游怎么安排？",
@@ -217,6 +234,9 @@ def test_final_answer_prompt_requires_timed_itinerary_choices():
     assert "12:00 午餐" in prompt
     assert "alternatives" in prompt
     assert "同一时段提供 1-3 个可选择方案" in prompt
+    assert "每一天的午餐和晚餐" in prompt
+    assert "尽量不要每天重复同一种小吃" in prompt
+    assert "夜市、美食街、老店" in prompt
     assert "历史背景" in prompt
     assert "像真实旅行社行程单一样可执行" in prompt
     assert "不要只写景点名称" in prompt

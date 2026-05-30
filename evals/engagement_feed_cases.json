@@ -1,0 +1,14 @@
+[
+  {
+    "name": "henan_culture_family_waiting_room",
+    "prompt": "河南计划：一家四口（两大两小）从郑州本地出发，用10天深度游中原文化，预算14000元。7月初想走“寻根+古都”线：安阳殷墟和文字博物馆住两天，洛阳龙门石窟、白马寺、二里头夏都遗址三天，登封少林寺和嵩阳书院两天，开封清明上河园、州桥遗址两天，最后一天去三门峡地坑院，吃烩面、水席和汴京烤鸭。",
+    "expected_entities": ["安阳", "洛阳", "龙门石窟", "登封", "开封", "三门峡"],
+    "expected_card_types": [
+      "attraction_knowledge",
+      "city_folk_custom",
+      "local_flavor",
+      "traveler_reminder"
+    ],
+    "forbidden_claims": ["实时票价", "当前开放", "酒店房态", "今日天气", "实时路况", "为什么值得注意"]
+  }
+]

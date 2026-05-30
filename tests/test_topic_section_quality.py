@@ -63,6 +63,41 @@ def test_quality_guard_keeps_compatible_topic_recommendations():
     assert result.issues == []
 
 
+def test_quality_guard_keeps_route_guide_supported_topic_recommendations():
+    answer = TravelAnswer(
+        answer="夏夏整理好了。[1]",
+        highlights=[],
+        warnings=[],
+        citations=[],
+        topic_sections=[
+            {
+                "category": "accommodation",
+                "title": "住宿",
+                "summary": "深圳海边段优先选择民宿，市区段住地铁沿线酒店。[1]",
+                "recommendations": ["五一期间提前锁定大鹏半岛民宿。[1]"],
+                "items": [
+                    {
+                        "title": "海边民宿",
+                        "description": "较场尾和大鹏所城周边适合安排一到两晚民宿。[1]",
+                        "kind": "area_strategy",
+                        "citations": [1],
+                    }
+                ],
+            }
+        ],
+    )
+
+    result = TopicSectionQualityGuard().validate(
+        answer,
+        _pack(_quote(1, content_type="travel_guide")),
+    )
+
+    section = result.answer.topic_sections[0]
+    assert section.category == "accommodation"
+    assert section.items[0].title == "海边民宿"
+    assert result.issues == []
+
+
 def test_quality_guard_drops_missing_citation_sections():
     answer = TravelAnswer(
         answer="夏夏整理好了。",
@@ -83,6 +118,41 @@ def test_quality_guard_drops_missing_citation_sections():
 
     assert result.answer.topic_sections == []
     assert result.issues
+
+
+def test_quality_guard_adds_compatible_citation_to_uncited_topic_claims():
+    answer = TravelAnswer(
+        answer="夏夏整理好了。[1]",
+        highlights=[],
+        warnings=[],
+        citations=[],
+        topic_sections=[
+            {
+                "category": "accommodation",
+                "title": "住宿",
+                "summary": "南疆长线建议住县城核心区和景区外便利民宿。",
+                "recommendations": ["摄影团队优先选择可停车、可早出发的住宿。"],
+                "items": [
+                    {
+                        "title": "县城住宿",
+                        "description": "库车和喀什段适合住老城或县城中心，方便补给。",
+                        "kind": "area_strategy",
+                    }
+                ],
+            }
+        ],
+    )
+
+    result = TopicSectionQualityGuard().validate(
+        answer,
+        _pack(_quote(1, content_type="travel_guide")),
+    )
+
+    section = result.answer.topic_sections[0]
+    assert section.summary.endswith("[1]")
+    assert section.recommendations == ["摄影团队优先选择可停车、可早出发的住宿。[1]"]
+    assert section.items[0].description.endswith("[1]")
+    assert section.items[0].citations == [1]
 
 
 def test_quality_guard_drops_policy_source_food_section():

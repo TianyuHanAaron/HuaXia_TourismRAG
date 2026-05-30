@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from redis.asyncio import Redis
 
+from huaxia_tourismrag.schemas.engagement import EngagementFeed
 from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelFormRequest,
@@ -60,6 +61,14 @@ class TravelJobStore(Protocol):
         progress_percent: int,
     ) -> TravelJob:
         """Update user-visible progress metadata."""
+
+    async def update_engagement_feed(
+        self,
+        job_id: str,
+        tenant_id: str,
+        feed: EngagementFeed,
+    ) -> TravelJob:
+        """Persist waiting-room engagement feed metadata."""
 
 
 class InMemoryTravelJobStore:
@@ -138,6 +147,18 @@ class InMemoryTravelJobStore:
         job = await self.get(job_id, tenant_id)
         job.current_stage = stage
         job.progress_percent = progress_percent
+        job.updated_at = datetime.now(UTC)
+        self._jobs[job.job_id] = job
+        return job
+
+    async def update_engagement_feed(
+        self,
+        job_id: str,
+        tenant_id: str,
+        feed: EngagementFeed,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        job.engagement_feed = feed
         job.updated_at = datetime.now(UTC)
         self._jobs[job.job_id] = job
         return job
@@ -224,6 +245,18 @@ class RedisTravelJobStore:
         job = await self.get(job_id, tenant_id)
         job.current_stage = stage
         job.progress_percent = progress_percent
+        job.updated_at = datetime.now(UTC)
+        await self._save(job)
+        return job
+
+    async def update_engagement_feed(
+        self,
+        job_id: str,
+        tenant_id: str,
+        feed: EngagementFeed,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        job.engagement_feed = feed
         job.updated_at = datetime.now(UTC)
         await self._save(job)
         return job

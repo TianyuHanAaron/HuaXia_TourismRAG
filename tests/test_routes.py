@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
+from huaxia_tourismrag.api import routes
 from huaxia_tourismrag.api.routes import router
+from huaxia_tourismrag.schemas.engagement import EngagementFeed
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.schemas.jobs import TravelJobQueueItem
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
@@ -16,7 +18,12 @@ class FakeTourismQAService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
 
-    async def answer(self, question: TravelQuestion, form_request=None) -> TravelAnswer:
+    async def answer(
+        self,
+        question: TravelQuestion,
+        progress_callback=None,
+        form_request=None,
+    ) -> TravelAnswer:
         self.questions.append(question)
         return TravelAnswer(
             answer=f"{self.tenant_id}: {question.question}",
@@ -32,7 +39,12 @@ class FakeDIYItineraryService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
 
-    async def answer(self, question: TravelQuestion, form_request=None) -> TravelAnswer:
+    async def answer(
+        self,
+        question: TravelQuestion,
+        progress_callback=None,
+        form_request=None,
+    ) -> TravelAnswer:
         self.questions.append(question)
         return TravelAnswer(
             answer=f"diy {self.tenant_id}: {question.question}",
@@ -74,6 +86,7 @@ class FakeSessionReplyService:
         self,
         question: TravelQuestion,
         kind: str,
+        progress_callback=None,
     ) -> TravelAnswer:
         return TravelAnswer(
             answer=f"{self.tenant_id}: {question.question}",
@@ -102,11 +115,35 @@ class FakeTravelJobQueue:
         return self.items.pop(0) if self.items else None
 
 
+class FakeEngagementFeedService:
+    calls: list[tuple[str, str]] = []
+
+    def initial_feed(self) -> EngagementFeed:
+        return EngagementFeed(status="loading")
+
+    async def start_for_job(
+        self,
+        *,
+        job_id,
+        tenant_id,
+        question,
+        form_request,
+        job_store,
+        initialize=True,
+    ) -> None:
+        self.calls.append((job_id, question.question))
+
+
 class MisconfiguredTourismQAService:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
 
-    async def answer(self, question: TravelQuestion, form_request=None) -> TravelAnswer:
+    async def answer(
+        self,
+        question: TravelQuestion,
+        progress_callback=None,
+        form_request=None,
+    ) -> TravelAnswer:
         raise AgentModelConfigurationError("OPENAI_API_KEY is required for testing")
 
 
@@ -115,11 +152,13 @@ def make_client(
     configure_job_store: bool = True,
     configure_job_queue: bool = False,
     configure_sales_handoff_store: bool = True,
+    configure_engagement_feed_service: bool = False,
 ) -> TestClient:
     FakeTourismQAService.questions = []
     FakeDIYItineraryService.questions = []
     FakeSessionReplyService.replies = []
     FakeSessionReplyService.job_replies = []
+    FakeEngagementFeedService.calls = []
     app = FastAPI()
     if configure_service:
         app.state.tourism_qa_service_factory = FakeTourismQAService
@@ -131,6 +170,8 @@ def make_client(
         app.state.travel_job_queue = FakeTravelJobQueue()
     if configure_sales_handoff_store:
         app.state.sales_handoff_store = InMemorySalesHandoffStore()
+    if configure_engagement_feed_service:
+        app.state.engagement_feed_service = FakeEngagementFeedService()
     app.include_router(router)
     return TestClient(app)
 
@@ -195,6 +236,43 @@ def test_diy_itinerary_route_uses_same_question_request_and_answer_response():
     assert FakeDIYItineraryService.questions[0].question.startswith("从北京出发")
 
 
+def test_voice_transcription_route_uses_backend_asr_boundary(monkeypatch):
+    async def fake_transcribe_audio_bytes(*, audio_bytes, content_type, language, settings):
+        assert audio_bytes == b"audio-bytes"
+        assert content_type == "audio/webm"
+        assert language == "zh-CN"
+        return "上海出发山西十日游"
+
+    monkeypatch.setattr(routes, "_transcribe_audio_bytes", fake_transcribe_audio_bytes)
+    client = make_client()
+
+    response = client.post(
+        "/tourism/voice/transcriptions",
+        data={"language": "zh-CN"},
+        files={"file": ("voice.webm", b"audio-bytes", "audio/webm")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"text": "上海出发山西十日游"}
+
+
+def test_voice_transcription_route_rejects_empty_audio(monkeypatch):
+    async def fake_transcribe_audio_bytes(**kwargs):
+        raise AssertionError("empty audio should be rejected before ASR call")
+
+    monkeypatch.setattr(routes, "_transcribe_audio_bytes", fake_transcribe_audio_bytes)
+    client = make_client()
+
+    response = client.post(
+        "/tourism/voice/transcriptions",
+        data={"language": "en"},
+        files={"file": ("voice.wav", b"", "audio/wav")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "audio file is empty"
+
+
 def test_form_question_route_converts_form_to_existing_qa_service():
     client = make_client()
 
@@ -242,6 +320,33 @@ def test_form_diy_job_route_queues_deep_diy_job():
     assert job.form_request is not None
     assert job.form_request.request_mode == "diy"
     assert job.form_request.required_stops == ["涿州", "许昌", "成都", "汉中"]
+
+
+def test_general_job_initializes_engagement_feed_sidecar():
+    client = make_client(configure_engagement_feed_service=True)
+
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "郑州出发河南十天中原文化深度游", "detail_level": "deep"},
+    )
+
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    job = client.app.state.travel_job_store._jobs[job_id]
+    assert job.engagement_feed is not None
+    assert job.engagement_feed.status == "loading"
+
+
+def test_sync_question_route_does_not_start_engagement_feed_sidecar():
+    client = make_client(configure_engagement_feed_service=True)
+
+    response = client.post(
+        "/tourism/questions",
+        json={"question": "北京三天两晚怎么玩比较轻松？"},
+    )
+
+    assert response.status_code == 200
+    assert FakeEngagementFeedService.calls == []
 
 
 def test_diy_itinerary_job_route_queues_and_completes_job():

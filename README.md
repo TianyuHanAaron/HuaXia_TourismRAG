@@ -307,22 +307,50 @@ Capabilities:
 curl http://127.0.0.1:8000/tourism/capabilities
 ```
 
+## React Frontend
+
+The production/public UI is migrating to a FastAPI-served React SPA. For local
+development, run FastAPI on port `8000`, then start Vite:
+
+```bash
+cd frontend
+cp .env.example .env.local
+npm install
+npm run assets:sync
+npm run api:generate
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. The React app uses Orval-generated Axios +
+TanStack Query hooks from `frontend/openapi.json`, Zod for the quick form,
+Zustand for UI-only state, MUI for the branded shell, and `@google/model-viewer`
+for Xiaxia's GLB avatar. For same-origin production serving:
+
+```bash
+cd frontend && npm run build
+SERVE_REACT_FRONTEND=true uv run uvicorn huaxia_tourismrag.main:app
+```
+
 ## Streamlit Frontend
 
-For a polished local kiosk-style interface, start the FastAPI server first, then run:
+Streamlit remains available as an internal QA fallback while React reaches full
+feature parity. Start FastAPI first, then run:
 
 ```bash
 uv run streamlit run src/huaxia_tourismrag/streamlit_app.py
 ```
 
-The Streamlit UI is designed as the current user-facing prototype for Xiaxia. It gives first-time users a simple mode choice between mature travel planning and custom route co-creation, supports `concise`, `standard`, and `deep` answer depth, handles pending clarification sessions, and renders answers with Chinese sections for highlights, warnings, itinerary, citations, and service checks. The shell randomly rotates China travel backgrounds from local assets on fresh sessions. The UI calls the existing FastAPI endpoints, so it can later be replaced by a React frontend without changing the backend API contract.
+The Streamlit UI calls the same FastAPI endpoints as React and is useful for
+RAG QA, fallback demos, and quick debugging.
 
 ## Deployment
 
-Deploy the product as two services:
+Deploy the product as one service for the first React rollout:
 
-1. **FastAPI/RAG backend** on a backend host such as Render, Railway, Fly.io, Google Cloud Run, or another Python service platform.
-2. **Streamlit frontend** on Streamlit Community Cloud.
+1. Build `frontend/dist`.
+2. Set `SERVE_REACT_FRONTEND=true`.
+3. Deploy the FastAPI/RAG backend on a host such as Render, Railway, Fly.io,
+   Google Cloud Run, or another Python service platform.
 
 ### Backend Deployment
 

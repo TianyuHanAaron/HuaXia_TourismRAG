@@ -223,6 +223,99 @@ def test_itinerary_rendering_has_text_and_timeline_versions():
     assert "\n        <div" not in timeline
 
 
+def test_engagement_feed_html_renders_six_long_cards():
+    feed = {
+        "status": "partial",
+        "batches": [
+            {
+                "batch_index": 0,
+                "cards": [
+                    {
+                        "card_id": f"c{i}",
+                        "card_type": "attraction_knowledge",
+                        "entity": "龙门石窟",
+                        "title": f"龙门石窟小百科 {i}",
+                        "body": (
+                            "龙门石窟不是单一景点，而是一段跨越北魏到唐代的石刻艺术长卷。"
+                            "游客站在伊河边看到的卢舍那大佛，常被视作盛唐审美与国家工程能力的象征。"
+                            "把它放进行程时，不应只安排拍照时间，还应预留讲解或慢看石窟细节的时间。"
+                        ),
+                        "confidence": "general_knowledge",
+                    }
+                    for i in range(6)
+                ],
+            }
+        ],
+    }
+
+    html = streamlit_app._engagement_feed_html(feed, language="zh-CN", batch_index=0)
+
+    assert html.count('<article class="engagement-card') == 6
+    assert "为什么值得注意" not in html
+    assert "灵感小百科" in html
+    assert "--engagement-index: 0" in html
+    assert "--engagement-index: 5" in html
+    assert "engagement-card-ready" in html
+
+
+def test_engagement_feed_html_renders_loading_skeletons():
+    html = streamlit_app._engagement_feed_html(
+        {"status": "loading", "batches": []},
+        language="zh-CN",
+        batch_index=0,
+    )
+
+    assert html.count("engagement-card-loading") == 6
+    assert "engagement-skeleton-line" in html
+    assert "--engagement-index: 0" in html
+
+
+def test_engagement_waiting_room_has_manual_refresh_control():
+    source = streamlit_app.Path(streamlit_app.__file__).read_text()
+    render_block = source[
+        source.index("def _render_engagement_waiting_room(") : source.index(
+            "def _engagement_active_batch("
+        )
+    ]
+
+    assert "st.button" in render_block
+    assert "_advance_engagement_batch" in render_block
+
+
+def test_engagement_css_uses_transparent_shell_and_staggered_animation():
+    css = streamlit_app._css()
+
+    assert ".engagement-feed-shell" in css
+    assert "background: transparent" in css
+    assert "@keyframes engagement-card-fade-in" in css
+    assert "animation-delay: calc(var(--engagement-index" in css
+    assert "@keyframes engagement-skeleton-shimmer" in css
+
+
+def test_engagement_batch_rotation_waits_twenty_five_seconds(monkeypatch):
+    feed = {"batches": [{"cards": []}, {"cards": []}]}
+    streamlit_app.st.session_state.pop("engagement_batch_index", None)
+    streamlit_app.st.session_state.pop("engagement_last_rotated_at", None)
+
+    times = iter([100.0, 124.0, 125.0])
+    monkeypatch.setattr(streamlit_app.time, "monotonic", lambda: next(times))
+
+    assert streamlit_app._engagement_active_batch(feed) == 0
+    assert streamlit_app._engagement_active_batch(feed) == 0
+    assert streamlit_app._engagement_active_batch(feed) == 1
+
+
+def test_engagement_manual_refresh_advances_batch(monkeypatch):
+    feed = {"batches": [{"cards": []}, {"cards": []}, {"cards": []}]}
+    monkeypatch.setattr(streamlit_app.time, "monotonic", lambda: 200.0)
+    streamlit_app.st.session_state["engagement_batch_index"] = 1
+    streamlit_app.st.session_state["engagement_last_rotated_at"] = 180.0
+
+    assert streamlit_app._advance_engagement_batch(feed) == 2
+    assert streamlit_app.st.session_state["engagement_batch_index"] == 2
+    assert streamlit_app.st.session_state["engagement_last_rotated_at"] == 200.0
+
+
 def test_itinerary_text_version_renders_time_slots_and_alternatives():
     itinerary = {
         "destination": "成都",
@@ -254,11 +347,18 @@ def test_itinerary_text_version_renders_time_slots_and_alternatives():
 
     text = streamlit_app._itinerary_text_version(itinerary, streamlit_app.UI_TEXT["zh"])
 
-    assert "12:00-13:00" in text
+    assert "中午12:00-下午1:00" in text
     assert "午餐" in text
     assert "可选" in text
     assert "锦里美食街" in text
     assert "宽窄巷子茶馆" in text
+
+
+def test_itinerary_time_labels_use_natural_chinese_and_english_clock_formats():
+    activity = {"start_time": "10:00:00", "end_time": "14:00:00"}
+
+    assert streamlit_app._activity_time_label(activity, language="zh") == "上午10:00-下午2:00"
+    assert streamlit_app._activity_time_label(activity, language="en") == "10:00 am-2:00 pm"
 
 
 def test_itinerary_timeline_renders_time_slots_and_alternatives():
@@ -270,7 +370,7 @@ def test_itinerary_timeline_renders_time_slots_and_alternatives():
                 "city": "成都",
                 "activities": [
                     {
-                        "start_time": "19:00",
+                        "start_time": "19:00:00",
                         "name": "夜间选择",
                         "description": "夜间自由安排。",
                         "alternatives": [
@@ -290,9 +390,46 @@ def test_itinerary_timeline_renders_time_slots_and_alternatives():
         streamlit_app.UI_TEXT["zh"],
     )
 
-    assert "19:00" in timeline
+    assert "晚上7:00" in timeline
     assert "timeline-alternatives" in timeline
+    assert "timeline-activity" in timeline
     assert "看变脸" in timeline
+
+
+def test_itinerary_timeline_puts_each_activity_on_its_own_line():
+    itinerary = {
+        "destination": "山西",
+        "itinerary": [
+            {
+                "day": 2,
+                "city": "太原-平遥",
+                "activities": [
+                    {
+                        "start_time": "09:00:00",
+                        "end_time": "12:00:00",
+                        "name": "山西省博物院",
+                        "description": "上午参观山西博物院。",
+                    },
+                    {
+                        "start_time": "13:30:00",
+                        "end_time": "15:00:00",
+                        "name": "乘车前往平遥古城",
+                        "description": "午餐后乘豪华商务车前往平遥。",
+                    },
+                ],
+            }
+        ],
+    }
+
+    timeline = streamlit_app._itinerary_timeline_html(
+        itinerary,
+        streamlit_app.UI_TEXT["zh"],
+    )
+
+    assert timeline.count("timeline-activity") == 2
+    assert "；<strong>" not in timeline
+    assert "09:00:00" not in timeline
+    assert "13:30:00" not in timeline
 
 
 def test_itinerary_rows_include_time_and_choice_summary():
@@ -320,7 +457,7 @@ def test_itinerary_rows_include_time_and_choice_summary():
 
     rows = streamlit_app._itinerary_rows(itinerary)
 
-    assert rows[0]["时间"] == "12:00-13:00"
+    assert rows[0]["时间"] == "中午12:00-下午1:00"
     assert "锦里" in rows[0]["可选方案"]
 
 
@@ -348,7 +485,7 @@ def test_itinerary_pdf_lines_include_time_and_alternatives():
     lines = streamlit_app._itinerary_pdf_lines(itinerary, streamlit_app.UI_TEXT["zh"])
     text = "\n".join(line.text for line in lines)
 
-    assert "19:00" in text
+    assert "晚上7:00" in text
     assert "可选：看变脸" in text
 
 

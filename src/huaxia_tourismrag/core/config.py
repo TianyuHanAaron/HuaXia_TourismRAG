@@ -37,6 +37,12 @@ class Settings(BaseSettings):
         alias="QWEN_CLOUD_BASE_URL",
     )
     asr_model: str = Field(default="qwen3-asr-flash", alias="ASR_MODEL")
+    serve_react_frontend: bool = Field(default=False, alias="SERVE_REACT_FRONTEND")
+    react_frontend_dist: str = Field(default="frontend/dist", alias="REACT_FRONTEND_DIST")
+    frontend_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        alias="FRONTEND_ORIGINS",
+    )
 
     tavily_api_key: str | None = Field(default=None, alias="TAVILY_API_KEY")
     exa_api_key: str | None = Field(default=None, alias="EXA_API_KEY")
@@ -157,6 +163,19 @@ class Settings(BaseSettings):
         default=None,
         alias="TOPIC_SECTION_MODEL",
     )
+    enable_engagement_feed: bool = Field(
+        default=True,
+        alias="ENABLE_ENGAGEMENT_FEED",
+    )
+    engagement_model_name: str | None = Field(default=None, alias="ENGAGEMENT_MODEL")
+    engagement_first_batch_timeout_seconds: float = Field(
+        default=8.0,
+        alias="ENGAGEMENT_FIRST_BATCH_TIMEOUT_SECONDS",
+    )
+    engagement_full_timeout_seconds: float = Field(
+        default=24.0,
+        alias="ENGAGEMENT_FULL_TIMEOUT_SECONDS",
+    )
 
     baidu_maps_mcp_enabled: bool = Field(
         default=False,
@@ -224,6 +243,22 @@ class Settings(BaseSettings):
         """Model used for deferred topic-section generation."""
 
         return self.topic_section_model_name or self.planner_model
+
+    @property
+    def engagement_model(self) -> str:
+        """Model used for waiting-room engagement cards."""
+
+        return self.engagement_model_name or self.checkpoint_model
+
+    @property
+    def frontend_origin_list(self) -> list[str]:
+        """Return configured browser origins for local React development."""
+
+        return [
+            origin.strip()
+            for origin in self.frontend_origins.split(",")
+            if origin.strip()
+        ]
 
     trusted_domains: tuple[str, ...] = (
         # National tourism / culture

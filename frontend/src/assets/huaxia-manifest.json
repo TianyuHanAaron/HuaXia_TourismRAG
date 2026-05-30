@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "xiaxia_avatar_3d",
+      "path": "assets/avatars/xiaxia-avatar-3d.jpg",
+      "role": "assistant_avatar",
+      "title": "Xiaxia anime-styled 3D avatar",
+      "source": "https://media.sketchfab.com/models/ec164c039241435e93a77f197e999c98/thumbnails/5d3ec472d19b478a8231991638cbd53a/576713d7048e4e879dc45a1bd7f9728c.jpeg",
+      "source_page": "https://sketchfab.com/3d-models/anime-girl-character-ec164c039241435e93a77f197e999c98",
+      "embed_url": "https://sketchfab.com/models/ec164c039241435e93a77f197e999c98/embed",
+      "license": "CC BY 4.0",
+      "attribution": "Anime Girl Character by ItsKrish7 via Sketchfab",
+      "notes": "Local file is a cropped preview thumbnail for prototype UI use; the original anime-styled Sketchfab model is downloadable under CC BY 4.0."
+    },
+    {
+      "id": "xiaxia_avatar_model_glb",
+      "path": "assets/models/xiaxia-avatar.glb",
+      "role": "assistant_avatar_model",
+      "title": "Xiaxia anime-styled interactive 3D avatar model",
+      "source_page": "https://sketchfab.com/3d-models/anime-girl-character-ec164c039241435e93a77f197e999c98",
+      "license": "CC BY 4.0",
+      "attribution": "Anime Girl Character by ItsKrish7 via Sketchfab",
+      "notes": "Downloaded locally through scripts/download_sketchfab_model.py when SKETCHFAB_API_TOKEN is available."
+    },
+    {
+      "id": "china_great_wall_hero",
+      "path": "assets/travel/china-great-wall-hero.jpg",
+      "role": "hero_background",
+      "title": "The Great Wall of China at Jinshanling",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/The%20Great%20Wall%20of%20China%20at%20Jinshanling.jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:The_Great_Wall_of_China_at_Jinshanling.jpg",
+      "license": "CC BY-SA 3.0",
+      "attribution": "Vincent Ndaku"
+    },
+    {
+      "id": "shanghai_bund_architecture_background",
+      "path": "assets/travel/shanghai-bund-architecture.jpg",
+      "role": "hero_background",
+      "title": "The Bund at Night",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/The_Bund_at_Night.png?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:The_Bund_at_Night.png",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Maple Doctor"
+    },
+    {
+      "id": "potala_palace_background",
+      "path": "assets/travel/potala-palace-distant.jpg",
+      "role": "hero_background",
+      "title": "Potala Palace HQ",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/Potala_Palace_HQ.jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Potala_Palace_HQ.jpg",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Lhasa Government"
+    },
+    {
+      "id": "longmen_lushena_buddha_background",
+      "path": "assets/travel/longmen-lushena-buddha.jpg",
+      "role": "hero_background",
+      "title": "Vairocana, Fengxian Temple, Longmen Grottoes",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/Vairocana,_Fengxian_Temple,_Longmen_Grottoes_(10240207654).jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Vairocana,_Fengxian_Temple,_Longmen_Grottoes_(10240207654).jpg",
+      "license": "CC0",
+      "attribution": "Gary Todd"
+    },
+    {
+      "id": "yingxian_wooden_pagoda_background",
+      "path": "assets/travel/yingxian-wooden-pagoda.jpg",
+      "role": "hero_background",
+      "title": "Pagoda of Fogong Temple at dusk",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/Pagoda_of_Fogong_Temple_at_Dust.jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Pagoda_of_Fogong_Temple_at_Dust.jpg",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Charlie fong"
+    },
+    {
+      "id": "fujian_tulou_overlook_background",
+      "path": "assets/travel/fujian-tulou-overlook.jpg",
+      "role": "hero_background",
+      "title": "Tianluokeng Tulou cluster",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/Tianluokeng_Tulou_cluster_20140829.JPG?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Tianluokeng_Tulou_cluster_20140829.JPG",
+      "license": "CC BY-SA 4.0",
+      "attribution": "颐园新居"
+    },
+    {
+      "id": "chongqing_qiansimen_hongya_background",
+      "path": "assets/travel/chongqing-qiansimen-hongya-view.jpg",
+      "role": "hero_background",
+      "title": "Chongqing Nightscape",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/Chongqing_Nightscape.jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Chongqing_Nightscape.jpg",
+      "license": "CC BY 2.0",
+      "attribution": "Jay Huang"
+    },
+    {
+      "id": "beijing_forbidden_city_background",
+      "path": "assets/travel/beijing-forbidden-city.jpg",
+      "role": "hero_background",
+      "title": "Forbidden City - Beijing",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/Forbidden_City_-_Beijing_(3048773129).jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Forbidden_City_-_Beijing_(3048773129).jpg",
+      "license": "CC BY 2.0",
+      "attribution": "Ray Devlin"
+    },
+    {
+      "id": "hangzhou_west_lake_background",
+      "path": "assets/travel/hangzhou-west-lake.jpg",
+      "role": "hero_background",
+      "title": "West Lake Panorama at Dusk",
+      "source": "https://commons.wikimedia.org/wiki/Special:FilePath/West_Lake_Panorama_at_Dusk.jpg?width=2400",
+      "source_page": "https://commons.wikimedia.org/wiki/File:West_Lake_Panorama_at_Dusk.jpg",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Yinweichen"
+    }
+  ]
+}

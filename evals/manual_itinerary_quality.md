@@ -163,3 +163,26 @@ Pass criteria:
 - Timeline and professional text views both show times and alternatives.
 - CSV and PDF exports include time and alternative columns/content.
 - Unsupported food, hotel, shopping, or entertainment claims are omitted rather than filled with `待核验`.
+
+## Engagement Feed Waiting-Room QA
+
+Run this after changing async jobs, Streamlit polling, or Pydantic Graph orchestration.
+
+Prompt:
+
+```text
+河南计划：一家四口（两大两小）从郑州本地出发，用10天深度游中原文化，预算14000元。7月初想走“寻根+古都”线：安阳殷墟和文字博物馆住两天，洛阳龙门石窟、白马寺、二里头夏都遗址三天，登封少林寺和嵩阳书院两天，开封清明上河园、州桥遗址两天，最后一天去三门峡地坑院，吃烩面、水席和汴京烤鸭。
+```
+
+Pass criteria:
+
+- The deep job returns a `job_id` quickly and Streamlit shows the waiting-room shell immediately.
+- The shell title explains this is a destination mini encyclopedia while the cited itinerary is generated.
+- The first real batch, if available, contains up to six cards and does not block the main RAG job.
+- Cards rotate locally about every 10 seconds when more than one batch is ready.
+- Card mix covers 景点冷知识、城市民俗、本地味道、旅客提醒.
+- Card bodies are informative mini-encyclopedia paragraphs, not short one-line tips.
+- Cards do not show `为什么值得注意`.
+- Cards do not claim real-time ticket prices, current opening hours, hotel availability, live weather, live traffic, or booking status.
+- When the final answer arrives, the waiting room disappears from the main view and becomes a collapsed `刚才路上看的小百科` expander below the final answer.
+- No engagement card text appears in final citations, `CitationPack`, or citation guard warnings.

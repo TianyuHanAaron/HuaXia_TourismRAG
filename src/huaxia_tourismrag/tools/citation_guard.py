@@ -74,9 +74,13 @@ class CitationGuard:
             answer,
             quote_by_id,
         )
+        answer_to_validate, unknown_issues = self._strip_unknown_references(
+            answer_to_validate,
+            set(allowed_lines),
+        )
         used_ids = self._used_reference_ids(answer_to_validate)
         returned_lines = self._returned_lines(answer)
-        issues: list[CitationValidationIssue] = [*cleanup_issues]
+        issues: list[CitationValidationIssue] = [*cleanup_issues, *unknown_issues]
 
         for citation_id in sorted(used_ids):
             if citation_id not in allowed_lines:
@@ -175,6 +179,70 @@ class CitationGuard:
             highlights.append(cleaned)
 
         normalized.highlights = highlights
+        return normalized, issues
+
+    def _strip_unknown_references(
+        self,
+        answer: TravelAnswer,
+        allowed_ids: set[int],
+    ) -> tuple[TravelAnswer, list[CitationValidationIssue]]:
+        """Remove model-invented citation markers from generated text fields."""
+
+        normalized = answer.model_copy(deep=True)
+        unknown_ids: set[int] = set()
+
+        def clean(text: str | None) -> str | None:
+            if text is None:
+                return None
+            cleaned = text
+            for citation_id in sorted(self._reference_ids_in_text(text)):
+                if citation_id not in allowed_ids:
+                    cleaned = self._remove_reference_marker(cleaned, citation_id)
+                    unknown_ids.add(citation_id)
+            return cleaned
+
+        normalized.answer = clean(normalized.answer) or ""
+        normalized.highlights = [clean(item) or "" for item in normalized.highlights]
+        normalized.warnings = [clean(item) or "" for item in normalized.warnings]
+
+        for section in normalized.topic_sections:
+            section.title = clean(section.title) or section.title
+            section.summary = clean(section.summary) or ""
+            section.recommendations = [
+                clean(item) or "" for item in section.recommendations
+            ]
+            for item in section.items:
+                item.title = clean(item.title) or item.title
+                item.description = clean(item.description) or ""
+                item.city = clean(item.city)
+                item.verification_note = clean(item.verification_note)
+
+        itinerary = normalized.generated_itinerary
+        if itinerary is not None:
+            itinerary.destination = clean(itinerary.destination) or itinerary.destination
+            itinerary.travel_tips = [clean(item) or "" for item in itinerary.travel_tips]
+            itinerary.citations = [clean(item) or "" for item in itinerary.citations]
+            for day in itinerary.itinerary:
+                day.city = clean(day.city) or day.city
+                day.notes = clean(day.notes)
+                for activity in day.activities:
+                    activity.name = clean(activity.name) or activity.name
+                    activity.description = clean(activity.description) or ""
+                    activity.location = clean(activity.location)
+                    activity.opening_hours = clean(activity.opening_hours)
+                    for alternative in activity.alternatives:
+                        alternative.title = clean(alternative.title) or alternative.title
+                        alternative.description = clean(alternative.description) or ""
+                        alternative.location = clean(alternative.location)
+
+        issues = [
+            CitationValidationIssue(
+                issue_type="unknown_reference",
+                citation_id=citation_id,
+                message=f"回答中引用了未提供的证据编号 [{citation_id}]，已移除该标记。",
+            )
+            for citation_id in sorted(unknown_ids)
+        ]
         return normalized, issues
 
     def _remove_reference_marker(self, text: str, citation_id: int) -> str:

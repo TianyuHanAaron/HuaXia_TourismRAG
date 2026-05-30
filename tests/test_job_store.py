@@ -1,5 +1,6 @@
 import pytest
 
+from huaxia_tourismrag.schemas.engagement import EngagementFeed
 from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
 from huaxia_tourismrag.services.job_store import (
     InMemoryTravelJobStore,
@@ -57,3 +58,23 @@ async def test_in_memory_job_store_is_tenant_scoped():
 
     with pytest.raises(TravelJobNotFoundError):
         await store.get(job.job_id, "tenant-b")
+
+
+@pytest.mark.asyncio
+async def test_in_memory_job_store_updates_engagement_feed():
+    store = InMemoryTravelJobStore()
+    job = await store.create(
+        "tenant-a",
+        TravelQuestion(question="洛阳三天文化游"),
+        kind="general_question",
+    )
+
+    await store.update_engagement_feed(
+        job.job_id,
+        "tenant-a",
+        EngagementFeed(status="loading", batches=[]),
+    )
+
+    saved = await store.get(job.job_id, "tenant-a")
+    assert saved.engagement_feed is not None
+    assert saved.engagement_feed.status == "loading"

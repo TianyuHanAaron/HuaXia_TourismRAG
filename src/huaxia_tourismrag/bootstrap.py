@@ -1,14 +1,19 @@
 """Application bootstrap helpers."""
 
 import logging
+from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from qdrant_client import AsyncQdrantClient
 from redis.asyncio import Redis
 
 from huaxia_tourismrag.api.routes import router
+from huaxia_tourismrag.agents.engagement_feed_agent import EngagementFeedAgent
 from huaxia_tourismrag.agents.tourism_agent import TourismDeps
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.core.config import Settings
@@ -26,6 +31,7 @@ from huaxia_tourismrag.services.answer_cache import AnswerCache
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.context_budgeter import ContextBudgeter
 from huaxia_tourismrag.services.embedding_circuit_breaker import EmbeddingCircuitBreaker
+from huaxia_tourismrag.services.engagement_feed_service import EngagementFeedService
 from huaxia_tourismrag.services.evidence_pack_cache import EvidencePackCache
 from huaxia_tourismrag.services.evidence_merge import TravelChunkMergeService
 from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
@@ -58,6 +64,7 @@ from huaxia_tourismrag.schemas.service_enrichment import MCPProvider
 
 
 logger = logging.getLogger(__name__)
+FRONTEND_RESERVED_PATHS = {"tourism", "docs", "redoc", "openapi.json"}
 
 
 def build_search_provider() -> WebSearchProvider:
@@ -535,11 +542,65 @@ def build_travel_job_queue(
     return RedisTravelJobQueue(redis=redis, key=settings.job_queue_key)
 
 
+def configure_frontend_cors(app: FastAPI, settings: Settings) -> None:
+    """Allow configured browser frontends to call the API."""
+
+    origins = settings.frontend_origin_list
+    if not origins:
+        return
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+def configure_react_frontend(app: FastAPI, settings: Settings) -> None:
+    """Serve the built React SPA from FastAPI when enabled."""
+
+    if not settings.serve_react_frontend:
+        return
+
+    dist = Path(settings.react_frontend_dist)
+    index_path = dist / "index.html"
+    assets_path = dist / "assets"
+    if assets_path.is_dir():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=assets_path),
+            name="react-assets",
+        )
+
+    @app.get("/", include_in_schema=False)
+    async def react_frontend_index() -> HTMLResponse:
+        return _react_frontend_index_response(index_path)
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def react_frontend_fallback(full_path: str) -> HTMLResponse:
+        first_segment = full_path.split("/", 1)[0]
+        if first_segment in FRONTEND_RESERVED_PATHS:
+            return HTMLResponse("Not found", status_code=404)
+        return _react_frontend_index_response(index_path)
+
+
+def _react_frontend_index_response(index_path: Path) -> HTMLResponse:
+    if not index_path.is_file():
+        return HTMLResponse(
+            "React frontend build is not available. Run `cd frontend && npm run build`.",
+            status_code=503,
+        )
+    return HTMLResponse(index_path.read_text(encoding="utf-8"))
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
 
     settings = get_settings()
     app = FastAPI(title="HuaXia Tourism RAG")
+    configure_frontend_cors(app, settings)
     session_store = build_travel_session_store()
     retrieval_cache = build_retrieval_cache(redis=session_store.redis)
     planning_cache = build_planning_cache(redis=session_store.redis)
@@ -556,6 +617,10 @@ def create_app() -> FastAPI:
     app.state.travel_job_store = job_store
     app.state.travel_job_queue = job_queue
     app.state.sales_handoff_store = sales_handoff_store
+    app.state.engagement_feed_service = EngagementFeedService(
+        settings=settings,
+        agent=EngagementFeedAgent(settings=settings),
+    )
     app.state.tourism_qa_service_factory = lambda tenant_id: build_tourism_qa_service(
         tenant_id,
         session_store=session_store,
@@ -597,4 +662,5 @@ def create_app() -> FastAPI:
         ),
     )
     app.include_router(router)
+    configure_react_frontend(app, settings)
     return app

@@ -92,13 +92,27 @@ class TopicSectionQualityGuard:
 
         citation_ids = self._reference_ids_in_text(cleaned)
         if not citation_ids:
+            fallback_id = self._fallback_compatible_citation_id(category, quote_by_id)
+            if fallback_id is None:
+                issues.append(
+                    CitationValidationIssue(
+                        issue_type="missing_citation_line",
+                        message=f"topic_sections.{category}.{field_name} 缺少引用，已移除。",
+                    )
+                )
+                return ""
             issues.append(
                 CitationValidationIssue(
                     issue_type="missing_citation_line",
-                    message=f"topic_sections.{category}.{field_name} 缺少引用，已移除。",
+                    citation_id=fallback_id,
+                    message=(
+                        f"topic_sections.{category}.{field_name} 缺少引用，"
+                        f"已补充兼容来源 [{fallback_id}]。"
+                    ),
+                    source_ref=quote_by_id[fallback_id].source_ref,
                 )
             )
-            return ""
+            return self._append_reference_marker(cleaned, fallback_id)
 
         if not self._has_compatible_source(category, citation_ids, quote_by_id):
             for citation_id in sorted(citation_ids):
@@ -132,13 +146,35 @@ class TopicSectionQualityGuard:
         citation_ids.update(self._reference_ids_in_text(item.description))
 
         if not citation_ids:
+            fallback_id = self._fallback_compatible_citation_id(category, quote_by_id)
+            if fallback_id is None:
+                issues.append(
+                    CitationValidationIssue(
+                        issue_type="missing_citation_line",
+                        message=f"topic_sections.{category}.items 缺少引用，已移除。",
+                    )
+                )
+                return None
             issues.append(
                 CitationValidationIssue(
                     issue_type="missing_citation_line",
-                    message=f"topic_sections.{category}.items 缺少引用，已移除。",
+                    citation_id=fallback_id,
+                    message=(
+                        f"topic_sections.{category}.items 缺少引用，"
+                        f"已补充兼容来源 [{fallback_id}]。"
+                    ),
+                    source_ref=quote_by_id[fallback_id].source_ref,
                 )
             )
-            return None
+            citation_ids.add(fallback_id)
+            item = item.model_copy(
+                update={
+                    "description": self._append_reference_marker(
+                        item.description,
+                        fallback_id,
+                    )
+                }
+            )
 
         if not self._has_compatible_source(category, citation_ids, quote_by_id):
             for citation_id in sorted(citation_ids):
@@ -159,6 +195,24 @@ class TopicSectionQualityGuard:
             return None
 
         return item.model_copy(update={"citations": sorted(citation_ids)})
+
+    def _fallback_compatible_citation_id(
+        self,
+        category: TopicSectionCategory,
+        quote_by_id: dict[int, EvidenceQuote],
+    ) -> int | None:
+        allowed = TOPIC_CONTENT_TYPES[category]
+        for citation_id in sorted(quote_by_id):
+            quote = quote_by_id[citation_id]
+            if self._is_compatible(quote.content_type, allowed):
+                return citation_id
+        return None
+
+    def _append_reference_marker(self, text: str, citation_id: int) -> str:
+        marker = f"[{citation_id}]"
+        if marker in text:
+            return text
+        return f"{text}{marker}"
 
     def _has_compatible_source(
         self,

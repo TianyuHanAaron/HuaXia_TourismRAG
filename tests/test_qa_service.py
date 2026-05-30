@@ -1625,10 +1625,13 @@ async def test_answer_normalizes_fabricated_llm_citation_lines(monkeypatch):
     assert answer.citations == [
         "[1] 故宫预约说明 - 北京文旅 - https://example.cn/palace"
     ]
-    assert any("引用校验已自动修正" in warning for warning in answer.warnings)
+    assert not any("引用校验已自动修正" in warning for warning in answer.warnings)
     assert answer.performance is not None
     guard_stage = next(stage for stage in answer.performance.stages if stage.name == "citation_guard")
     assert guard_stage.metadata["issues"] == 1
+    assert guard_stage.metadata["issue_sample"] == (
+        "回答改写了 [1] 的来源行，已恢复为检索器允许的原始来源。"
+    )
     assert guard_stage.metadata["returned_citations"] == 1
 
 

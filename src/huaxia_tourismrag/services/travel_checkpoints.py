@@ -483,6 +483,12 @@ def build_feasibility_answer(report: FeasibilityReport) -> TravelAnswer:
 def clear_unbacked_reply_state(answer: TravelAnswer) -> TravelAnswer:
     """Prevent clients from seeing a pending-reply state without a session id."""
 
+    if answer.generated_itinerary and answer.generated_itinerary.itinerary:
+        answer.needs_reply = False
+        answer.session_id = None
+        answer.quick_replies = []
+        return answer
+
     if not answer.needs_reply:
         answer.session_id = None
         answer.quick_replies = []

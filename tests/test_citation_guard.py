@@ -44,7 +44,52 @@ def test_guard_rejects_unknown_citation_ids():
     result = guard.validate_and_normalize(answer, _pack())
 
     assert result.answer.citations == []
+    assert "[3]" not in result.answer.answer
     assert any(issue.issue_type == "unknown_reference" and issue.citation_id == 3 for issue in result.issues)
+
+
+def test_guard_removes_unknown_citation_markers_from_nested_itinerary_fields():
+    answer = TravelAnswer.model_validate(
+        {
+            "answer": "河南行程如下。[3]",
+            "highlights": ["龙门石窟适合亲子讲解。[3]"],
+            "warnings": [],
+            "citations": [],
+            "generated_itinerary": {
+                "destination": "河南",
+                "travel_tips": ["7月注意防暑。[3]"],
+                "itinerary": [
+                    {
+                        "day": 1,
+                        "city": "洛阳",
+                        "activities": [
+                            {
+                                "name": "龙门石窟",
+                                "description": "上午看卢舍那大佛。[3]",
+                                "alternatives": [
+                                    {
+                                        "title": "白马寺",
+                                        "description": "下午可替换为白马寺。[3]",
+                                    }
+                                ],
+                            }
+                        ],
+                        "notes": "晚上吃水席。[3]",
+                    }
+                ],
+            },
+        }
+    )
+
+    result = CitationGuard().validate_and_normalize(answer, _pack())
+    text = result.answer.model_dump_json()
+
+    assert "[3]" not in text
+    assert result.answer.citations == []
+    assert any(
+        issue.issue_type == "unknown_reference" and issue.citation_id == 3
+        for issue in result.issues
+    )
 
 
 def test_guard_normalizes_altered_citation_lines_and_removes_unused_lines():

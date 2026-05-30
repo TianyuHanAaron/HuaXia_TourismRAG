@@ -510,11 +510,9 @@ class DIYItineraryService:
             topic_quality_result = self.topic_quality_guard.validate(answer, pack)
             answer = topic_quality_result.answer
             stage_metadata["issues"] = len(topic_quality_result.issues)
-        if topic_quality_result.issues:
-            issue_summary = "；".join(
+            stage_metadata["issue_sample"] = "；".join(
                 issue.message for issue in topic_quality_result.issues[:3]
             )
-            answer.warnings.append(f"专题内容校验已自动修正：{issue_summary}")
         with timer.stage("citation_guard") as stage_metadata:
             guard_result = self.citation_guard.validate_and_normalize(answer, pack)
             answer = guard_result.answer
@@ -522,9 +520,9 @@ class DIYItineraryService:
             stage_metadata["available_citations"] = len(pack.citations)
             stage_metadata["used_citations"] = len(guard_result.used_citation_ids)
             stage_metadata["returned_citations"] = len(answer.citations)
-        if guard_result.issues:
-            issue_summary = "；".join(issue.message for issue in guard_result.issues[:3])
-            answer.warnings.append(f"引用校验已自动修正：{issue_summary}")
+            stage_metadata["issue_sample"] = "；".join(
+                issue.message for issue in guard_result.issues[:3]
+            )
         answer.service_enrichment = service_context
         answer = clear_unbacked_reply_state(answer)
         answer.performance = timer.trace
