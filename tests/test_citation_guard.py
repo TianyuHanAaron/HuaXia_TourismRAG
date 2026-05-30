@@ -115,6 +115,60 @@ def test_guard_scans_highlights_warnings_and_generated_itinerary():
     ]
 
 
+def test_citation_guard_reads_itinerary_activity_alternatives():
+    answer = TravelAnswer.model_validate(
+        {
+            "answer": "夏夏整理好了。",
+            "highlights": [],
+            "warnings": [],
+            "citations": ["[1] 成都川剧 - 测试来源 - internal:opera"],
+            "generated_itinerary": {
+                "destination": "成都",
+                "itinerary": [
+                    {
+                        "day": 1,
+                        "city": "成都",
+                        "activities": [
+                            {
+                                "name": "夜间选择",
+                                "description": "19:00 可自由安排。",
+                                "alternatives": [
+                                    {
+                                        "title": "看变脸",
+                                        "description": "晚上可以看川剧变脸演出。[1]",
+                                        "citations": [1],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+    pack = CitationPack(
+        context_text="",
+        citations=["[1] 成都川剧 - 测试来源 - internal:opera"],
+        evidence_quotes=[
+            EvidenceQuote(
+                citation_id=1,
+                chunk_id="opera",
+                source_type="internal",
+                content_type="entertainment",
+                title="成都川剧",
+                source_name="测试来源",
+                source_ref="internal:opera",
+                quote="成都川剧演出。",
+            )
+        ],
+    )
+
+    result = CitationGuard().validate_and_normalize(answer, pack)
+
+    assert result.answer.citations == ["[1] 成都川剧 - 测试来源 - internal:opera"]
+    assert result.issues == []
+
+
 def test_guard_scans_dedicated_topic_sections():
     guard = CitationGuard()
     answer = TravelAnswer(

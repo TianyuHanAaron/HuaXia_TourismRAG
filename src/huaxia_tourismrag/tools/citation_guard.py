@@ -244,6 +244,14 @@ class CitationGuard:
                     activity.opening_hours or "",
                 ]
             )
+            for alternative in activity.alternatives:
+                parts.extend(
+                    [
+                        alternative.title,
+                        alternative.description,
+                        alternative.location or "",
+                    ]
+                )
         return parts
 
     def _source_mismatch_issues(
