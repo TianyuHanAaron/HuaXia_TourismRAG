@@ -12,7 +12,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
 from huaxia_tourismrag.indexing.chunking import RawInternalDocument
-from huaxia_tourismrag.schemas.evidence import ContentType
+from huaxia_tourismrag.schemas.evidence import AuthorityProfile, ContentType
 
 
 class StructuredKnowledgeRow(BaseModel):
@@ -25,6 +25,9 @@ class StructuredKnowledgeRow(BaseModel):
     title: str | None = None
     text: str | None = None
     content_type: ContentType | None = None
+    country_code: str | None = Field(default=None, max_length=2)
+    region: str | None = None
+    authority_profile: AuthorityProfile | None = None
     source_name: str | None = None
     url: HttpUrl | None = None
     location: str | None = None
@@ -210,6 +213,9 @@ class StructuredKnowledgeBuilder:
             source_name=source_name,
             url=row.url or source.url,
             content_type=row.content_type or source.default_content_type,
+            country_code=row.country_code,
+            region=row.region,
+            authority_profile=row.authority_profile,
             location=row.location or self._join_location(province, city, row.district),
             province=province,
             city=city,

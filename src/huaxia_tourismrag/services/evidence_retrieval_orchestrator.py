@@ -100,6 +100,7 @@ class EvidenceRetrievalOrchestrator:
         web_search: ChineseTourismSearch,
         webpage_reader: WebpageReader,
         retrieval_cache: RetrievalCache | None = None,
+        search_country: str | None = "china",
     ) -> EvidenceRetrievalResult:
         """Retrieve evidence for a task list within the configured budgets."""
 
@@ -122,6 +123,7 @@ class EvidenceRetrievalOrchestrator:
                     budget=budget,
                     web_search=web_search,
                     cache=cache,
+                    search_country=search_country,
                 )
             )
         internal_chunks, internal_warning = internal_task.result()
@@ -150,6 +152,7 @@ class EvidenceRetrievalOrchestrator:
         internal_rag: InternalRAGBatchTool,
         web_search: ChineseTourismSearch,
         webpage_reader: WebpageReader,
+        search_country: str | None = "china",
     ) -> EvidenceRetrievalResult:
         """Retrieve bounded supplemental evidence for missing destination entities."""
 
@@ -179,6 +182,7 @@ class EvidenceRetrievalOrchestrator:
                 reason=f"Backfill evidence for structured entity: {entity.name}",
                 max_results=backfill_budget.max_search_results_per_task,
                 source_preference="mixed",
+                search_country=search_country,
             )
             for entity in entities[: backfill_budget.max_tasks]
         ]
@@ -190,6 +194,7 @@ class EvidenceRetrievalOrchestrator:
             web_search=web_search,
             webpage_reader=webpage_reader,
             retrieval_cache=self.retrieval_cache,
+            search_country=search_country,
         )
 
     async def _retrieve_internal(
@@ -273,6 +278,7 @@ class EvidenceRetrievalOrchestrator:
         budget: RetrievalBudget,
         web_search: ChineseTourismSearch,
         cache: RetrievalCache | None,
+        search_country: str | None,
     ) -> list[TravelSearchHit]:
         if (
             not budget.enable_web_search
@@ -290,6 +296,7 @@ class EvidenceRetrievalOrchestrator:
                 return []
             max_results = min(task.max_results, budget.max_search_results_per_task)
             options = task.to_search_options()
+            options.country = search_country
 
             if cache:
                 cached = await cache.get_web_search(task.query, max_results, options)

@@ -252,7 +252,11 @@ class DIYItineraryService:
             AnswerCachePolicyInput(
                 request_mode="diy",
                 detail_level=detail_level,
-                language=question.language,
+                language=(
+                    question.locale_context.locale
+                    if question.locale_context
+                    else question.language
+                ),
             )
         )
         answer_cache_key = (
@@ -260,7 +264,11 @@ class DIYItineraryService:
                 question=retrieval_query,
                 mode="diy",
                 detail_level=detail_level,
-                language=question.language,
+                language=(
+                    question.locale_context.locale
+                    if question.locale_context
+                    else question.language
+                ),
             )
             if self.answer_cache and cache_safe
             else None
@@ -281,7 +289,11 @@ class DIYItineraryService:
                     question=retrieval_query,
                     mode="diy",
                     detail_level=detail_level,
-                    language=question.language,
+                    language=(
+                        question.locale_context.locale
+                        if question.locale_context
+                        else question.language
+                    ),
                 )
                 if self.planning_cache
                 else None
@@ -299,17 +311,41 @@ class DIYItineraryService:
                         preference_profile=preference_decision.profile,
                         intent_decision=intent_decision,
                     )
-                except ValueError:
-                    answer = _build_diy_planner_recovery_answer()
-                    answer.performance = timer.trace
-                    return await self._with_pending_session(
-                        answer=answer,
-                        endpoint="diy",
-                        question=question,
-                        pending_reason="DIY 路线缺少足够明确的必去停靠点。",
-                        pending_kind="preference",
-                        pending_question="请补充至少两个明确的必去城市或景点。",
+                except ValueError as exc:
+                    stage_metadata["planner_retry"] = True
+                    logger.warning(
+                        "DIY planner DTO validation failed; retrying once.",
+                        exc_info=True,
                     )
+                    try:
+                        diy_plan = await create_diy_itinerary_plan(
+                            question,
+                            preference_profile=preference_decision.profile,
+                            intent_decision=intent_decision,
+                        )
+                    except ValueError:
+                        logger.warning(
+                            "DIY planner DTO validation failed after retry.",
+                            exc_info=True,
+                        )
+                        answer = _build_diy_planner_recovery_answer(question.language)
+                        answer.performance = timer.trace
+                        return await self._with_pending_session(
+                            answer=answer,
+                            endpoint="diy",
+                            question=question,
+                            pending_reason=_diy_planner_recovery_pending_reason(
+                                question.language
+                            ),
+                            pending_kind="preference",
+                            pending_question=_diy_planner_recovery_pending_question(
+                                question.language
+                            ),
+                        )
+                    stage_metadata["planner_retry_succeeded"] = True
+                    stage_metadata["first_error"] = str(exc)[:240]
+                else:
+                    stage_metadata["planner_retry"] = False
                 if self.planning_cache and cache_key:
                     await self.planning_cache.set_model(cache_key, diy_plan)
         with timer.stage("feasibility_checkpoint") as stage_metadata:
@@ -341,6 +377,9 @@ class DIYItineraryService:
             )
 
         ordered_tasks = self._prioritize_tasks(diy_plan.tasks)[: budget.max_tasks]
+        search_country = (
+            question.locale_context.search_country if question.locale_context else "china"
+        )
         budget = budget.model_copy(
             update={
                 "max_pages_to_read": min(
@@ -359,6 +398,7 @@ class DIYItineraryService:
                 web_search=self.deps.web_search,
                 webpage_reader=self.deps.webpage_reader,
                 retrieval_cache=self.retrieval_cache,
+                search_country=search_country,
             )
             stage_metadata["internal_chunks"] = len(retrieval_result.internal_chunks)
             stage_metadata["web_chunks"] = len(retrieval_result.web_chunks)
@@ -390,6 +430,7 @@ class DIYItineraryService:
                         internal_rag=self.deps.internal_rag,
                         web_search=self.deps.web_search,
                         webpage_reader=self.deps.webpage_reader,
+                        search_country=search_country,
                     )
                 )
                 internal = [*internal, *backfill_result.internal_chunks]
@@ -443,7 +484,11 @@ class DIYItineraryService:
                     question=retrieval_query,
                     mode="diy",
                     detail_level=detail_level,
-                    language=question.language,
+                    language=(
+                        question.locale_context.locale
+                        if question.locale_context
+                        else question.language
+                    ),
                 )
                 await self.evidence_pack_cache.set_pack(evidence_pack_key, pack)
                 stage_metadata["citations"] = len(pack.citations)
@@ -507,6 +552,8 @@ class DIYItineraryService:
                 "service_enrichment": service_context,
                 "detail_level": detail_level,
             }
+            if _supports_locale_context():
+                generation_kwargs["locale_context"] = question.locale_context
             if _supports_topic_section_mode():
                 generation_kwargs["topic_section_mode"] = (
                     "inline" if topic_decision.generate_inline else topic_decision.mode
@@ -723,8 +770,26 @@ class DIYItineraryService:
         return answer
 
 
-def _build_diy_planner_recovery_answer() -> TravelAnswer:
+def _build_diy_planner_recovery_answer(language: str = "zh-CN") -> TravelAnswer:
     """Ask for explicit stops when the strict DIY planner cannot build a route."""
+
+    if language == "en":
+        return TravelAnswer(
+            answer=(
+                "Xiaxia needs to pause for one clarification: a bespoke route needs at "
+                "least two explicit must-keep cities, regions, or experiences. "
+                "Otherwise I may accidentally remove something that matters to you."
+                "\n\nPlease reply with the must-keep stops or experiences, for example: "
+                "\"London, Paris, Florence, Rome, Venice, Amsterdam\". You can also say "
+                "which parts are flexible and which parts must not be changed."
+            ),
+            highlights=["Please provide the must-keep stops or experiences."],
+            warnings=[
+                "Generation paused to avoid dropping user-defined route requirements."
+            ],
+            citations=[],
+            needs_reply=True,
+        )
 
     return TravelAnswer(
         answer=(
@@ -740,6 +805,18 @@ def _build_diy_planner_recovery_answer() -> TravelAnswer:
         citations=[],
         needs_reply=True,
     )
+
+
+def _diy_planner_recovery_pending_reason(language: str) -> str:
+    if language == "en":
+        return "The bespoke route planner needs clearer must-keep stops."
+    return "DIY 路线缺少足够明确的必去停靠点。"
+
+
+def _diy_planner_recovery_pending_question(language: str) -> str:
+    if language == "en":
+        return "Please add at least two must-keep cities, regions, or experiences."
+    return "请补充至少两个明确的必去城市或景点。"
 
 
 def _coverage_plan_from_diy(diy_plan: DIYItineraryPlan) -> TravelResearchPlan:
@@ -784,3 +861,7 @@ async def _report_progress(
 
 def _supports_topic_section_mode() -> bool:
     return "topic_section_mode" in inspect.signature(generate_answer_with_context).parameters
+
+
+def _supports_locale_context() -> bool:
+    return "locale_context" in inspect.signature(generate_answer_with_context).parameters

@@ -115,6 +115,54 @@ def test_diy_itinerary_plan_rejects_missing_required_stop():
         )
 
 
+def test_diy_itinerary_plan_accepts_long_original_question_for_bespoke_briefs():
+    original_question = (
+        "Two of us from Shanghai want a 30-day cultured Grand Tour route through "
+        "London, Dover, Calais, Paris, Geneva, Lausanne, Turin, Florence, Venice, "
+        "Rome, Naples, Innsbruck, Vienna, Dresden, Berlin and Amsterdam. "
+    ) * 8
+
+    plan = DIYItineraryPlan(
+        original_question=original_question[:3200],
+        theme="18th-century Grand Tour reenactment",
+        origin="Shanghai",
+        return_city="Shanghai",
+        required_stops=["London", "Paris", "Florence", "Rome", "Amsterdam"],
+        proposed_route=[
+            "Shanghai",
+            "London",
+            "Paris",
+            "Florence",
+            "Rome",
+            "Amsterdam",
+            "Shanghai",
+        ],
+        route_order_policy="preserve_user_order",
+        travel_mode="mixed",
+        days=30,
+        tasks=[
+            TravelResearchTask(
+                task_type="route",
+                query="Grand Tour London Paris Florence Rome Amsterdam itinerary",
+                reason="Plan the international route sequence.",
+            ),
+            TravelResearchTask(
+                task_type="transport",
+                query="London Dover Calais channel crossing private yacht feasibility",
+                reason="Check the cross-channel transfer.",
+            ),
+            TravelResearchTask(
+                task_type="attraction",
+                query="Florence Renaissance villa garden curator visit official",
+                reason="Find heritage experiences.",
+            ),
+        ],
+    )
+
+    assert plan.days == 30
+    assert plan.required_stops[0] == "London"
+
+
 def test_diy_itinerary_planner_instruction_targets_user_defined_routes():
     assert "用户自定义" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
     assert "required_stops" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
@@ -123,6 +171,9 @@ def test_diy_itinerary_planner_instruction_targets_user_defined_routes():
     assert "return_city" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
     assert "不能删除" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
     assert "用户偏好画像" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
+    assert "English or international" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
+    assert "Grand Tour" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
+    assert "do not return empty required_stops" in DIY_ITINERARY_PLANNER_INSTRUCTIONS
 
 
 def test_diy_itinerary_planner_formats_preference_profile():

@@ -56,6 +56,8 @@ class WebpageReaderTool:
                 text=chunk,
                 url=hit.url,
                 source_name=hit.source_name or "web",
+                country_code=hit.country_code,
+                region=hit.region,
                 published_at=hit.published_at,
                 retrieved_at=datetime.now(timezone.utc),
             )

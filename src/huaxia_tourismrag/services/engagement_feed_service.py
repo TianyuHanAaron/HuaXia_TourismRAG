@@ -101,11 +101,26 @@ class EngagementFeedService:
                 ),
                 timeout=self.settings.engagement_full_timeout_seconds + 2,
             )
+            saved_job = await job_store.get(job_id, tenant_id)
+            if saved_job and saved_job.engagement_feed:
+                preview = build_preview_engagement_feed(question, form_request)
+                if not saved_job.engagement_feed.batches and preview.batches:
+                    await job_store.update_engagement_feed(job_id, tenant_id, preview)
+                elif merged := _merge_missing_preview_batches(
+                    saved_job.engagement_feed,
+                    preview,
+                ):
+                    await job_store.update_engagement_feed(job_id, tenant_id, merged)
         except Exception as exc:  # pragma: no cover - defensive logging branch
             logger.info(
                 "Engagement feed sidecar failed for job %s: %r",
                 job_id,
                 exc,
+            )
+            await job_store.update_engagement_feed(
+                job_id,
+                tenant_id,
+                _fallback_feed_after_sidecar_failure(question, form_request),
             )
 
 
@@ -115,13 +130,15 @@ def build_preview_engagement_feed(
 ) -> EngagementFeed:
     """Build safe fallback cards when the sidecar model times out."""
 
+    language = "en" if question.language == "en" else "zh-CN"
     entities = _preview_entities(question, form_request)
-    entities = _focus_preview_entities(entities)
+    if not _is_multi_country_preview(question):
+        entities = _focus_preview_entities(entities)
     if not entities:
         return EngagementFeed(
             status="loading",
             batches=[],
-            message="夏夏正在识别这条路线的目的地，正式行程生成后会接管页面。",
+            message=_preview_loading_message(language),
         )
     card_types: tuple[EngagementCardType, ...] = (
         "attraction_knowledge",
@@ -131,19 +148,45 @@ def build_preview_engagement_feed(
     )
     batches: list[EngagementBatch] = []
     for batch_index, card_type in enumerate(card_types):
-        cards = _preview_cards_for_type(card_type, entities, batch_index=batch_index)
+        cards = _preview_cards_for_type(
+            card_type,
+            entities,
+            batch_index=batch_index,
+            language=language,
+        )
         if cards:
             batches.append(EngagementBatch(batch_index=batch_index, cards=cards))
     if not batches:
         return EngagementFeed(
             status="loading",
             batches=[],
-            message="夏夏正在识别这条路线的目的地，正式行程生成后会接管页面。",
+            message=_preview_loading_message(language),
         )
     return EngagementFeed(
         status="partial",
         batches=batches,
-        message="目的地小百科先用轻量预览顶上，正式行程仍以引用校验后的答案为准。",
+        message=_preview_ready_message(language),
+    )
+
+
+def _fallback_feed_after_sidecar_failure(
+    question: TravelQuestion,
+    form_request: TravelFormRequest | None,
+) -> EngagementFeed:
+    """Return renderable destination cards, or a clear failed state if impossible."""
+
+    fallback = build_preview_engagement_feed(question, form_request)
+    if fallback.batches:
+        return fallback
+    language = "en" if question.language == "en" else "zh-CN"
+    return EngagementFeed(
+        status="failed",
+        batches=[],
+        message=(
+            "The destination mini guide could not load, but the formal itinerary is still running."
+            if language == "en"
+            else "目的地小百科暂时没有生成出来，但正式行程仍在继续。"
+        ),
     )
 
 
@@ -186,7 +229,7 @@ def _merge_missing_preview_batches(
             "status": "partial" if used_preview else current.status,
             "batches": merged_batches[:4],
             "message": (
-                "目的地小百科已补齐四类主题；正式行程仍以引用校验后的答案为准。"
+                preview.message
                 if used_preview
                 else current.message
             ),
@@ -211,17 +254,32 @@ def _preview_cards_for_type(
     entities: list[str],
     *,
     batch_index: int,
+    language: str,
 ) -> list[EngagementCard]:
     cards: list[EngagementCard] = []
     seen_titles: set[str] = set()
+    entity_variants: list[tuple[str, list[tuple[str, str]]]] = []
     for entity in entities:
-        for title, body in _preview_card_variants(card_type, entity):
+        variants = [
+            *_preview_card_variants(card_type, entity, language=language),
+            *_common_sense_preview_variants(card_type, entity, language=language),
+        ]
+        if variants:
+            entity_variants.append((entity, variants))
+    if not entity_variants:
+        return cards
+    max_variant_count = max(len(variants) for _, variants in entity_variants)
+    for variant_index in range(max_variant_count):
+        for entity, variants in entity_variants:
+            if variant_index >= len(variants):
+                continue
+            title, body = variants[variant_index]
             if title in seen_titles:
                 continue
             seen_titles.add(title)
             cards.append(
                 EngagementCard(
-                    card_id=f"preview-{batch_index}-{len(cards)}",
+                    card_id=f"fallback-{batch_index}-{len(cards)}",
                     card_type=card_type,
                     entity=entity,
                     title=title,
@@ -257,10 +315,62 @@ def _preview_entities(
         destination_entities = clean_engagement_entities(cleaned, limit=6)
         if destination_entities:
             return destination_entities
-    return _catalog_preview_entities(
+    locale_entities = _locale_preview_entities(question)
+    destination_locale_entities = [
+        entity
+        for entity in locale_entities
+        if entity not in excluded_entities
+    ][:6]
+    if destination_locale_entities:
+        return destination_locale_entities
+    catalog_entities = _catalog_preview_entities(
         question.question,
         excluded_entities=excluded_entities,
     )[:6]
+    if catalog_entities:
+        return catalog_entities
+    return destination_locale_entities
+
+
+_COUNTRY_CODE_PREVIEW_ENTITIES: dict[str, tuple[str, ...]] = {
+    "AU": ("Australia", "Sydney", "Melbourne", "Adelaide"),
+    "JP": ("Japan", "Tokyo", "Kyoto", "Hakone"),
+    "GB": ("United Kingdom", "London", "Scottish Highlands", "Oxford"),
+    "MV": ("Maldives", "North Malé Atoll", "Ari Atoll", "Baa Atoll"),
+    "SG": ("Singapore",),
+    "MY": ("Malaysia", "Kuala Lumpur", "Penang", "Langkawi"),
+    "TH": ("Thailand", "Bangkok", "Phuket", "Chiang Mai"),
+    "IL": ("Israel", "Jerusalem", "Nazareth", "Bethlehem"),
+    "GR": ("Greece", "Athens", "Santorini", "Crete"),
+    "TR": ("Turkey", "Antakya", "Tarsus", "Selcuk"),
+    "EG": ("Egypt", "Cairo", "Luxor", "Aswan", "Red Sea"),
+    "TZ": ("Tanzania", "Serengeti", "Mount Kilimanjaro", "Zanzibar"),
+    "KE": ("Kenya", "Maasai Mara", "Nairobi", "Amboseli"),
+    "ET": ("Ethiopia", "Lalibela", "Omo Valley", "Addis Ababa"),
+    "NL": ("Netherlands", "Amsterdam"),
+    "FR": ("France", "Paris"),
+    "DE": ("Germany", "Rhine Valley"),
+    "IT": ("Italy", "Florence", "Rome"),
+    "MT": ("Malta", "Valletta"),
+    "AT": ("Austria", "Vienna"),
+    "CH": ("Switzerland", "Swiss Alps"),
+    "ES": ("Spain", "Madrid", "Andalusia"),
+    "PT": ("Portugal", "Lisbon", "Porto"),
+}
+
+
+def _locale_preview_entities(question: TravelQuestion) -> list[str]:
+    if not question.locale_context:
+        return []
+    values: list[str] = []
+    country_entities = [
+        _COUNTRY_CODE_PREVIEW_ENTITIES.get(code, ())
+        for code in question.locale_context.destination_country_codes
+    ]
+    values.extend(entities[0] for entities in country_entities if entities)
+    for entities in country_entities:
+        values.extend(entities[1:])
+    return _unique_preview_entities(values, limit=6)
 
 
 def _catalog_preview_entities(
@@ -342,6 +452,17 @@ def _focus_preview_entities(entities: list[str]) -> list[str]:
     if second_score > 0 and top_score >= second_score * 2:
         return [entities[0]]
     return entities
+
+
+def _is_multi_country_preview(question: TravelQuestion) -> bool:
+    if not question.locale_context:
+        return False
+    destination_codes = [
+        code
+        for code in question.locale_context.destination_country_codes
+        if code != "CN"
+    ]
+    return question.language == "en" and len(destination_codes) > 1
 
 
 @lru_cache(maxsize=1)
@@ -488,10 +609,15 @@ def _preview_title(card_type: EngagementCardType, entity: str) -> str:
 def _preview_card_variants(
     card_type: EngagementCardType,
     entity: str,
+    *,
+    language: str,
 ) -> list[tuple[str, str]]:
+    if language == "en":
+        return _english_preview_variants(card_type, entity)
+
     profile = _preview_profile_for_entity(entity)
     if profile is None:
-        return _common_sense_preview_variants(card_type, entity)
+        return _common_sense_preview_variants(card_type, entity, language=language)
 
     attractions = _unique_preview_entities(
         [*profile.attractions, *profile.heritage_sites],
@@ -576,8 +702,13 @@ def _preview_card_variants(
 def _common_sense_preview_variants(
     card_type: EngagementCardType,
     entity: str,
+    *,
+    language: str = "zh-CN",
 ) -> list[tuple[str, str]]:
     """Fallback copy for sparse entities without exposing placeholder prompt text."""
+
+    if language == "en":
+        return _english_preview_variants(card_type, entity)
 
     if card_type == "attraction_knowledge":
         return [
@@ -719,3 +850,275 @@ def _preview_body(card_type: EngagementCardType, entity: str) -> str:
 def _join_preview_names(values: tuple[str, ...] | list[str], *, limit: int) -> str:
     cleaned = _unique_preview_entities(list(values), limit=limit)
     return "、".join(cleaned)
+
+
+def _preview_loading_message(language: str) -> str:
+    if language == "en":
+        return (
+            "Xiaxia is identifying destination anchors for this route. "
+            "The formal itinerary will take over once it is ready."
+        )
+    return "夏夏正在识别这条路线的目的地，正式行程生成后会接管页面。"
+
+
+def _preview_ready_message(language: str) -> str:
+    if language == "en":
+        return (
+            "Destination mini guide cards are ready as a waiting-room preview; "
+            "the final itinerary will still be citation-checked."
+        )
+    return "目的地小百科先用轻量预览顶上，正式行程仍以引用校验后的答案为准。"
+
+
+def _english_preview_variants(
+    card_type: EngagementCardType,
+    entity: str,
+) -> list[tuple[str, str]]:
+    """English destination-card copy for international waiting-room fallbacks."""
+
+    if card_type == "attraction_knowledge":
+        return [
+            (
+                f"{entity} in one scene",
+                (
+                    f"Think of {entity} first as a visual anchor for the trip. "
+                    "It may become a main stop, a transfer base, a coast, an old town, "
+                    "a wildlife area or a landscape chapter. The formal itinerary will "
+                    "still decide where it belongs by checking season, route logic, "
+                    "booking friction, traveller energy and source quality."
+                ),
+            ),
+            (
+                f"How {entity} can shape the route",
+                (
+                    f"{entity} should not be treated as a random name on a map. "
+                    "A good itinerary gives it a role: arrival base, slow-stay hub, "
+                    "day-trip target, scenic transfer or recovery stop. While you wait, "
+                    "read it as a route-building clue; the final plan will turn that "
+                    "clue into timed days with evidence and practical trade-offs."
+                ),
+            ),
+            (
+                f"{entity} beyond the postcard",
+                (
+                    f"The strongest travel value in {entity} often comes from the "
+                    "relationship between place, movement and pace. Instead of only "
+                    "asking what to see, the final plan needs to decide when to arrive, "
+                    "how long to stay, which nearby stops are worth adding, and where "
+                    "the day should slow down for meals, rest and local atmosphere."
+                ),
+            ),
+            (
+                f"{entity} as a story chapter",
+                (
+                    f"Waiting-room cards are not ticket advice, but {entity} can already "
+                    "be read as a story chapter: landscape, heritage, food culture, "
+                    "resort rhythm, city texture or wildlife setting. The final answer "
+                    "will later separate inspiring background from operational facts "
+                    "such as transfers, opening rules, ferry seats or activity bookings."
+                ),
+            ),
+            (
+                f"The first question for {entity}",
+                (
+                    f"The useful first question is not simply whether {entity} is famous, "
+                    "but whether it fits this traveller, season and budget. A polished "
+                    "route may place it early for orientation, in the middle for depth, "
+                    "or late as a softer finish. That placement is what the formal "
+                    "planning pass is working out now."
+                ),
+            ),
+            (
+                f"{entity} and travel rhythm",
+                (
+                    f"{entity} needs a travel rhythm rather than a checklist. The final "
+                    "itinerary should protect arrival buffers, meal windows, transit "
+                    "time and sleep quality, then layer in the memorable sights. This "
+                    "card is only a warm-up, but it hints at how the destination may "
+                    "become a practical, enjoyable day instead of an overpacked list."
+                ),
+            ),
+        ]
+
+    if card_type == "city_folk_custom":
+        return [
+            (
+                f"Local rhythm in {entity}",
+                (
+                    f"Culture in {entity} is not limited to monuments. It also appears "
+                    "in daily rhythms: markets, prayer or festival etiquette, family "
+                    "meals, harbour life, old streets, resort customs, village visits "
+                    "and how people use public space. The final itinerary should turn "
+                    "that atmosphere into respectful timing, dress, noise and photo choices."
+                ),
+            ),
+            (
+                f"Reading {entity} respectfully",
+                (
+                    f"When a route touches {entity}, the traveller should notice local "
+                    "norms before chasing activities. Religious sites, rural communities, "
+                    "island villages, border areas and Indigenous or minority cultures "
+                    "may all require extra care. The formal plan will keep this in mind "
+                    "when deciding guide needs, free time and slower cultural stops."
+                ),
+            ),
+            (
+                f"{entity}'s lived-in side",
+                (
+                    f"A strong trip gives space for the lived-in side of {entity}: "
+                    "neighbourhood walks, waterfronts, local cafés, markets, craft, "
+                    "music, food rituals or community spaces. These details help the "
+                    "route feel native to the destination rather than copied from a "
+                    "generic attraction list."
+                ),
+            ),
+            (
+                "Customs that affect the day",
+                (
+                    f"Local customs in {entity} can affect ordinary travel decisions: "
+                    "when restaurants open, how modest to dress, whether a guide is "
+                    "helpful, where photography is sensitive, and whether activities "
+                    "run around weather, worship, tides, harvest or school holidays. "
+                    "The final answer will translate that into practical notes."
+                ),
+            ),
+            (
+                f"{entity} as more than a stop",
+                (
+                    f"Treat {entity} as more than a stopover. Even if the stay is short, "
+                    "one carefully chosen walk, meal, museum, local market or sunset "
+                    "can reveal the place better than several rushed attractions. The "
+                    "planner is checking how much cultural depth can fit without making "
+                    "the day feel forced."
+                ),
+            ),
+            (
+                f"The human texture of {entity}",
+                (
+                    f"The human texture of {entity} comes from language, food, craft, "
+                    "faith, migration, trade and leisure. A good itinerary should let "
+                    "those threads appear naturally in the schedule, especially in "
+                    "late afternoon or evening when the traveller is no longer moving "
+                    "between headline sights."
+                ),
+            ),
+        ]
+
+    if card_type == "local_flavor":
+        return [
+            (
+                f"How {entity} may taste",
+                (
+                    f"Food planning for {entity} should be embedded into the day, not "
+                    "added as a detached list. Lunch usually needs to be reliable and "
+                    "near the route; dinner can carry more local personality through "
+                    "markets, old streets, seafood, wine regions, family restaurants "
+                    "or resort dining depending on the destination."
+                ),
+            ),
+            (
+                f"{entity} at the table",
+                (
+                    f"At the table, {entity} can express climate, migration, religion, "
+                    "coastline, farming or spice routes. The final plan should avoid "
+                    "unsupported restaurant claims, but it can still place sensible "
+                    "food moments into each day: breakfast nearby, lunch between stops, "
+                    "and dinner where the evening atmosphere is strongest."
+                ),
+            ),
+            (
+                "Local flavour without detours",
+                (
+                    f"The best food stop in {entity} is not always the most famous one. "
+                    "For travellers on a complex route, the key is whether the meal is "
+                    "on the way, open at the right time, comfortable for the group and "
+                    "distinctive enough to remember. The final itinerary will balance "
+                    "taste with route efficiency."
+                ),
+            ),
+            (
+                f"Markets and easy meals in {entity}",
+                (
+                    f"{entity} may offer markets, waterfront dining, hawker-style meals, "
+                    "local bakeries, seafood, wineries, farm produce or hotel-based "
+                    "comfort meals. A polished itinerary should use these options to "
+                    "shape the day: simple lunches during transfers, richer dinners "
+                    "on slower nights, and snacks where weather or activities demand energy."
+                ),
+            ),
+            (
+                f"{entity} as a food memory",
+                (
+                    f"One good food memory can make {entity} feel vivid: a relaxed "
+                    "dinner after a long transfer, a local breakfast before sightseeing, "
+                    "a seafood meal by the coast, or a tasting stop that fits the road. "
+                    "The formal answer will keep these moments traceable and practical."
+                ),
+            ),
+            (
+                f"Comfort and flavour in {entity}",
+                (
+                    f"Food choices in {entity} also need comfort logic. Families, older "
+                    "travellers, divers, hikers or long-haul arrivals may need lighter "
+                    "meals, predictable timing and hydration before richer local flavours. "
+                    "The final itinerary should make those trade-offs feel intentional."
+                ),
+            ),
+        ]
+
+    return [
+        (
+            f"Travel buffer for {entity}",
+            (
+                f"The hidden risk in {entity} is often not the attraction itself but "
+                "the buffer around it: weather, transfers, luggage, check-in times, "
+                "boat or flight schedules, tiredness and meal gaps. The final route "
+                "should protect these buffers before adding extra sightseeing."
+            ),
+        ),
+        (
+            f"Season check for {entity}",
+            (
+                f"{entity} may depend on season, tides, wildlife patterns, holiday crowds, "
+                "road conditions or local operating days. This card is not a live policy "
+                "source, but it flags the kind of caveat the final answer must handle "
+                "with citations before making firm claims."
+            ),
+        ),
+        (
+            f"Comfort check for {entity}",
+            (
+                f"For {entity}, comfort is part of feasibility. Long drives, ferry changes, "
+                "early flights, heat, altitude, stairs, diving days or repeated hotel "
+                "moves can quietly reduce trip quality. The itinerary should make rest "
+                "and logistics visible instead of hiding them behind attraction names."
+            ),
+        ),
+        (
+            f"Booking friction in {entity}",
+            (
+                f"Some parts of {entity} may require booking windows, permits, transport "
+                "coordination, activity slots, room categories or guide availability. "
+                "The formal plan should mark those points clearly so the traveller knows "
+                "what needs action and what is merely optional."
+            ),
+        ),
+        (
+            f"Health and safety in {entity}",
+            (
+                f"Health and safety in {entity} can include sun, sea, altitude, insects, "
+                "food tolerance, road fatigue, water activities or cultural restrictions. "
+                "A good travel answer should not dramatize risk, but it should make the "
+                "practical precautions easy to follow."
+            ),
+        ),
+        (
+            f"Keeping {entity} enjoyable",
+            (
+                f"The most enjoyable version of {entity} usually leaves some breathing "
+                "room. The final itinerary should decide where to slow down, where to "
+                "move efficiently, and where to offer alternatives if weather, mood or "
+                "energy changes during the trip."
+            ),
+        ),
+    ]

@@ -223,7 +223,7 @@ async def run_qwen_structured(
         api_key=settings.dashscope_api_key,
         base_url=settings.qwen_cloud_base_url,
         model=model_override or settings.tourism_agent_model,
-        timeout_seconds=settings.qdrant_timeout_seconds,
+        timeout_seconds=settings.llm_timeout_seconds,
     )
     result = await runner.run(
         prompt=prompt,

@@ -4,6 +4,7 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { TravelLocaleContext } from './travelLocaleContext';
 import type { TravelQuestionBudgetLevel } from './travelQuestionBudgetLevel';
 import type { TravelQuestionContinuationPendingKind } from './travelQuestionContinuationPendingKind';
 import type { TravelQuestionContinuationQuickReplyActionId } from './travelQuestionContinuationQuickReplyActionId';
@@ -16,7 +17,7 @@ import type { TravelQuestionLanguage } from './travelQuestionLanguage';
 export interface TravelQuestion {
   /**
      * @minLength 5
-     * @maxLength 1000
+     * @maxLength 4000
      */
   question: string;
   destination?: string | null;
@@ -28,6 +29,7 @@ export interface TravelQuestion {
   /** @maxItems 12 */
   interests?: string[];
   language?: TravelQuestionLanguage;
+  locale_context?: TravelLocaleContext | null;
   continuation_pending_kind?: TravelQuestionContinuationPendingKind;
   continuation_quick_reply_action_id?: TravelQuestionContinuationQuickReplyActionId;
   /**

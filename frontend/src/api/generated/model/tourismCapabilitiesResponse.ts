@@ -20,6 +20,7 @@ export interface TourismCapabilitiesResponse {
   session_reply_endpoint: string;
   sales_handoff_endpoint: string;
   supported_languages: string[];
+  supported_locales: string[];
   supported_budget_levels: string[];
   supported_detail_levels: string[];
   optional_context_fields: string[];

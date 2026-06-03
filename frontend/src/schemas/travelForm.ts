@@ -52,6 +52,18 @@ export const travelFormSchema = z
     extra_notes: z.string().trim().max(500).optional(),
     detail_level: z.enum(['concise', 'standard', 'deep']).default('deep'),
     language: z.enum(['zh-CN', 'en']).default('zh-CN'),
+    locale_context: z
+      .object({
+        answer_language: z.enum(['zh-CN', 'en']).default('zh-CN'),
+        locale: z.enum(['zh-CN', 'en-AU', 'en-US', 'en-GB']).default('zh-CN'),
+        destination_country_codes: z.array(z.string().trim().length(2)).max(6).default(['CN']),
+        currency: z.enum(['CNY', 'AUD', 'USD', 'GBP']).default('CNY'),
+        distance_unit: z.enum(['km', 'mile']).default('km'),
+        time_format: z.enum(['12h', '24h']).default('24h'),
+        drive_side: z.enum(['left', 'right']).default('right'),
+        authority_profile: z.enum(['china', 'australia', 'global']).default('china'),
+      })
+      .optional(),
   })
   .refine((value) => value.traveler_composition.adults + value.traveler_composition.elders + value.traveler_composition.children > 0, {
     message: 'At least one traveler is required.',

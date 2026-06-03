@@ -190,6 +190,49 @@ describe('EngagementWaitingRoom', () => {
     expect(screen.getByRole('progressbar', { name: '小百科卡片加载中' })).toBeInTheDocument();
   });
 
+  it('renders localized destination fallback cards when backend marks them safe', () => {
+    const fallbackFeed: EngagementFeed = {
+      status: 'partial',
+      batches: [
+        {
+          batch_index: 0,
+          cards: [
+            {
+              card_id: 'fallback-0-0',
+              card_type: 'attraction_knowledge',
+              entity: 'Maldives',
+              title: 'Maldives in one scene',
+              body: 'Think of Maldives first as a visual anchor for the trip. It may become a main stop, transfer base, island stay, wildlife setting or resort chapter while the final itinerary checks sources.',
+              confidence: 'travel_common_sense',
+            },
+          ],
+        },
+        {
+          batch_index: 1,
+          cards: [
+            {
+              card_id: 'fallback-1-0',
+              card_type: 'city_folk_custom',
+              entity: 'Maldives',
+              title: 'Local rhythm in Maldives',
+              body: 'Culture in Maldives appears in island routines, resort etiquette, prayer rhythms, harbour life, dress expectations and how visitors move respectfully through local communities.',
+              confidence: 'travel_common_sense',
+            },
+          ],
+        },
+      ],
+      updated_at: new Date().toISOString(),
+    };
+
+    render(
+      <AppProviders>
+        <EngagementWaitingRoom feed={fallbackFeed} language="en" active />
+      </AppProviders>,
+    );
+
+    expect(screen.getByText('Maldives in one scene')).toBeInTheDocument();
+  });
+
   it('lets users manually advance carousel cards', async () => {
     const user = userEvent.setup();
     render(

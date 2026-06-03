@@ -743,6 +743,18 @@ wheels = [
 ]
 
 [[package]]
+name = "geonamescache"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3b/7d/d523711001643b85e2185f70de9fb5cb8f82631459ebece08327f039032c/geonamescache-3.0.1.tar.gz", hash = "sha256:b13fa9ef846304961e623e08938177a72bfb6e02f681060cd3078dd89bf3e962", size = 30675247, upload-time = "2026-03-25T20:00:26.485Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/8c/525a746d0e861873d871044ba67c9f0cd922f5dc7897f4bac4463d31485f/geonamescache-3.0.1-py3-none-any.whl", hash = "sha256:959d9d850d822f3c16eb7272d476415e42074aa33f1ea85bc2b7cb43b6751c84", size = 31965686, upload-time = "2026-03-25T19:59:57.483Z" },
+]
+
+[[package]]
 name = "gitdb"
 version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -1045,10 +1057,12 @@ dependencies = [
     { name = "accelerate" },
     { name = "fastapi" },
     { name = "flagembedding" },
+    { name = "geonamescache" },
     { name = "httpx" },
     { name = "numpy" },
     { name = "openai" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pycountry" },
     { name = "pydantic" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
     { name = "pydantic-settings" },
@@ -1080,10 +1094,12 @@ requires-dist = [
     { name = "accelerate", specifier = ">=1.13.0" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "flagembedding", specifier = ">=1.4.0" },
+    { name = "geonamescache", specifier = ">=3.0.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "openai", specifier = ">=2.38.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
+    { name = "pycountry", specifier = ">=26.2.16" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = ">=1.101.0" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
@@ -2639,6 +2655,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b0/49/942c3b79878ba928324d1e17c274ed84581db8c0a749b24bcf4cbdf15bd3/pyarrow-24.0.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:d8ddd2768da81d3ee08cfea9b597f4abb4e8e1dc8ae7e204b608d23a0d3ab699", size = 49471890, upload-time = "2026-04-21T10:51:02.439Z" },
     { url = "https://files.pythonhosted.org/packages/76/97/ff71431000a75d84135a1ace5ca4ba11726a231a8007bbb320a4c54075d5/pyarrow-24.0.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:61a3d7eaa97a14768b542f3d284dc6400dd2470d9f080708b13cd46b6ae18136", size = 51932250, upload-time = "2026-04-21T10:51:10.576Z" },
     { url = "https://files.pythonhosted.org/packages/51/be/6f79d55816d5c22557cf27533543d5d70dfe692adfbee4b99f2760674f38/pyarrow-24.0.0-cp314-cp314t-win_amd64.whl", hash = "sha256:c91d00057f23b8d353039520dc3a6c09d8608164c692e9f59a175a42b2ae0c19", size = 28131282, upload-time = "2026-04-21T10:51:16.815Z" },
+]
+
+[[package]]
+name = "pycountry"
+version = "26.2.16"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/1d/061b9e7a48b85cfd69f33c33d2ef784a531c359399ad764243399673c8f5/pycountry-26.2.16.tar.gz", hash = "sha256:5b6027d453fcd6060112b951dd010f01f168b51b4bf8a1f1fc8c95c8d94a0801", size = 7711342, upload-time = "2026-02-17T03:42:52.367Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/42/7703bd45b62fecd44cd7d3495423097e2f7d28bc2e99e7c1af68892ab157/pycountry-26.2.16-py3-none-any.whl", hash = "sha256:115c4baf7cceaa30f59a4694d79483c9167dbce7a9de4d3d571c5f3ea77c305a", size = 8044600, upload-time = "2026-02-17T03:42:49.777Z" },
 ]
 
 [[package]]

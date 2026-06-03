@@ -40,6 +40,9 @@ class CitationFormatter:
                     title=chunk.title,
                     source_name=chunk.source_name,
                     source_ref=source_ref,
+                    country_code=chunk.country_code,
+                    region=chunk.region,
+                    authority_profile=chunk.authority_profile,
                     quote=quote,
                     url=chunk.url,
                     score=chunk.score,
@@ -54,6 +57,9 @@ class CitationFormatter:
                 f"title={chunk.title}\n"
                 f"source_name={chunk.source_name}\n"
                 f"source_ref={source_ref}\n"
+                f"country_code={chunk.country_code}\n"
+                f"region={chunk.region}\n"
+                f"authority_profile={chunk.authority_profile}\n"
                 f"score={chunk.score}\n"
                 f"quote={quote}"
             )
@@ -136,6 +142,9 @@ class CitationFormatter:
                     title=chunk.title,
                     source_name=chunk.source_name,
                     source_ref=source_ref,
+                    country_code=chunk.country_code,
+                    region=chunk.region,
+                    authority_profile=chunk.authority_profile,
                     quote=quote,
                     url=chunk.url,
                     score=chunk.score,
@@ -150,6 +159,9 @@ class CitationFormatter:
                 f"title={chunk.title}\n"
                 f"source_name={chunk.source_name}\n"
                 f"source_ref={source_ref}\n"
+                f"country_code={chunk.country_code}\n"
+                f"region={chunk.region}\n"
+                f"authority_profile={chunk.authority_profile}\n"
                 f"score={chunk.score}\n"
                 f"quote={quote}"
             )

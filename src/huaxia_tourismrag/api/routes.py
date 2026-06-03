@@ -70,6 +70,7 @@ class TourismCapabilitiesResponse(BaseModel):
     session_reply_endpoint: str
     sales_handoff_endpoint: str
     supported_languages: list[str]
+    supported_locales: list[str]
     supported_budget_levels: list[str]
     supported_detail_levels: list[str]
     optional_context_fields: list[str]
@@ -217,9 +218,10 @@ def get_capabilities() -> TourismCapabilitiesResponse:
         form_question_endpoint="/tourism/forms/questions",
         form_job_endpoint="/tourism/forms/jobs",
         job_status_endpoint="/tourism/jobs/{job_id}",
-    session_reply_endpoint="/tourism/sessions/{session_id}/reply",
+        session_reply_endpoint="/tourism/sessions/{session_id}/reply",
         sales_handoff_endpoint="/tourism/sales/handoffs",
         supported_languages=["zh-CN", "en"],
+        supported_locales=["zh-CN", "en-AU", "en-US", "en-GB"],
         supported_budget_levels=["budget", "mid_range", "luxury"],
         supported_detail_levels=["concise", "standard", "deep"],
         optional_context_fields=[
@@ -231,6 +233,7 @@ def get_capabilities() -> TourismCapabilitiesResponse:
             "detail_level",
             "interests",
             "language",
+            "locale_context",
         ],
     )
 

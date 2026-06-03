@@ -39,6 +39,7 @@ uv run huaxia-tourismrag index-all-internal --recreate
 - `rows/production/china_national_heritage_rows.json`: official national protected heritage rows from the State Council eighth-batch notice reprinted by the National Forestry and Grassland Administration, plus official Hebei rows from the provincial cultural heritage authority.
 - `rows/production/china_local_cuisine_rows.json`: official local-cuisine rows parsed from Ministry of Culture and Tourism intangible-food route pages.
 - `rows/production/china_agricultural_gi_specialty_rows.json`: official agricultural-GI specialty rows parsed from the Ministry of Agriculture notice, plus official provincial agriculture rows.
+- `rows/production/australia_south_australia_rows.json`: Australia-first international seed rows for South Australia wine regions, whale/wildlife context, Kangaroo Island access, parks, and visitor-information coverage.
 
 Refresh the official production rows with:
 

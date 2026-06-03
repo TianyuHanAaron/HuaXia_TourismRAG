@@ -16,6 +16,7 @@ import type { TravelFormRequestRequestMode } from './travelFormRequestRequestMod
 import type { TravelFormRequestRouteStrictness } from './travelFormRequestRouteStrictness';
 import type { TravelFormRequestTravelerGroup } from './travelFormRequestTravelerGroup';
 import type { TravelFormRequestTravelModePreference } from './travelFormRequestTravelModePreference';
+import type { TravelLocaleContext } from './travelLocaleContext';
 
 /**
  * Typed travel-intake form that serializes into the existing question DTO.
@@ -47,4 +48,5 @@ export interface TravelFormRequest {
   extra_notes?: string | null;
   detail_level?: TravelFormRequestDetailLevel;
   language?: TravelFormRequestLanguage;
+  locale_context?: TravelLocaleContext | null;
 }

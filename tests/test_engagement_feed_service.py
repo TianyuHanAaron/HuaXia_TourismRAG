@@ -100,7 +100,7 @@ async def test_engagement_service_sets_loading_then_feed():
 
 
 @pytest.mark.asyncio
-async def test_engagement_service_keeps_loading_indicator_path_when_generation_fails():
+async def test_engagement_service_publishes_localized_fallback_when_generation_fails():
     store = InMemoryTravelJobStore()
     question = TravelQuestion(
         question="川西十二天雪山藏寨高原湖泊深度游",
@@ -128,12 +128,19 @@ async def test_engagement_service_keeps_loading_indicator_path_when_generation_f
 
     saved = await store.get(job.job_id, "demo")
     assert saved.engagement_feed is not None
-    assert saved.engagement_feed.status == "failed"
-    assert saved.engagement_feed.batches == []
+    assert saved.engagement_feed.status == "partial"
+    assert len(saved.engagement_feed.batches) == 4
+    assert [batch.cards[0].card_type for batch in saved.engagement_feed.batches] == [
+        "attraction_knowledge",
+        "city_folk_custom",
+        "local_flavor",
+        "traveler_reminder",
+    ]
+    assert "目的地小百科" in (saved.engagement_feed.message or "")
 
 
 @pytest.mark.asyncio
-async def test_engagement_service_does_not_backfill_missing_topics_with_preview_cards():
+async def test_engagement_service_backfills_missing_topics_with_localized_fallback_cards():
     store = InMemoryTravelJobStore()
     question = TravelQuestion(
         question="云南省10天深度游，想看自然山水和民族文化。",
@@ -161,16 +168,14 @@ async def test_engagement_service_does_not_backfill_missing_topics_with_preview_
 
     saved = await store.get(job.job_id, "demo")
     assert saved.engagement_feed is not None
-    assert saved.engagement_feed.status == "ready"
-    assert len(saved.engagement_feed.batches) == 1
+    assert saved.engagement_feed.status == "partial"
+    assert len(saved.engagement_feed.batches) == 4
     assert [batch.cards[0].card_type for batch in saved.engagement_feed.batches] == [
+        "attraction_knowledge",
         "city_folk_custom",
+        "local_flavor",
+        "traveler_reminder",
     ]
-    assert all(
-        not card.card_id.startswith("preview-")
-        for batch in saved.engagement_feed.batches
-        for card in batch.cards
-    )
     entities = {
         card.entity
         for batch in saved.engagement_feed.batches
@@ -179,6 +184,51 @@ async def test_engagement_service_does_not_backfill_missing_topics_with_preview_
     assert "history_culture" not in entities
     assert "nature" not in entities
     assert "food" not in entities
+
+
+@pytest.mark.asyncio
+async def test_engagement_failure_fallback_uses_english_destination_context():
+    store = InMemoryTravelJobStore()
+    question = TravelQuestion(
+        question=(
+            "Maldives – Two of us from Shanghai, planning 15 days in the Maldives "
+            "with a budget of 60,000 RMB, departing in December. We want different "
+            "atolls, snorkeling, seaplane transfers, speedboats, beach villas and "
+            "overwater villas."
+        ),
+    )
+    job = await store.create("demo", question, kind="general_question")
+    service = EngagementFeedService(
+        settings=Settings(
+            _env_file=None,
+            ENABLE_ENGAGEMENT_FEED=True,
+            ENGAGEMENT_FIRST_BATCH_TIMEOUT_SECONDS=0.01,
+            ENGAGEMENT_FULL_TIMEOUT_SECONDS=0.02,
+        ),
+        agent=FailingEngagementAgent(),
+    )
+
+    await service.start_for_job(
+        job_id=job.job_id,
+        tenant_id="demo",
+        question=question,
+        form_request=None,
+        job_store=store,
+    )
+
+    saved = await store.get(job.job_id, "demo")
+    assert saved.engagement_feed is not None
+    assert saved.engagement_feed.status == "partial"
+    assert len(saved.engagement_feed.batches) == 4
+    assert "mini guide" in (saved.engagement_feed.message or "").lower()
+    all_text = "\n".join(
+        f"{card.entity}\n{card.title}\n{card.body}"
+        for batch in saved.engagement_feed.batches
+        for card in batch.cards
+    )
+    assert "Maldives" in all_text
+    assert "Shanghai" not in all_text
+    assert "目的地小百科" not in all_text
 
 
 def test_preview_feed_uses_free_text_route_entities_when_structured_fields_are_empty():
@@ -287,6 +337,49 @@ def test_preview_feed_excludes_origin_city_from_free_text_route():
     entities = {card.entity for card in feed.batches[0].cards}
     assert "新疆" in entities
     assert "上海" not in entities
+
+
+@pytest.mark.asyncio
+async def test_engagement_failure_fallback_uses_multiple_saint_paul_destinations():
+    store = InMemoryTravelJobStore()
+    question = TravelQuestion(
+        question=(
+            "We are two Christians from Shanghai, planning about 30 days on a "
+            "Saint Paul pilgrimage route. We want to visit key biblical sites: "
+            "in Israel – Jerusalem, Nazareth, Bethlehem; in Turkey – Antakya, "
+            "Tarsus, Selcuk; in Greece – Athens, Corinth, Thessaloniki; "
+            "in Italy – Rome; plus Malta."
+        )
+    )
+    job = await store.create("demo", question, kind="diy_itinerary")
+    service = EngagementFeedService(
+        settings=Settings(
+            _env_file=None,
+            ENABLE_ENGAGEMENT_FEED=True,
+            ENGAGEMENT_FIRST_BATCH_TIMEOUT_SECONDS=0.01,
+            ENGAGEMENT_FULL_TIMEOUT_SECONDS=0.02,
+        ),
+        agent=FailingEngagementAgent(),
+    )
+
+    await service.start_for_job(
+        job_id=job.job_id,
+        tenant_id="demo",
+        question=question,
+        form_request=None,
+        job_store=store,
+    )
+
+    saved = await store.get(job.job_id, "demo")
+    assert saved.engagement_feed is not None
+    assert saved.engagement_feed.status == "partial"
+    entities = {
+        card.entity
+        for batch in saved.engagement_feed.batches
+        for card in batch.cards
+    }
+    assert {"Israel", "Turkey", "Greece", "Italy", "Malta"}.issubset(entities)
+    assert "Shanghai" not in entities
 
 
 @pytest.mark.asyncio

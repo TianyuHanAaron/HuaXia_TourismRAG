@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
-from huaxia_tourismrag.schemas.evidence import ContentType
+from huaxia_tourismrag.schemas.evidence import AuthorityProfile, ContentType
 
 
 class RawInternalDocument(BaseModel):
@@ -19,6 +19,9 @@ class RawInternalDocument(BaseModel):
     source_name: str
     url: HttpUrl | None = None
     content_type: ContentType = "travel_guide"
+    country_code: str | None = Field(default=None, max_length=2)
+    region: str | None = None
+    authority_profile: AuthorityProfile | None = None
     location: str | None = None
     province: str | None = None
     city: str | None = None

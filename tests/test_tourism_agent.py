@@ -9,7 +9,7 @@ from huaxia_tourismrag.agents.tourism_agent import (
     tourism_agent,
 )
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
-from huaxia_tourismrag.schemas.evidence import TravelAnswer
+from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelLocaleContext
 from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
 from huaxia_tourismrag.schemas.service_enrichment import (
     FreshWebEvidence,
@@ -24,7 +24,8 @@ from huaxia_tourismrag.schemas.travel_checkpoints import (
 
 def test_tourism_agent_uses_chinese_evidence_rules():
     assert "中国国内游客" in TOURISM_AGENT_INSTRUCTIONS
-    assert "不要默认假设用户是外国游客" in TOURISM_AGENT_INSTRUCTIONS
+    assert "locale_context" in TOURISM_AGENT_INSTRUCTIONS
+    assert "中文用户不等于外国游客" in TOURISM_AGENT_INSTRUCTIONS
     assert "签证、护照、入境政策" in TOURISM_AGENT_INSTRUCTIONS
     assert "夏夏" in TOURISM_AGENT_INSTRUCTIONS
     assert "华夏旅行社的专属 AI" in TOURISM_AGENT_INSTRUCTIONS
@@ -84,8 +85,10 @@ def test_build_final_answer_prompt_includes_question_context_and_citations():
     assert "住宿区域" in prompt
     assert "以“夏夏”的身份" in prompt
     assert "一句简短、有温度的回应" in prompt
-    assert "默认按中国国内游客" in prompt
-    assert "不要主动写签证、护照、入境政策" in prompt
+    assert "locale: zh-CN" in prompt
+    assert "authority_profile: china" in prompt
+    assert "不要套用中国国内旅行默认假设" in prompt
+    assert "中国国内行程可按国内游客语境" in prompt
     assert "不要在每个活动里反复说" in prompt
     assert "统一放入最后的待确认事项" in prompt
     assert "没有检索到官方或近期来源" in prompt
@@ -94,6 +97,30 @@ def test_build_final_answer_prompt_includes_question_context_and_citations():
     assert "每一天最多一行核心安排" in prompt
     assert "本次请求是行程规划，generated_itinerary 必须存在" in prompt
     assert "generated_itinerary.itinerary 至少包含 3 天" in prompt
+
+
+def test_build_final_answer_prompt_includes_australia_locale_rules():
+    prompt = build_final_answer_prompt(
+        question="10 days South Australian wine tasting and whale watching tour",
+        citation_context="[1] quote=Kangaroo Island ferry links Cape Jervis and Penneshaw.",
+        citation_lines=["[1] Kangaroo Island ferry - operator - https://example.com"],
+        detail_level="deep",
+        locale_context=TravelLocaleContext.for_request(
+            language="en",
+            destination="South Australia",
+            question="10 days South Australian wine tasting and whale watching tour",
+        ),
+    )
+
+    assert "locale: en-AU" in prompt
+    assert "currency: AUD" in prompt
+    assert "time_format: 12h" in prompt
+    assert "drive_side: left" in prompt
+    assert "Australian English requirements" in prompt
+    assert "cellar-door" in prompt
+    assert "whale" in prompt
+    assert "Kangaroo Island ferry" in prompt
+    assert "Do not mention Chinese high-speed rail" in prompt
 
 
 def test_build_final_answer_prompt_includes_strict_citation_contract():

@@ -121,6 +121,31 @@ async def test_run_qwen_structured_uses_model_override(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_qwen_structured_uses_llm_timeout_not_qdrant_timeout(monkeypatch):
+    monkeypatch.setattr(
+        "huaxia_tourismrag.agents.qwen_structured_runner.AsyncOpenAI",
+        FakeAsyncOpenAI,
+    )
+    settings = Settings(
+        _env_file=None,
+        TOURISM_AGENT_PROVIDER="qwen_cloud",
+        TOURISM_AGENT_MODEL="qwen3.7-max",
+        DASHSCOPE_API_KEY="dashscope-key",
+        LLM_TIMEOUT_SECONDS=333,
+        QDRANT_TIMEOUT_SECONDS=7,
+    )
+
+    await run_qwen_structured(
+        prompt="成都重庆美食路线怎么安排？",
+        output_type=TravelAnswer,
+        instructions="只输出 TravelAnswer JSON。",
+        settings=settings,
+    )
+
+    assert FakeAsyncOpenAI.instance.kwargs["timeout"] == 333
+
+
+@pytest.mark.asyncio
 async def test_qwen_structured_runner_retries_schema_echo(monkeypatch):
     class SchemaEchoAsyncOpenAI(FakeAsyncOpenAI):
         def __init__(self, **kwargs) -> None:

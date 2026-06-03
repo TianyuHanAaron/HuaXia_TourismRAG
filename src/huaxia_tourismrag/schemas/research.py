@@ -70,6 +70,8 @@ class TravelResearchTask(BaseModel):
 
     source_preference: SourcePreference = "mixed"
 
+    search_country: str | None = "china"
+
     def to_search_options(self) -> SearchOptions:
         """Convert task metadata into provider-agnostic search options."""
 
@@ -78,13 +80,14 @@ class TravelResearchTask(BaseModel):
             recency_days=self.recency_days,
             source_preference=self.source_preference,
             topic="general",
+            country=self.search_country,
         )
 
 
 class TravelResearchPlan(BaseModel):
     """Structured research plan used to drive deterministic tool execution."""
 
-    original_question: str = Field(min_length=5, max_length=1000)
+    original_question: str = Field(min_length=5, max_length=4000)
 
     destination: str | None = Field(default=None, min_length=1, max_length=120)
 

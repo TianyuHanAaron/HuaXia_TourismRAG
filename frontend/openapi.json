@@ -1966,6 +1966,13 @@
             "type": "array",
             "title": "Supported Languages"
           },
+          "supported_locales": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Locales"
+          },
           "supported_budget_levels": {
             "items": {
               "type": "string"
@@ -2001,6 +2008,7 @@
           "session_reply_endpoint",
           "sales_handoff_endpoint",
           "supported_languages",
+          "supported_locales",
           "supported_budget_levels",
           "supported_detail_levels",
           "optional_context_fields"
@@ -2356,6 +2364,16 @@
             ],
             "title": "Language",
             "default": "zh-CN"
+          },
+          "locale_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelLocaleContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2603,11 +2621,94 @@
         "title": "TravelJobStatusResponse",
         "description": "Public status response for a long-running job."
       },
+      "TravelLocaleContext": {
+        "properties": {
+          "answer_language": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en"
+            ],
+            "title": "Answer Language",
+            "default": "zh-CN"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "zh-CN",
+              "en-AU",
+              "en-US",
+              "en-GB"
+            ],
+            "title": "Locale",
+            "default": "zh-CN"
+          },
+          "destination_country_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Destination Country Codes"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "CNY",
+              "AUD",
+              "USD",
+              "GBP"
+            ],
+            "title": "Currency",
+            "default": "CNY"
+          },
+          "distance_unit": {
+            "type": "string",
+            "enum": [
+              "km",
+              "mile"
+            ],
+            "title": "Distance Unit",
+            "default": "km"
+          },
+          "time_format": {
+            "type": "string",
+            "enum": [
+              "12h",
+              "24h"
+            ],
+            "title": "Time Format",
+            "default": "24h"
+          },
+          "drive_side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right"
+            ],
+            "title": "Drive Side",
+            "default": "right"
+          },
+          "authority_profile": {
+            "type": "string",
+            "enum": [
+              "china",
+              "australia",
+              "global"
+            ],
+            "title": "Authority Profile",
+            "default": "china"
+          }
+        },
+        "type": "object",
+        "title": "TravelLocaleContext",
+        "description": "Locale defaults that keep international itineraries native and operational."
+      },
       "TravelQuestion": {
         "properties": {
           "question": {
             "type": "string",
-            "maxLength": 1000,
+            "maxLength": 4000,
             "minLength": 5,
             "title": "Question"
           },
@@ -2709,6 +2810,16 @@
             ],
             "title": "Language",
             "default": "zh-CN"
+          },
+          "locale_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelLocaleContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "continuation_pending_kind": {
             "anyOf": [

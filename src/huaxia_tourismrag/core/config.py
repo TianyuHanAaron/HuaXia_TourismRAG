@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     qdrant_api_key: str | None = Field(default=None, alias="QDRANT_API_KEY")
     internal_collection: str = Field(default="tourism_internal_docs", alias="QDRANT_COLLECTION")
     qdrant_timeout_seconds: float = Field(default=120.0, alias="QDRANT_TIMEOUT_SECONDS")
+    llm_timeout_seconds: float = Field(default=420.0, alias="LLM_TIMEOUT_SECONDS")
 
     embedding_model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", alias="EMBEDDING_MODEL")
     embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")

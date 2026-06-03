@@ -1,0 +1,42 @@
+[
+  {
+    "id": "south_australia_wine_whales_10d_en_au",
+    "prompt": "10 days South Australian wine tasting and whale watching tour",
+    "locale": "en-AU",
+    "expected_context": {
+      "answer_language": "en",
+      "currency": "AUD",
+      "distance_unit": "km",
+      "time_format": "12h",
+      "drive_side": "left",
+      "authority_profile": "australia"
+    },
+    "route_checks": [
+      "Starts or anchors in Adelaide",
+      "Includes at least one wine region such as Barossa, McLaren Vale, or Adelaide Hills",
+      "Includes Fleurieu Peninsula or Victor Harbor for whale watching context",
+      "Handles Kangaroo Island ferry or flight access as a booking/risk item if Kangaroo Island appears",
+      "Returns logically to Adelaide or a clearly stated departure point"
+    ],
+    "content_checks": [
+      "Uses native English travel-advisor prose, not translated Chinese phrasing",
+      "Uses AUD for cost framing and 12-hour clock labels such as 8:30 am",
+      "Mentions left-side driving/self-drive caution where driving is recommended",
+      "Includes cellar-door booking notes for wine-region days",
+      "States whale and wildlife seasonality or weather caveats without overstating certainty",
+      "Includes Food & Local Flavor, Where to Stay, Getting Around, Tickets & Bookings, and Travel Notes when topic sections are returned"
+    ],
+    "citation_checks": [
+      "Every concrete ferry, park, whale-season, winery-region, or official-access claim has an in-text citation",
+      "Ferry schedule or access claims cite ferry/operator/official visitor information sources",
+      "Park and wildlife-access claims cite parks, official tourism, operator, or visitor-information sources",
+      "No China railway, WeChat, Chinese province/city selector, or China policy citation supports Australia logistics"
+    ],
+    "failure_examples": [
+      "Uses CNY/RMB or Chinese railway assumptions for South Australia",
+      "Claims exact winery opening hours, hotel prices, or ferry times without a matching source",
+      "Routes Kangaroo Island as a casual same-day drive without ferry/flight buffer",
+      "Writes Chinese domestic section titles in an English answer"
+    ]
+  }
+]

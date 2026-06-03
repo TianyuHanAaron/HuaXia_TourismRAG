@@ -27,7 +27,11 @@ import {
   useCreateFormJobTourismFormsJobsPost,
   useCreateGeneralQuestionJobTourismJobsQuestionsPost,
 } from '../../api/generated/huaxia';
-import type { TravelFormRequest, TravelQuestion } from '../../api/generated/model';
+import type {
+  TravelFormRequest,
+  TravelLocaleContext,
+  TravelQuestion,
+} from '../../api/generated/model';
 import { HuaxiaActionButton } from '../../components/HuaxiaActionButton';
 import { HuaxiaSectionHeader } from '../../components/HuaxiaSectionHeader';
 import { HuaxiaSurface } from '../../components/HuaxiaSurface';
@@ -46,14 +50,14 @@ type Props = {
 };
 
 const attractionOptions = [
-  ['history_culture', '历史人文'],
-  ['nature', '自然山水'],
-  ['food', '美食'],
-  ['family_friendly', '亲子友好'],
-  ['photography', '摄影'],
-  ['theme_route', '主题路线'],
-  ['heritage', '文化遗产'],
-  ['city_classics', '城市经典'],
+  ['history_culture', '历史人文', 'History & culture'],
+  ['nature', '自然山水', 'Nature & scenery'],
+  ['food', '美食', 'Food & wine'],
+  ['family_friendly', '亲子友好', 'Family friendly'],
+  ['photography', '摄影', 'Photography'],
+  ['theme_route', '主题路线', 'Theme route'],
+  ['heritage', '文化遗产', 'Heritage'],
+  ['city_classics', '城市经典', 'City classics'],
 ] as const;
 
 export function TripComposer({ onRequestTextChange }: Props) {
@@ -74,6 +78,9 @@ export function TripComposer({ onRequestTextChange }: Props) {
   const [originCity, setOriginCity] = useState('上海市');
   const [destinations, setDestinations] = useState<string[]>([]);
   const [returnCity, setReturnCity] = useState('上海市');
+  const [internationalOrigin, setInternationalOrigin] = useState('');
+  const [internationalDestination, setInternationalDestination] = useState('South Australia');
+  const [internationalReturn, setInternationalReturn] = useState('');
   const [returnCitySpecified, setReturnCitySpecified] = useState(false);
   const [requiredStops, setRequiredStops] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -89,9 +96,20 @@ export function TripComposer({ onRequestTextChange }: Props) {
   const [attractions, setAttractions] = useState<string[]>(['history_culture', 'nature', 'food']);
   const [extraNotes, setExtraNotes] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const destination = useMemo(() => destinationTextFromSelections(destinations), [destinations]);
+  const isEnglish = language !== 'zh-CN';
+  const destination = useMemo(
+    () => (isEnglish ? internationalDestination.trim() : destinationTextFromSelections(destinations)),
+    [destinations, internationalDestination, isEnglish],
+  );
 
-  const displayedReturnCity = returnCitySpecified ? returnCity : originCity;
+  const submittedOriginCity = isEnglish ? internationalOrigin.trim() : originCity;
+  const displayedReturnCity = isEnglish
+    ? returnCitySpecified
+      ? internationalReturn.trim()
+      : internationalOrigin.trim()
+    : returnCitySpecified
+      ? returnCity
+      : originCity;
   const calculatedDurationDays = calculateInclusiveTripDays(startDate, endDate);
   const displayedDurationDays = calculatedDurationDays ?? durationDays;
 
@@ -129,7 +147,7 @@ export function TripComposer({ onRequestTextChange }: Props) {
   const submitForm = () => {
     const raw = {
       request_mode: mode,
-      origin_city: originCity || undefined,
+      origin_city: submittedOriginCity || undefined,
       destination,
       return_city: displayedReturnCity || undefined,
       required_stops: splitListText(requiredStops),
@@ -145,6 +163,11 @@ export function TripComposer({ onRequestTextChange }: Props) {
       extra_notes: extraNotes || undefined,
       detail_level: detailLevel,
       language,
+      locale_context: buildLocaleContext({
+        language,
+        destination,
+        extraNotes,
+      }),
     };
     const parsed = travelFormSchema.safeParse(raw);
     if (!parsed.success) {
@@ -168,6 +191,11 @@ export function TripComposer({ onRequestTextChange }: Props) {
       question: text,
       detail_level: detailLevel,
       language,
+      locale_context: buildLocaleContext({
+        language,
+        destination: '',
+        extraNotes: text,
+      }),
     };
     if (mode === 'diy') {
       diyJob.mutate({ data: question });
@@ -251,20 +279,49 @@ export function TripComposer({ onRequestTextChange }: Props) {
           <Fade in timeout={260}>
             <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <RegionInput label={language === 'zh-CN' ? '出发城市' : 'Origin'} value={originCity} onChange={setOriginCity} />
-              <RegionMultiInput
-                label={language === 'zh-CN' ? '旅游目的地' : 'Travel destinations'}
-                value={destinations}
-                onChange={setDestinations}
-              />
-              <RegionInput
-                label={language === 'zh-CN' ? '返回城市' : 'Return city'}
-                value={displayedReturnCity}
-                onChange={(value) => {
-                  setReturnCitySpecified(true);
-                  setReturnCity(value);
-                }}
-              />
+              {isEnglish ? (
+                <>
+                  <TextField
+                    label="Origin city or airport"
+                    value={internationalOrigin}
+                    onChange={(event) => setInternationalOrigin(event.target.value)}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Country, region, or destinations"
+                    value={internationalDestination}
+                    onChange={(event) => setInternationalDestination(event.target.value)}
+                    fullWidth
+                    helperText="Example: South Australia, Adelaide + Kangaroo Island"
+                  />
+                  <TextField
+                    label="Return city or airport"
+                    value={displayedReturnCity}
+                    onChange={(event) => {
+                      setReturnCitySpecified(true);
+                      setInternationalReturn(event.target.value);
+                    }}
+                    fullWidth
+                  />
+                </>
+              ) : (
+                <>
+                  <RegionInput label="出发城市" value={originCity} onChange={setOriginCity} />
+                  <RegionMultiInput
+                    label="旅游目的地"
+                    value={destinations}
+                    onChange={setDestinations}
+                  />
+                  <RegionInput
+                    label="返回城市"
+                    value={displayedReturnCity}
+                    onChange={(value) => {
+                      setReturnCitySpecified(true);
+                      setReturnCity(value);
+                    }}
+                  />
+                </>
+              )}
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField
@@ -326,10 +383,10 @@ export function TripComposer({ onRequestTextChange }: Props) {
                 {language === 'zh-CN' ? '想要的体验' : 'Preferred experiences'}
               </Typography>
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-                {attractionOptions.map(([value, label]) => (
+                {attractionOptions.map(([value, zhLabel, enLabel]) => (
                   <Chip
                     key={value}
-                    label={label}
+                    label={language === 'zh-CN' ? zhLabel : enLabel}
                     color={attractions.includes(value) ? 'primary' : 'default'}
                     onClick={() =>
                       setAttractions((current) =>
@@ -528,5 +585,171 @@ function regionGroupLabel(value: string | ChinaRegionOption): string {
 
 function buildRequestText(data: TravelFormRequest): string {
   const stops = data.required_stops?.length ? `；必须覆盖：${data.required_stops.join('、')}` : '';
+  if (data.language === 'en') {
+    const days = data.duration_days ? ` for ${data.duration_days} days` : '';
+    const required = data.required_stops?.length ? `; must include: ${data.required_stops.join(', ')}` : '';
+    return `${data.origin_city ?? ''} to ${data.destination ?? ''}${days}${required}`;
+  }
   return `${data.origin_city ?? ''}出发，${data.destination ?? ''}${data.duration_days ? `${data.duration_days}天` : ''}旅行${stops}`;
+}
+
+function buildLocaleContext({
+  language,
+  destination,
+  extraNotes,
+}: {
+  language: 'zh-CN' | 'en';
+  destination: string;
+  extraNotes: string;
+}): TravelLocaleContext {
+  const text = `${destination}\n${extraNotes}`.toLowerCase();
+  const effectiveLanguage = deriveAnswerLanguage(language, text);
+  if (effectiveLanguage === 'zh-CN') {
+    return {
+      answer_language: 'zh-CN',
+      locale: 'zh-CN',
+      destination_country_codes: ['CN'],
+      currency: 'CNY',
+      distance_unit: 'km',
+      time_format: '24h',
+      drive_side: 'right',
+      authority_profile: 'china',
+    };
+  }
+
+  const countryCodes = deriveDestinationCountryCodes(text);
+  const isAustralia = [
+    'australia',
+    'australian',
+    'south australia',
+    'adelaide',
+    'barossa',
+    'mclaren vale',
+    'fleurieu',
+    'victor harbor',
+    'kangaroo island',
+    'adelaide hills',
+  ].some((marker) => text.includes(marker));
+
+  if (isAustralia) {
+    return {
+      answer_language: 'en',
+      locale: 'en-AU',
+      destination_country_codes: ['AU'],
+      currency: deriveCurrency(text, 'AUD'),
+      distance_unit: 'km',
+      time_format: '12h',
+      drive_side: 'left',
+      authority_profile: 'australia',
+    };
+  }
+
+  const onlyUk = countryCodes.length === 1 && countryCodes[0] === 'GB';
+  return {
+    answer_language: 'en',
+    locale: onlyUk ? 'en-GB' : 'en-US',
+    destination_country_codes: countryCodes,
+    currency: deriveCurrency(text, 'USD'),
+    distance_unit: onlyUk ? 'mile' : 'km',
+    time_format: '12h',
+    drive_side: deriveDriveSide(countryCodes),
+    authority_profile: 'global',
+  };
+}
+
+function deriveCurrency(text: string, fallback: TravelLocaleContext['currency']): TravelLocaleContext['currency'] {
+  if (['rmb', 'cny', 'renminbi', '人民币'].some((marker) => text.includes(marker))) {
+    return 'CNY';
+  }
+  if (['aud', 'australian dollar', 'australian dollars'].some((marker) => text.includes(marker))) {
+    return 'AUD';
+  }
+  if (['gbp', 'pound sterling', 'pounds sterling'].some((marker) => text.includes(marker))) {
+    return 'GBP';
+  }
+  if (['usd', 'us dollar', 'us dollars'].some((marker) => text.includes(marker))) {
+    return 'USD';
+  }
+  return fallback;
+}
+
+function deriveDestinationCountryCodes(text: string): string[] {
+  const countryMarkers: Array<[string, string[]]> = [
+    ['AU', ['australia', 'australian', 'sydney', 'melbourne', 'brisbane', 'gold coast']],
+    ['JP', ['japan', 'tokyo', 'kyoto', 'osaka', 'jr pass', 'onsen', 'hot spring']],
+    ['GB', ['united kingdom', 'uk', 'london', 'scotland', 'scottish', 'highlands']],
+    ['MV', ['maldives', 'maldivian', 'atoll', 'atolls', 'seaplane', 'overwater villa']],
+    ['SG', ['singapore']],
+    ['MY', ['malaysia', 'malaysian', 'kuala lumpur', 'penang', 'langkawi']],
+    ['TH', ['thailand', 'thai', 'bangkok', 'phuket', 'chiang mai']],
+    ['GR', ['greece', 'greek', 'aegean', 'santorini', 'athens']],
+    ['TR', ['turkey', 'turkish', 'cappadocia', 'pamukkale', 'istanbul']],
+    ['EG', ['egypt', 'egyptian', 'cairo', 'aswan', 'nile', 'red sea']],
+    ['TZ', ['tanzania', 'tanzanian', 'kilimanjaro', 'serengeti']],
+    ['KE', ['kenya', 'kenyan', 'masai mara', 'maasai mara', 'nairobi']],
+    ['ET', ['ethiopia', 'ethiopian', 'lalibela', 'omo valley']],
+    ['NL', ['netherlands', 'amsterdam', 'windmills']],
+    ['FR', ['france', 'paris']],
+    ['DE', ['germany', 'rhine']],
+    ['IT', ['italy', 'renaissance', 'rome', 'florence', 'venice']],
+    ['AT', ['austria']],
+    ['CH', ['switzerland', 'swiss', 'alps']],
+    ['ES', ['spain', 'spanish']],
+    ['PT', ['portugal', 'portuguese']],
+  ];
+  return countryMarkers
+    .filter(([, markers]) => markers.some((marker) => containsDestinationMarker(text, marker)))
+    .map(([code]) => code)
+    .slice(0, 6);
+}
+
+function containsDestinationMarker(text: string, marker: string): boolean {
+  if (marker.length > 3 || !isAsciiWord(marker)) {
+    return text.includes(marker);
+  }
+  let start = text.indexOf(marker);
+  while (start >= 0) {
+    const before = start > 0 ? text[start - 1] : '';
+    const afterIndex = start + marker.length;
+    const after = afterIndex < text.length ? text[afterIndex] : '';
+    if (!isAsciiLetter(before) && !isAsciiLetter(after)) {
+      return true;
+    }
+    start = text.indexOf(marker, start + 1);
+  }
+  return false;
+}
+
+function isAsciiLetter(value: string): boolean {
+  if (value.length !== 1) {
+    return false;
+  }
+  const code = value.charCodeAt(0);
+  return code >= 97 && code <= 122;
+}
+
+function isAsciiWord(value: string): boolean {
+  return Array.from(value).every((char) => isAsciiLetter(char));
+}
+
+function deriveAnswerLanguage(language: 'zh-CN' | 'en', text: string): 'zh-CN' | 'en' {
+  if (language === 'en') {
+    return 'en';
+  }
+  let latinLetters = 0;
+  let cjkChars = 0;
+  for (const char of text) {
+    const codePoint = char.codePointAt(0) ?? 0;
+    if ((codePoint >= 65 && codePoint <= 90) || (codePoint >= 97 && codePoint <= 122)) {
+      latinLetters += 1;
+    } else if (codePoint >= 0x4e00 && codePoint <= 0x9fff) {
+      cjkChars += 1;
+    }
+  }
+  return latinLetters >= 24 && latinLetters > cjkChars * 2 ? 'en' : 'zh-CN';
+}
+
+function deriveDriveSide(countryCodes: string[]): TravelLocaleContext['drive_side'] {
+  const leftDrive = new Set(['AU', 'GB', 'JP', 'MV', 'SG', 'MY', 'TH', 'TZ', 'KE']);
+  return countryCodes.length > 0 && countryCodes.every((code) => leftDrive.has(code)) ? 'left' : 'right';
 }

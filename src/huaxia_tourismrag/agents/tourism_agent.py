@@ -16,6 +16,7 @@ from huaxia_tourismrag.schemas.evidence import (
     DetailLevel,
     TravelAnswer,
     TravelChunk,
+    TravelLocaleContext,
     TravelSearchHit,
 )
 from huaxia_tourismrag.schemas.research import TravelResearchPlan
@@ -32,18 +33,18 @@ from huaxia_tourismrag.tools.webpage_reader import WebpageReaderTool
 
 
 TOURISM_AGENT_INSTRUCTIONS = """
-你叫「夏夏」，是华夏旅行社的专属 AI 旅行顾问，主要服务中国国内游客的国内旅行规划。
+你叫「夏夏」，是华夏旅行社的专属 AI 旅行顾问，主要服务中国国内游客，也能按 locale_context 生成国际旅行方案。
 
 回答规则：
 - 保持轻度拟人化：有温度、会共情，但明确自己是华夏旅行社的专属 AI，不假装是人类导游或真人客服。
-- 默认按中国国内游客理解问题，不要默认假设用户是外国游客。
+- 默认按 locale_context 理解旅行场景；没有 locale_context 时按中国国内游客理解问题。
 - 除非用户明确提到境外游客、入境游、外籍身份、英文服务、签证、护照或免签，否则不要主动写签证、护照、入境政策、换汇、境外游客支付等内容。
 - 优先使用已经提供的检索证据，不要凭空编造景点、价格、开放时间或交通信息。
 - 官方来源优先用于门票、开放时间、预约、交通和安全提醒；涉外问题才使用签证、护照、入境政策证据。
 - 旅行博客、游记和点评来源可用于真实体验、避坑建议、路线感受和本地玩法。
 - 如果官方来源和旅行博客冲突，明确说明冲突，并把官方信息作为更可靠依据。
 - 每个具体结论都要带引用，尤其是时间、价格、政策、路线和推荐原因。
-- 面向中文用户回答，除非用户明确要求英文；中文用户不等于外国游客。
+- 回答语言必须服从 TravelQuestion.language / locale_context.answer_language；中文用户不等于外国游客。
 - 如果证据不足，直接说明缺失信息，并给出下一步需要核验的信息。
 """.strip()
 
@@ -139,9 +140,14 @@ def build_final_answer_prompt(
     service_enrichment: ServiceEnrichmentContext | None = None,
     detail_level: DetailLevel = "standard",
     topic_section_mode: str = "inline",
+    locale_context: TravelLocaleContext | None = None,
 ) -> str:
     """Build the final evidence-grounded answer prompt."""
 
+    locale_context = locale_context or TravelLocaleContext.for_request(
+        language="zh-CN",
+        question=question,
+    )
     allowed_citations = "\n".join(citation_lines)
     research_plan_context = _format_research_plan(research_plan)
     diy_plan_context = _format_diy_plan(diy_plan)
@@ -152,6 +158,8 @@ def build_final_answer_prompt(
         research_plan=research_plan,
         diy_plan=diy_plan,
     )
+    locale_rules = _format_locale_answer_rules(locale_context)
+    topic_title_rule = _format_topic_title_rule(locale_context)
     return f"""
 用户问题：
 {question}
@@ -174,17 +182,28 @@ DIY 行程计划：
 回答详细度：
 detail_level: {detail_level}
 
+国际化/本地化上下文：
+answer_language: {locale_context.answer_language}
+locale: {locale_context.locale}
+destination_country_codes: {", ".join(locale_context.destination_country_codes) or "未限定"}
+currency: {locale_context.currency}
+distance_unit: {locale_context.distance_unit}
+time_format: {locale_context.time_format}
+drive_side: {locale_context.drive_side}
+authority_profile: {locale_context.authority_profile}
+
 已检索证据与专题证据包：
 {citation_context}
 
 允许使用的引用：
 {allowed_citations}
 
-请写一份面向中文用户的旅游 RAG 答案。
+请根据上面的 locale 和 answer_language 写一份旅游 RAG 答案。
+{locale_rules}
 
 规则：
 - answer 开头必须以“夏夏”的身份做一句简短、有温度的回应，格式自然即可。例如先表达“听起来会是一趟很值得期待的家庭人文旅行”，再说明你会从路线、交通、住宿、美食、预约和风险把关。不要写成长篇广告。
-- 默认按中国国内游客理解用户；不要主动写签证、护照、入境政策、换汇、境外游客支付，除非用户问题或证据明确表明这是入境/外籍游客场景。
+- 不要套用中国国内旅行默认假设；只有 locale 是 zh-CN 或证据明确时，才按中国国内游客场景处理。
 - 语气要像华夏旅行社的专业 AI 旅行顾问：亲切、可靠、有企业服务感，但不要过度卖萌、不要夸大能力、不要假装真人。
 - 只能使用上面的证据。
 - 只能引用“允许使用的引用”里出现的编号；不要输出未在允许列表中的引用编号。
@@ -222,7 +241,7 @@ detail_level: {detail_level}
 - Firecrawl MCP 结果只用于当前网页证据；必须优先引用其返回的真实 title/url，不要编造网页或引用。
 - Tavily MCP 或 Tavily 搜索结果用于网页发现和当前网页证据；必须优先引用其返回或解析出的真实 title/url，不要编造网页或引用。
 - Firecrawl 新鲜网页证据必须用于开放、预约、临时变化或服务核验；如果没有可用结果，在 warnings 中说明待确认。
-- 途牛 MCP 结果只用于酒店、门票、交通、产品和预订链接；价格、库存、取消政策必须写明以途牛实时页面为准。
+- 商业产品证据只用于酒店、门票、交通、产品和预订链接；价格、库存、取消政策必须写明以实时页面为准。
 - 如果服务能力校验里有 booking_actions，可以在答案末尾加入“可继续操作”小节，但不要声称已经完成预订或付款。
 - 不确定的信息要标注为待确认，不要假装确定。
 - 不要在每个活动里反复说“需核验”或“待确认”；相同类型的不确定项统一放入最后的待确认事项。
@@ -262,9 +281,46 @@ detail_level: {detail_level}
 - activity.category 只能使用 natural_attraction、cultural_attraction、local_restaurant、accommodation、shopping、transport、nature、special_event；不确定时可以省略。
 - activity.location 不确定时可以省略，不要编造精确地址。
 - topic_sections.category 只能使用 food、accommodation、public_transport、shopping、entertainment。
-- topic_sections.title 用中文专题名，例如“美食”“住宿”“公交”“购物”“娱乐项目”。
+- {topic_title_rule}
 - 本次 topic_section_mode={topic_section_mode}；当值不是 inline 时，topic_sections 必须返回空列表，专题内容会由后续任务或前端状态补充。
 """.strip()
+
+
+def _format_locale_answer_rules(locale_context: TravelLocaleContext) -> str:
+    if locale_context.locale == "en-AU":
+        return """
+Australian English requirements:
+- Write in natural, polished Australian/English travel-agency prose, not translated Chinese phrasing.
+- Use AUD when discussing budget or indicative costs; do not use RMB/CNY.
+- Use 12-hour clock labels in prose, for example “8:30 am” and “6:15 pm”.
+- Use kilometres and practical drive-time language; remember Australia drives on the left.
+- For South Australia wine trips, include cellar-door booking logic, designated-driver/self-drive cautions, regional pacing, and winery-area accommodation strategy when evidence supports it.
+- For whale watching or wildlife claims, use official tourism, wildlife, park, operator, or visitor-information evidence; mention seasonality and weather/sea-condition caveats when relevant.
+- For Kangaroo Island or coastal routes, distinguish ferry/flight access, buffer time, and what must be rechecked before booking.
+- Do not mention Chinese high-speed rail, Chinese province/city defaults, WeChat, Chinese domestic ticketing assumptions, or Chinese policy citations unless the user explicitly asks for China-related logistics.
+""".strip()
+    if locale_context.answer_language == "en":
+        return """
+English requirements:
+- Write in natural English travel-advisor prose, not translated Chinese phrasing.
+- Use the configured currency, distance unit, time format, and driving side.
+- Avoid China-specific logistics, booking assumptions, and policy citations unless the itinerary involves China.
+- For official schedules, safety, park access, visa/passport, and transport claims, use official or operator sources first.
+""".strip()
+    return """
+中文要求：
+- 面向中文用户输出，保持华夏旅行社 AI 顾问的自然中文语气。
+- 中国国内行程可按国内游客语境组织交通、预约、住宿、美食和风险提醒。
+""".strip()
+
+
+def _format_topic_title_rule(locale_context: TravelLocaleContext) -> str:
+    if locale_context.answer_language == "en":
+        return (
+            "topic_sections.title 用英文专题名：Food & Local Flavor、"
+            "Where to Stay、Getting Around、Tickets & Bookings、Travel Notes。"
+        )
+    return "topic_sections.title 用中文专题名，例如“美食”“住宿”“公交”“购物”“娱乐项目”。"
 
 
 def _format_structured_itinerary_requirement(
@@ -524,6 +580,7 @@ async def generate_answer_with_context(
     service_enrichment: ServiceEnrichmentContext | None = None,
     detail_level: DetailLevel = "standard",
     topic_section_mode: str = "inline",
+    locale_context: TravelLocaleContext | None = None,
 ) -> TravelAnswer:
     """Run the tourism agent against prepared citation context."""
 
@@ -538,6 +595,7 @@ async def generate_answer_with_context(
         service_enrichment=service_enrichment,
         detail_level=detail_level,
         topic_section_mode=topic_section_mode,
+        locale_context=locale_context,
     )
     if is_external_structured_provider():
         settings = get_settings()

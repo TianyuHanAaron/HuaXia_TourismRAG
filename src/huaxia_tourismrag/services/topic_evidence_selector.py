@@ -21,15 +21,26 @@ TOPIC_SECTION_TITLES: dict[TopicSectionCategory, str] = {
     "entertainment": "娱乐项目",
 }
 
+TOPIC_SECTION_TITLES_EN: dict[TopicSectionCategory, str] = {
+    "food": "Food & Local Flavor",
+    "accommodation": "Where to Stay",
+    "public_transport": "Getting Around",
+    "shopping": "Tickets & Bookings",
+    "entertainment": "Travel Notes",
+}
+
 TOPIC_PRIMARY_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
     "food": {
         "local_cuisine",
+        "local_specialty",
+        "wine_region",
     },
     "accommodation": {
         "accommodation",
     },
     "public_transport": {
         "transport",
+        "ferry_transport",
         "railway",
         "aviation",
         "road_transport",
@@ -41,6 +52,8 @@ TOPIC_PRIMARY_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
     "entertainment": {
         "activity",
         "entertainment",
+        "wildlife_tour",
+        "national_park",
     },
 }
 
@@ -65,6 +78,7 @@ TOPIC_FALLBACK_CONTENT_TYPES: dict[TopicSectionCategory, set[ContentType]] = {
         "attraction",
         "destination",
         "heritage_site",
+        "visitor_information",
         "scenic_quality",
         "travel_guide",
     },
@@ -119,6 +133,7 @@ class TopicEvidenceSelector:
         )
         bundles: list[TopicEvidenceBundle] = []
         for category, title in TOPIC_SECTION_TITLES.items():
+            title = self._localized_title(category, question)
             compatible = self._compatible_quotes(
                 category=category,
                 quotes=pack.evidence_quotes,
@@ -151,6 +166,15 @@ class TopicEvidenceSelector:
                 )
             )
         return bundles
+
+    def _localized_title(
+        self,
+        category: TopicSectionCategory,
+        question: TravelQuestion,
+    ) -> str:
+        if question.locale_context and question.locale_context.answer_language == "en":
+            return TOPIC_SECTION_TITLES_EN[category]
+        return TOPIC_SECTION_TITLES[category]
 
     def _compatible_quotes(
         self,

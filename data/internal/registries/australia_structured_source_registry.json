@@ -1,0 +1,98 @@
+{
+  "description": "Australia-first structured source registry for international English itinerary quality. V1 focuses on South Australia wine, coast, whale watching, wildlife, ferries, parks, and visitor information.",
+  "target_scale": {
+    "v1_rows": "20-50",
+    "south_australia_rows": "100-250"
+  },
+  "datasets": [
+    {
+      "dataset_id": "south_australia_wine_regions",
+      "corpus_layer": "international_destinations",
+      "target_row_file": "data/internal/rows/production/australia_south_australia_rows.json",
+      "target_content_type": "wine_region",
+      "target_level": "official_region",
+      "priority": "p0",
+      "source_candidates": [
+        {
+          "name": "SouthAustralia.com - Barossa",
+          "url": "https://southaustralia.com/destinations/barossa",
+          "authority": "state_tourism_board",
+          "official_status": "official",
+          "notes": "Official consumer tourism entry for Barossa itinerary evidence."
+        },
+        {
+          "name": "SouthAustralia.com - McLaren Vale",
+          "url": "https://southaustralia.com/destinations/fleurieu-peninsula/places/mclaren-vale",
+          "authority": "state_tourism_board",
+          "official_status": "official",
+          "notes": "Official consumer tourism entry for McLaren Vale and Fleurieu wine/coast routing."
+        }
+      ]
+    },
+    {
+      "dataset_id": "south_australia_whale_wildlife",
+      "corpus_layer": "international_wildlife",
+      "target_row_file": "data/internal/rows/production/australia_south_australia_rows.json",
+      "target_content_type": "wildlife_tour",
+      "target_level": "official_or_operator",
+      "priority": "p0",
+      "source_candidates": [
+        {
+          "name": "Marine Parks South Australia - Whale watching",
+          "url": "https://www.marineparks.sa.gov.au/news/120709-whalewatching",
+          "authority": "state_environment_authority",
+          "official_status": "official",
+          "notes": "Official marine parks evidence for South Australia whale watching seasonality and safety context."
+        },
+        {
+          "name": "Visit Victor Harbor - Whale Watching",
+          "url": "https://visitvictorharbor.com/things-to-do/whale-watching/",
+          "authority": "local_visitor_information",
+          "official_status": "official",
+          "notes": "Local visitor-information evidence for Victor Harbor whale watching experience and timing."
+        },
+        {
+          "name": "National Parks and Wildlife Service South Australia - Seal Bay",
+          "url": "https://www.parks.sa.gov.au/experiences/seal-bay",
+          "authority": "state_parks_authority",
+          "official_status": "official",
+          "notes": "Official Kangaroo Island wildlife and park visitor evidence."
+        }
+      ]
+    },
+    {
+      "dataset_id": "south_australia_transport_access",
+      "corpus_layer": "international_transport",
+      "target_row_file": "data/internal/rows/production/australia_south_australia_rows.json",
+      "target_content_type": "ferry_transport",
+      "target_level": "operator_or_official",
+      "priority": "p0",
+      "source_candidates": [
+        {
+          "name": "SouthAustralia.com - Kangaroo Island SeaLink Ferry",
+          "url": "https://southaustralia.com/products/kangaroo-island/transport/kangaroo-island-sealink-ferry/return-ferry-travel",
+          "authority": "state_tourism_board_product_listing",
+          "official_status": "official_listing",
+          "notes": "Tourism SA product listing for Kangaroo Island ferry access."
+        }
+      ]
+    },
+    {
+      "dataset_id": "australian_tourism_data_warehouse",
+      "corpus_layer": "structured_products",
+      "target_row_file": "data/internal/rows/production/australia_south_australia_rows.json",
+      "target_content_type": "visitor_information",
+      "target_level": "national_data_warehouse",
+      "priority": "p1",
+      "source_candidates": [
+        {
+          "name": "Australian Tourism Data Warehouse API",
+          "url": "https://data.gov.au/data/dataset/australian-tourism-data-warehouse-api",
+          "authority": "national_tourism_data_warehouse",
+          "official_status": "official_dataset",
+          "notes": "Future structured source for Australian tourism products, attractions, accommodation, tours, and events."
+        }
+      ]
+    }
+  ]
+}

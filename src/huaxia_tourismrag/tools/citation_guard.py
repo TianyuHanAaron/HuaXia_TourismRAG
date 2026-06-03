@@ -50,6 +50,10 @@ class CitationGuard:
         "local_cuisine",
         "local_specialty",
         "activity",
+        "wine_region",
+        "wildlife_tour",
+        "national_park",
+        "visitor_information",
         "travel_guide",
         "scenic_quality",
     }

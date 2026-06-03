@@ -1,8 +1,12 @@
 """Evidence schemas for retrieval and citation."""
 
 from datetime import date, datetime, time
+from functools import lru_cache
 from typing import Literal
+import unicodedata
 
+import geonamescache
+import pycountry
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from huaxia_tourismrag.schemas.performance import PerformanceTrace
@@ -22,6 +26,13 @@ SourceType = Literal[
 ]
 
 DetailLevel = Literal["concise", "standard", "deep"]
+AnswerLanguage = Literal["zh-CN", "en"]
+TravelLocale = Literal["zh-CN", "en-AU", "en-US", "en-GB"]
+CurrencyCode = Literal["CNY", "AUD", "USD", "GBP"]
+DistanceUnit = Literal["km", "mile"]
+TimeFormat = Literal["12h", "24h"]
+DriveSide = Literal["left", "right"]
+AuthorityProfile = Literal["china", "australia", "global"]
 TravelerGroup = Literal["solo", "couple", "family", "friends", "parents", "business"]
 TravelPace = Literal["relaxed", "balanced", "intensive"]
 TravelModePreference = Literal[
@@ -70,10 +81,16 @@ ContentType = Literal[
     "local_cuisine",
     "local_specialty",
     "activity",
+    "wine_region",
+    "wildlife_tour",
     "transport",
+    "ferry_transport",
     "railway",
     "aviation",
     "road_transport",
+    "national_park",
+    "visitor_information",
+    "weather",
     "shopping",
     "entertainment",
     "travel_guide",
@@ -92,6 +109,312 @@ ContentType = Literal[
 ]
 
 
+_COMMON_COUNTRY_ALIASES: dict[str, tuple[str, ...]] = {
+    "AU": ("australian", "south australia", "south australian"),
+    "BO": ("bolivia",),
+    "CD": ("democratic republic of congo", "dr congo"),
+    "CG": ("republic of congo",),
+    "CI": ("ivory coast", "cote d ivoire"),
+    "CZ": ("czech republic",),
+    "GB": ("uk", "u k", "great britain", "britain", "england", "scotland", "wales"),
+    "IR": ("iran",),
+    "KP": ("north korea",),
+    "KR": ("south korea",),
+    "LA": ("laos",),
+    "MD": ("moldova",),
+    "PS": ("palestine", "west bank", "gaza"),
+    "RU": ("russia",),
+    "SY": ("syria",),
+    "TR": ("turkey",),
+    "TZ": ("tanzania",),
+    "US": ("usa", "u s a", "united states", "united states of america"),
+    "VN": ("vietnam",),
+}
+_SHORT_COUNTRY_ALIASES = frozenset({"uk"})
+
+
+# =========================================================
+# Locale Context
+# =========================================================
+
+class TravelLocaleContext(BaseModel):
+    """Locale defaults that keep international itineraries native and operational."""
+
+    answer_language: AnswerLanguage = "zh-CN"
+
+    locale: TravelLocale = "zh-CN"
+
+    destination_country_codes: list[str] = Field(default_factory=lambda: ["CN"], max_length=12)
+
+    currency: CurrencyCode = "CNY"
+
+    distance_unit: DistanceUnit = "km"
+
+    time_format: TimeFormat = "24h"
+
+    drive_side: DriveSide = "right"
+
+    authority_profile: AuthorityProfile = "china"
+
+    @model_validator(mode="after")
+    def normalize_country_codes(self) -> "TravelLocaleContext":
+        self.destination_country_codes = [
+            code.strip().upper()
+            for code in self.destination_country_codes
+            if code.strip()
+        ][:12]
+        return self
+
+    @property
+    def search_country(self) -> str | None:
+        """Return the provider search country filter, when one is useful."""
+
+        if "AU" in self.destination_country_codes:
+            return "australia"
+        if "CN" in self.destination_country_codes:
+            return "china"
+        return None
+
+    @classmethod
+    def for_request(
+        cls,
+        *,
+        language: AnswerLanguage,
+        destination: str | None = None,
+        question: str | None = None,
+    ) -> "TravelLocaleContext":
+        """Derive conservative locale defaults from structured request context."""
+
+        text = f"{destination or ''}\n{question or ''}".casefold()
+        effective_language = _derive_answer_language(language, text)
+        country_codes = _derive_destination_country_codes(text)
+        if "AU" in country_codes:
+            return cls(
+                answer_language="en",
+                locale="en-AU",
+                destination_country_codes=country_codes,
+                currency=_derive_currency(text, fallback="AUD"),
+                distance_unit="km",
+                time_format="12h",
+                drive_side="left",
+                authority_profile="australia",
+            )
+        if effective_language == "en":
+            locale: TravelLocale = "en-GB" if country_codes == ["GB"] else "en-US"
+            distance_unit: DistanceUnit = "mile" if country_codes == ["GB"] else "km"
+            return cls(
+                answer_language="en",
+                locale=locale,
+                destination_country_codes=country_codes,
+                currency=_derive_currency(text, fallback="USD"),
+                distance_unit=distance_unit,
+                time_format="12h",
+                drive_side=_derive_drive_side(country_codes),
+                authority_profile="global",
+            )
+        return cls()
+
+
+def _derive_currency(text: str, *, fallback: CurrencyCode) -> CurrencyCode:
+    """Keep explicit user budget currency instead of overwriting it by locale."""
+
+    explicit_cny_markers = ("rmb", "cny", "renminbi", "人民币")
+    if any(marker in text for marker in explicit_cny_markers):
+        return "CNY"
+    if "aud" in text or "australian dollar" in text or "australian dollars" in text:
+        return "AUD"
+    if "gbp" in text or "pound sterling" in text or "pounds sterling" in text:
+        return "GBP"
+    if "usd" in text or "us dollar" in text or "us dollars" in text:
+        return "USD"
+    return fallback
+
+
+def _derive_destination_country_codes(text: str) -> list[str]:
+    """Infer destination countries from global country names and city gazetteer rows."""
+
+    normalized_text = _normalize_geo_text(text)
+    if not normalized_text:
+        return []
+
+    country_matches: list[tuple[int, int, str]] = []
+    for index, (code, aliases) in enumerate(_country_alias_index()):
+        positions = _safe_alias_positions(normalized_text, aliases)
+        if positions:
+            country_matches.append((min(positions), index, code))
+    if country_matches:
+        country_matches.sort()
+        return _unique_country_codes([code for _, _, code in country_matches], limit=12)
+
+    city_matches: list[tuple[int, int, str]] = []
+    for index, (alias, code, population) in enumerate(_city_alias_index()):
+        position = _find_normalized_phrase_position(normalized_text, alias)
+        if position < 0 or _is_route_endpoint_mention(normalized_text, position):
+            continue
+        city_matches.append((position, index - population, code))
+
+    city_matches.sort()
+    return _unique_country_codes([code for _, _, code in city_matches], limit=12)
+
+
+def _safe_alias_positions(normalized_text: str, aliases: tuple[str, ...]) -> list[int]:
+    positions: list[int] = []
+    for alias in aliases:
+        position = _find_normalized_phrase_position(normalized_text, alias)
+        if position >= 0 and not _is_route_endpoint_mention(normalized_text, position):
+            positions.append(position)
+    return positions
+
+
+def _contains_destination_marker(text: str, marker: str) -> bool:
+    """Match short country aliases as tokens so 'uk' does not match Pamukkale."""
+
+    normalized_text = _normalize_geo_text(text)
+    normalized_marker = _normalize_geo_text(marker)
+    return _find_normalized_phrase_position(normalized_text, normalized_marker) >= 0
+
+
+def _find_normalized_phrase_position(normalized_text: str, normalized_phrase: str) -> int:
+    """Return the first word-boundary phrase position, or -1 when absent."""
+
+    if not normalized_text or not normalized_phrase:
+        return -1
+    start = normalized_text.find(normalized_phrase)
+    while start >= 0:
+        before = normalized_text[start - 1] if start > 0 else " "
+        after_index = start + len(normalized_phrase)
+        after = normalized_text[after_index] if after_index < len(normalized_text) else " "
+        if before == " " and after == " ":
+            return start
+        start = normalized_text.find(normalized_phrase, start + 1)
+    return -1
+
+
+def _normalize_geo_text(value: str) -> str:
+    """Normalize human place text without regex so aliases compare consistently."""
+
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    chars: list[str] = []
+    last_was_space = True
+    for char in decomposed:
+        if unicodedata.combining(char):
+            continue
+        if char.isalnum():
+            chars.append(char)
+            last_was_space = False
+        elif not last_was_space:
+            chars.append(" ")
+            last_was_space = True
+    return "".join(chars).strip()
+
+
+@lru_cache(maxsize=1)
+def _country_alias_index() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return ISO country aliases from pycountry plus common travel names."""
+
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for country in pycountry.countries:
+        code = str(country.alpha_2).upper()
+        aliases = {
+            str(country.name),
+            *[
+                str(getattr(country, attr))
+                for attr in ("official_name", "common_name")
+                if hasattr(country, attr)
+            ],
+            *_COMMON_COUNTRY_ALIASES.get(code, ()),
+        }
+        normalized_aliases = tuple(
+            sorted({
+                alias
+                for value in aliases
+                if (alias := _normalize_geo_text(value))
+                and (len(alias) >= 3 or alias in _SHORT_COUNTRY_ALIASES)
+            })
+        )
+        if normalized_aliases:
+            rows.append((code, normalized_aliases))
+    return tuple(rows)
+
+
+@lru_cache(maxsize=1)
+def _city_alias_index() -> tuple[tuple[str, str, int], ...]:
+    """Return world city aliases mapped to their most populous matching city."""
+
+    city_by_alias: dict[str, tuple[str, int]] = {}
+    for city in geonamescache.GeonamesCache().get_cities().values():
+        country_code = str(city.get("countrycode") or "").upper()
+        if not country_code:
+            continue
+        population = int(city.get("population") or 0)
+        aliases = {str(city.get("name") or "")}
+        for value in aliases:
+            alias = _normalize_geo_text(value)
+            if len(alias) < 3:
+                continue
+            current = city_by_alias.get(alias)
+            if current is None or population > current[1]:
+                city_by_alias[alias] = (country_code, population)
+    return tuple(
+        (alias, country_code, population)
+        for alias, (country_code, population) in city_by_alias.items()
+    )
+
+
+def _is_route_endpoint_mention(normalized_text: str, position: int) -> bool:
+    """Avoid turning origin/return cities into destination countries."""
+
+    before = normalized_text[max(0, position - 36):position].strip()
+    endpoint_cues = (
+        "from",
+        "departing from",
+        "leaving from",
+        "flying from",
+        "starting from",
+        "origin",
+        "return to",
+        "back to",
+    )
+    return any(before.endswith(cue) for cue in endpoint_cues)
+
+
+def _unique_country_codes(values: list[str], *, limit: int) -> list[str]:
+    seen: set[str] = set()
+    codes: list[str] = []
+    for value in values:
+        code = value.strip().upper()
+        if not code or code in seen:
+            continue
+        seen.add(code)
+        codes.append(code)
+        if len(codes) >= limit:
+            break
+    return codes
+
+
+def _derive_answer_language(language: AnswerLanguage, text: str) -> AnswerLanguage:
+    if language == "en":
+        return "en"
+    latin_letters = 0
+    cjk_chars = 0
+    for char in text:
+        codepoint = ord(char)
+        if 65 <= codepoint <= 90 or 97 <= codepoint <= 122:
+            latin_letters += 1
+        elif 0x4E00 <= codepoint <= 0x9FFF:
+            cjk_chars += 1
+    if latin_letters >= 24 and latin_letters > cjk_chars * 2:
+        return "en"
+    return "zh-CN"
+
+
+def _derive_drive_side(country_codes: list[str]) -> DriveSide:
+    left_drive = {"AU", "GB", "JP", "MV", "SG", "MY", "TH", "TZ", "KE", "MT"}
+    if country_codes and all(code in left_drive for code in country_codes):
+        return "left"
+    return "right"
+
+
 # =========================================================
 # Question Request
 # =========================================================
@@ -99,7 +422,7 @@ ContentType = Literal[
 class TravelQuestion(BaseModel):
     """Validated user request for a tourism RAG answer."""
 
-    question: str = Field(min_length=5, max_length=1000)
+    question: str = Field(min_length=5, max_length=4000)
 
     destination: str | None = Field(default=None, min_length=1, max_length=120)
 
@@ -115,7 +438,9 @@ class TravelQuestion(BaseModel):
 
     interests: list[str] = Field(default_factory=list, max_length=12)
 
-    language: Literal["zh-CN", "en"] = "zh-CN"
+    language: AnswerLanguage = "zh-CN"
+
+    locale_context: TravelLocaleContext | None = None
 
     continuation_pending_kind: Literal[
         "preference",
@@ -136,6 +461,13 @@ class TravelQuestion(BaseModel):
 
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        if self.locale_context is None:
+            self.locale_context = TravelLocaleContext.for_request(
+                language=self.language,
+                destination=self.destination,
+                question=self.question,
+            )
+        self.language = self.locale_context.answer_language
         return self
 
     def to_retrieval_query(self) -> str:
@@ -150,6 +482,17 @@ class TravelQuestion(BaseModel):
             f"回答详细度: {self.detail_level}" if self.detail_level else None,
             f"兴趣: {', '.join(self.interests)}" if self.interests else None,
             f"回答语言: {self.language}",
+            f"locale: {self.locale_context.locale}" if self.locale_context else None,
+            f"currency: {self.locale_context.currency}" if self.locale_context else None,
+            f"distance_unit: {self.locale_context.distance_unit}" if self.locale_context else None,
+            f"time_format: {self.locale_context.time_format}" if self.locale_context else None,
+            f"drive_side: {self.locale_context.drive_side}" if self.locale_context else None,
+            (
+                "destination_country_codes: "
+                + ", ".join(self.locale_context.destination_country_codes)
+                if self.locale_context and self.locale_context.destination_country_codes
+                else None
+            ),
         ]
         context = "\n".join(line for line in context_lines if line)
         return f"{self.question}\n\n旅行上下文:\n{context}"
@@ -221,7 +564,9 @@ class TravelFormRequest(BaseModel):
 
     detail_level: DetailLevel = "deep"
 
-    language: Literal["zh-CN", "en"] = "zh-CN"
+    language: AnswerLanguage = "zh-CN"
+
+    locale_context: TravelLocaleContext | None = None
 
     @model_validator(mode="after")
     def validate_form_dates(self) -> "TravelFormRequest":
@@ -229,6 +574,13 @@ class TravelFormRequest(BaseModel):
 
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        if self.locale_context is None:
+            self.locale_context = TravelLocaleContext.for_request(
+                language=self.language,
+                destination=self.destination,
+                question=self.extra_notes,
+            )
+        self.language = self.locale_context.answer_language
         return self
 
     def to_travel_question(self) -> TravelQuestion:
@@ -247,6 +599,7 @@ class TravelFormRequest(BaseModel):
             detail_level=self.detail_level,
             interests=self.to_interests(),
             language=self.language,
+            locale_context=self.locale_context,
         )
 
     def to_interests(self) -> list[str]:
@@ -260,6 +613,9 @@ class TravelFormRequest(BaseModel):
 
     def to_request_summary(self) -> str:
         """Serialize typed form fields into a readable user request."""
+
+        if self.language == "en":
+            return self._to_english_request_summary()
 
         lines = ["快速表单旅行需求"]
         self._append_line(lines, "规划类型", self.request_mode)
@@ -292,6 +648,52 @@ class TravelFormRequest(BaseModel):
         self._append_list_line(lines, "不可删除项", self.must_have)
         self._append_list_line(lines, "避开事项", self.avoid)
         self._append_line(lines, "补充说明", self.extra_notes)
+        if self.locale_context:
+            self._append_line(lines, "locale", self.locale_context.locale)
+            self._append_line(lines, "currency", self.locale_context.currency)
+            self._append_line(lines, "distance_unit", self.locale_context.distance_unit)
+            self._append_line(lines, "time_format", self.locale_context.time_format)
+            self._append_line(lines, "drive_side", self.locale_context.drive_side)
+        return "\n".join(lines)
+
+    def _to_english_request_summary(self) -> str:
+        lines = ["Quick travel form request"]
+        self._append_line(lines, "Planning mode", self.request_mode)
+        self._append_line(lines, "Origin", self.origin_city)
+        self._append_line(lines, "Destination", self.destination)
+        self._append_line(lines, "Return city", self.return_city)
+        self._append_list_line(lines, "Must include", self.required_stops)
+        if self.start_date:
+            self._append_line(lines, "Start date", self.start_date.isoformat())
+        if self.end_date:
+            self._append_line(lines, "End date", self.end_date.isoformat())
+        self._append_line(lines, "Trip length", self.duration_days)
+        self._append_line(
+            lines,
+            "Travellers",
+            (
+                f"{self.traveler_composition.adults} adults, "
+                f"{self.traveler_composition.elders} seniors, "
+                f"{self.traveler_composition.children} children"
+            ),
+        )
+        self._append_line(lines, "Traveller group", self.traveler_group)
+        self._append_line(lines, "Budget level", self.budget_level)
+        self._append_line(lines, "Transport preference", self.travel_mode_preference)
+        self._append_line(lines, "Pace", self.pace)
+        self._append_line(lines, "Route strictness", self.route_strictness)
+        self._append_list_line(lines, "Interests", self.attraction_preferences)
+        self._append_line(lines, "Accommodation preference", self.accommodation_preference)
+        self._append_line(lines, "Food preference", self.food_preference)
+        self._append_list_line(lines, "Non-negotiables", self.must_have)
+        self._append_list_line(lines, "Avoid", self.avoid)
+        self._append_line(lines, "Additional notes", self.extra_notes)
+        if self.locale_context:
+            self._append_line(lines, "locale", self.locale_context.locale)
+            self._append_line(lines, "currency", self.locale_context.currency)
+            self._append_line(lines, "distance_unit", self.locale_context.distance_unit)
+            self._append_line(lines, "time_format", self.locale_context.time_format)
+            self._append_line(lines, "drive_side", self.locale_context.drive_side)
         return "\n".join(lines)
 
     def has_complete_preferences(self) -> bool:
@@ -371,6 +773,12 @@ class TravelChunk(BaseModel):
 
     source_name: str
 
+    country_code: str | None = Field(default=None, max_length=2)
+
+    region: str | None = Field(default=None, max_length=120)
+
+    authority_profile: AuthorityProfile | None = None
+
     published_at: datetime | None = None
 
     retrieved_at: datetime
@@ -400,6 +808,10 @@ class TravelSearchHit(BaseModel):
     snippet: str | None = None
 
     source_name: str | None = None
+
+    country_code: str | None = Field(default=None, max_length=2)
+
+    region: str | None = Field(default=None, max_length=120)
 
     location: str | None = None
 
@@ -535,6 +947,12 @@ class EvidenceQuote(BaseModel):
     source_name: str
 
     source_ref: str
+
+    country_code: str | None = Field(default=None, max_length=2)
+
+    region: str | None = Field(default=None, max_length=120)
+
+    authority_profile: AuthorityProfile | None = None
 
     quote: str = Field(min_length=1, max_length=1800)
 

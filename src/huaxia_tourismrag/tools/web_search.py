@@ -136,10 +136,11 @@ class TavilySearchProvider:
             "search_depth": "advanced",
             "max_results": max_results,
             "include_answer": False,
-            "country": "china",
         }
         if options:
             payload.update(self._options_payload(options))
+        elif SearchOptions().country:
+            payload["country"] = SearchOptions().country
 
         response = await self.client.post(
             "https://api.tavily.com/search",
@@ -167,6 +168,8 @@ class TavilySearchProvider:
             payload["include_domains"] = options.include_domains
         if options.exclude_domains:
             payload["exclude_domains"] = options.exclude_domains
+        if options.country:
+            payload["country"] = options.country
 
         return payload
 

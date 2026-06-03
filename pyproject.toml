@@ -28,6 +28,8 @@ dependencies = [
     "transformers>=4.44.2,<5",
     "typer>=0.25.1",
     "uvicorn[standard]>=0.47.0",
+    "pycountry>=26.2.16",
+    "geonamescache>=3.0.1",
 ]
 
 [project.scripts]

@@ -88,6 +88,13 @@ def _build_research_planner_prompt(
 用户问题：
 {question.to_retrieval_query()}
 
+本地化上下文：
+locale: {question.locale_context.locale if question.locale_context else "zh-CN"}
+authority_profile: {question.locale_context.authority_profile if question.locale_context else "china"}
+search_country: {question.locale_context.search_country if question.locale_context else "china"}
+currency: {question.locale_context.currency if question.locale_context else "CNY"}
+drive_side: {question.locale_context.drive_side if question.locale_context else "right"}
+
 意图判断：
 {intent_decision.model_dump_json() if intent_decision else "未提供意图判断。"}
 
@@ -98,6 +105,7 @@ required_entities 输出要求：
 - required_entities 必须列出本次回答需要证据覆盖的目的地实体。
 - entity_type: city | attraction | activity | food | accommodation_area | transport_hub | risk
 - evidence_use: official_status | route_feasibility | mainstream_attraction | hidden_gem | local_food | hotel_zone | risk_warning
+- Australia / international requests should include entities for official visitor information, national/state parks, winery regions or cellar-door areas, whale/wildlife tours, ferry/flight access, self-drive constraints, weather/seasonality, and accommodation areas when relevant.
 - 不要输出自然语言说明，只在 TravelResearchPlan.required_entities 中填写结构化对象。
 """.strip()
 

@@ -56,3 +56,30 @@ def test_policy_sources_fit_risk_and_transport_claims() -> None:
         ).is_primary
         is True
     )
+
+
+def test_australia_international_sources_fit_official_claims() -> None:
+    assert (
+        source_fit_for_task(
+            task_type="transport",
+            evidence_use="route_feasibility",
+            content_type="ferry_transport",
+        ).is_primary
+        is True
+    )
+    assert (
+        source_fit_for_task(
+            task_type="attraction",
+            evidence_use="mainstream_attraction",
+            content_type="wine_region",
+        ).is_primary
+        is True
+    )
+    assert (
+        source_fit_for_task(
+            task_type="risk",
+            evidence_use="risk_warning",
+            content_type="weather",
+        ).is_primary
+        is True
+    )

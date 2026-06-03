@@ -77,6 +77,41 @@ def test_research_plan_accepts_structured_destination_entities() -> None:
     ]
 
 
+def test_research_plan_accepts_long_original_question() -> None:
+    original_question = (
+        "Two of us from Shanghai want a cultured Grand Tour through London, "
+        "Paris, the Swiss lakes, Florence, Venice, Rome, Vienna, Berlin, "
+        "and Amsterdam with heritage hotels and refined local experiences. "
+    ) * 18
+
+    plan = TravelResearchPlan(
+        original_question=original_question[:3200],
+        destination="Europe",
+        origin="Shanghai",
+        trip_days=30,
+        interests=["Grand Tour", "European heritage"],
+        tasks=[
+            TravelResearchTask(
+                task_type="route",
+                query="Grand Tour London Paris Rome Amsterdam route",
+                reason="Route evidence.",
+            ),
+            TravelResearchTask(
+                task_type="attraction",
+                query="Grand Tour cultural sites Europe",
+                reason="Attraction evidence.",
+            ),
+            TravelResearchTask(
+                task_type="transport",
+                query="Europe Grand Tour rail flights car transfers",
+                reason="Transport evidence.",
+            ),
+        ],
+    )
+
+    assert len(plan.original_question) == 3200
+
+
 def test_research_plan_requires_multiple_structured_tasks():
     plan = TravelResearchPlan(
         original_question="四川云南十日游怎么安排？",

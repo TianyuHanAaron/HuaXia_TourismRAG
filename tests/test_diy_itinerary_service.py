@@ -1188,6 +1188,176 @@ async def test_diy_planner_validation_failure_returns_recoverable_clarification(
 
 
 @pytest.mark.asyncio
+async def test_diy_planner_validation_failure_retries_once(monkeypatch):
+    async def fake_preference(
+        question: TravelQuestion,
+        request_mode: str,
+        intent_decision: IntentDecision,
+    ) -> ClarificationDecision:
+        return ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="Preferences are clear enough.",
+            profile=PreferenceProfile(
+                travel_mode="mixed",
+                pace="relaxed",
+                attraction_mix="cultural",
+                detail_level="deep",
+            ),
+        )
+
+    calls = 0
+
+    async def flaky_create_diy_itinerary_plan(*args, **kwargs) -> DIYItineraryPlan:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ValueError("DTO validation failed")
+        return DIYItineraryPlan(
+            original_question="Grand Tour from London to Paris and Rome",
+            theme="Grand Tour",
+            origin="Shanghai",
+            return_city="Shanghai",
+            required_stops=["London", "Paris", "Rome"],
+            proposed_route=["Shanghai", "London", "Paris", "Rome", "Shanghai"],
+            travel_mode="mixed",
+            days=30,
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="London Paris Rome Grand Tour route",
+                    reason="Route evidence.",
+                ),
+                TravelResearchTask(
+                    task_type="attraction",
+                    query="Grand Tour cultural sites London Paris Rome",
+                    reason="Cultural evidence.",
+                ),
+                TravelResearchTask(
+                    task_type="transport",
+                    query="London Paris Rome rail flight route",
+                    reason="Transport evidence.",
+                ),
+            ],
+        )
+
+    async def fake_generate_answer_with_context(*args, **kwargs) -> TravelAnswer:
+        return TravelAnswer(answer="ok", highlights=[], warnings=[], citations=[])
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_preference_decision",
+        fake_preference,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        flaky_create_diy_itinerary_plan,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(
+            question="Two of us from Shanghai want a cultured Grand Tour in Europe.",
+            detail_level="deep",
+        )
+    )
+
+    assert calls == 2
+    assert answer.answer == "ok"
+    assert answer.performance is not None
+    research_stage = next(
+        stage
+        for stage in answer.performance.stages
+        if stage.name == "research_plan"
+    )
+    assert research_stage.metadata["planner_retry"] is True
+    assert research_stage.metadata["planner_retry_succeeded"] is True
+
+
+@pytest.mark.asyncio
+async def test_english_diy_planner_recovery_is_localized(monkeypatch):
+    async def fake_preference(
+        question: TravelQuestion,
+        request_mode: str,
+        intent_decision: IntentDecision,
+    ) -> ClarificationDecision:
+        return ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="Preferences are clear enough.",
+            profile=PreferenceProfile(detail_level="deep"),
+        )
+
+    calls = 0
+
+    async def fail_create_diy_itinerary_plan(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise ValueError("Qwen Cloud response was not valid JSON for DIYItineraryPlan")
+
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_preference_decision",
+        fake_preference,
+    )
+    monkeypatch.setattr(
+        diy_service_module,
+        "create_diy_itinerary_plan",
+        fail_create_diy_itinerary_plan,
+    )
+    session_store = InMemoryTravelSessionStore()
+    service = DIYItineraryService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=FakeCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        session_store=session_store,
+    )
+
+    answer = await service.answer(
+        TravelQuestion(
+            question=(
+                "Two of us from Shanghai want a cultured Grand Tour through "
+                "London, Paris, Florence, Rome, and Amsterdam."
+            ),
+            detail_level="deep",
+        )
+    )
+
+    assert calls == 2
+    assert answer.needs_reply is True
+    assert answer.session_id
+    assert "must-keep stops" in answer.answer
+    assert "Xiaxia" in answer.answer
+    assert "夏夏" not in answer.answer
+
+
+@pytest.mark.asyncio
 async def test_diy_planner_recovery_preserves_pending_reply_for_existing_session(
     monkeypatch,
 ):

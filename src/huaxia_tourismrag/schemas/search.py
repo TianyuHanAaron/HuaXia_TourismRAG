@@ -22,3 +22,5 @@ class SearchOptions(BaseModel):
     include_domains: list[str] = Field(default_factory=list)
 
     exclude_domains: list[str] = Field(default_factory=list)
+
+    country: str | None = "china"

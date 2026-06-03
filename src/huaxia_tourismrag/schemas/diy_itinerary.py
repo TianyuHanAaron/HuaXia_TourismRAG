@@ -61,7 +61,7 @@ class DIYFeasibilityIssue(BaseModel):
 class DIYItineraryPlan(BaseModel):
     """Structured plan for non-standard, user-defined thematic itineraries."""
 
-    original_question: str = Field(min_length=5, max_length=1000)
+    original_question: str = Field(min_length=5, max_length=4000)
 
     theme: str = Field(min_length=1, max_length=160)
 

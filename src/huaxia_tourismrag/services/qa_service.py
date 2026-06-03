@@ -227,7 +227,11 @@ class TourismQAService:
             AnswerCachePolicyInput(
                 request_mode="general",
                 detail_level=detail_level,
-                language=question.language,
+                language=(
+                    question.locale_context.locale
+                    if question.locale_context
+                    else question.language
+                ),
             )
         )
         answer_cache_key = (
@@ -235,7 +239,11 @@ class TourismQAService:
                 question=retrieval_query,
                 mode="general",
                 detail_level=detail_level,
-                language=question.language,
+                language=(
+                    question.locale_context.locale
+                    if question.locale_context
+                    else question.language
+                ),
             )
             if self.answer_cache and cache_safe
             else None
@@ -256,7 +264,11 @@ class TourismQAService:
                     question=retrieval_query,
                     mode="general",
                     detail_level=detail_level,
-                    language=question.language,
+                    language=(
+                        question.locale_context.locale
+                        if question.locale_context
+                        else question.language
+                    ),
                 )
                 if self.planning_cache
                 else None
@@ -293,6 +305,9 @@ class TourismQAService:
                 )
 
         ordered_tasks = self._prioritize_tasks(research_plan.tasks)[: budget.max_tasks]
+        search_country = (
+            question.locale_context.search_country if question.locale_context else "china"
+        )
         budget = budget.model_copy(
             update={
                 "max_pages_to_read": min(
@@ -311,6 +326,7 @@ class TourismQAService:
                 web_search=self.deps.web_search,
                 webpage_reader=self.deps.webpage_reader,
                 retrieval_cache=self.retrieval_cache,
+                search_country=search_country,
             )
             stage_metadata["internal_chunks"] = len(retrieval_result.internal_chunks)
             stage_metadata["web_chunks"] = len(retrieval_result.web_chunks)
@@ -341,6 +357,7 @@ class TourismQAService:
                         internal_rag=self.deps.internal_rag,
                         web_search=self.deps.web_search,
                         webpage_reader=self.deps.webpage_reader,
+                        search_country=search_country,
                     )
                 )
                 internal = [*internal, *backfill_result.internal_chunks]
@@ -396,7 +413,11 @@ class TourismQAService:
                     question=retrieval_query,
                     mode="general",
                     detail_level=detail_level,
-                    language=question.language,
+                    language=(
+                        question.locale_context.locale
+                        if question.locale_context
+                        else question.language
+                    ),
                 )
                 await self.evidence_pack_cache.set_pack(evidence_pack_key, pack)
                 stage_metadata["citations"] = len(pack.citations)
@@ -460,6 +481,8 @@ class TourismQAService:
                 "service_enrichment": service_context,
                 "detail_level": detail_level,
             }
+            if _supports_locale_context():
+                generation_kwargs["locale_context"] = question.locale_context
             if _supports_topic_section_mode():
                 generation_kwargs["topic_section_mode"] = (
                     "inline" if topic_decision.generate_inline else topic_decision.mode
@@ -678,3 +701,7 @@ async def _report_progress(
 
 def _supports_topic_section_mode() -> bool:
     return "topic_section_mode" in inspect.signature(generate_answer_with_context).parameters
+
+
+def _supports_locale_context() -> bool:
+    return "locale_context" in inspect.signature(generate_answer_with_context).parameters

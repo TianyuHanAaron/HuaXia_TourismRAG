@@ -18,11 +18,18 @@ PRIMARY_CONTENT_TYPES: dict[EvidenceUse, set[ContentType]] = {
     "official_status": {
         "attraction",
         "destination",
+        "ferry_transport",
+        "national_park",
         "scenic_quality",
         "travel_guide",
+        "visitor_information",
+        "weather",
+        "wildlife_tour",
+        "wine_region",
     },
     "route_feasibility": {
         "transport",
+        "ferry_transport",
         "railway",
         "aviation",
         "road_transport",
@@ -33,6 +40,10 @@ PRIMARY_CONTENT_TYPES: dict[EvidenceUse, set[ContentType]] = {
         "destination",
         "heritage_site",
         "activity",
+        "national_park",
+        "visitor_information",
+        "wildlife_tour",
+        "wine_region",
         "travel_guide",
     },
     "hidden_gem": {
@@ -40,6 +51,10 @@ PRIMARY_CONTENT_TYPES: dict[EvidenceUse, set[ContentType]] = {
         "destination",
         "heritage_site",
         "activity",
+        "national_park",
+        "visitor_information",
+        "wildlife_tour",
+        "wine_region",
         "travel_guide",
     },
     "local_food": {
@@ -54,6 +69,7 @@ PRIMARY_CONTENT_TYPES: dict[EvidenceUse, set[ContentType]] = {
     },
     "risk_warning": {
         "tourism_safety",
+        "weather",
         "regulation",
         "legal",
         "travel_guide",
@@ -64,6 +80,7 @@ PRIMARY_CONTENT_TYPES: dict[EvidenceUse, set[ContentType]] = {
 SUPPORTING_CONTENT_TYPES: dict[ResearchTaskType, set[ContentType]] = {
     "route": {
         "transport",
+        "ferry_transport",
         "railway",
         "aviation",
         "road_transport",
@@ -71,6 +88,8 @@ SUPPORTING_CONTENT_TYPES: dict[ResearchTaskType, set[ContentType]] = {
     },
     "attraction": {
         "destination",
+        "national_park",
+        "visitor_information",
         "travel_guide",
         "scenic_quality",
     },
@@ -97,6 +116,7 @@ SUPPORTING_CONTENT_TYPES: dict[ResearchTaskType, set[ContentType]] = {
         "regulation",
         "legal",
         "tourism_safety",
+        "weather",
         "transport",
     },
 }
