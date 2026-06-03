@@ -105,6 +105,7 @@ class Settings(BaseSettings):
         default=60,
         alias="EMBEDDING_CIRCUIT_BREAKER_SECONDS",
     )
+    embedding_http_keepalive: bool = Field(default=True, alias="EMBEDDING_HTTP_KEEPALIVE")
     enable_planning_cache: bool = Field(default=True, alias="ENABLE_PLANNING_CACHE")
     planning_cache_ttl_seconds: int = Field(default=1800, alias="PLANNING_CACHE_TTL_SECONDS")
     enable_answer_cache: bool = Field(default=False, alias="ENABLE_ANSWER_CACHE")
@@ -159,6 +160,11 @@ class Settings(BaseSettings):
         default=1800,
         alias="TOPIC_SECTION_CACHE_TTL_SECONDS",
     )
+    enable_progressive_topic_sections: bool = Field(
+        default=True,
+        alias="ENABLE_PROGRESSIVE_TOPIC_SECTIONS",
+    )
+    topic_section_concurrency: int = Field(default=2, alias="TOPIC_SECTION_CONCURRENCY")
     topic_section_model_name: str | None = Field(
         default=None,
         alias="TOPIC_SECTION_MODEL",
@@ -176,33 +182,6 @@ class Settings(BaseSettings):
         default=24.0,
         alias="ENGAGEMENT_FULL_TIMEOUT_SECONDS",
     )
-
-    baidu_maps_mcp_enabled: bool = Field(
-        default=False,
-        alias="BAIDU_MAPS_MCP_ENABLED",
-    )
-    baidu_maps_mcp_transport: str = Field(
-        default="stdio",
-        alias="BAIDU_MAPS_MCP_TRANSPORT",
-    )
-    baidu_maps_mcp_url: str | None = Field(
-        default=None,
-        alias="BAIDU_MAPS_MCP_URL",
-    )
-    baidu_maps_mcp_command: str | None = Field(
-        default=None,
-        alias="BAIDU_MAPS_MCP_COMMAND",
-    )
-    baidu_maps_api_key: str | None = Field(
-        default=None,
-        alias="BAIDU_MAPS_API_KEY",
-    )
-
-    tuniu_mcp_enabled: bool = Field(default=False, alias="TUNIU_MCP_ENABLED")
-    tuniu_mcp_transport: str = Field(default="stdio", alias="TUNIU_MCP_TRANSPORT")
-    tuniu_mcp_url: str | None = Field(default=None, alias="TUNIU_MCP_URL")
-    tuniu_mcp_command: str | None = Field(default=None, alias="TUNIU_MCP_COMMAND")
-    tuniu_api_key: str | None = Field(default=None, alias="TUNIU_API_KEY")
 
     firecrawl_mcp_enabled: bool = Field(default=False, alias="FIRECRAWL_MCP_ENABLED")
     firecrawl_mcp_transport: str = Field(default="http", alias="FIRECRAWL_MCP_TRANSPORT")

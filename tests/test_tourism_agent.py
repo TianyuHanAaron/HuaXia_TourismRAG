@@ -12,13 +12,8 @@ from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelAnswer
 from huaxia_tourismrag.schemas.research import TravelResearchPlan, TravelResearchTask
 from huaxia_tourismrag.schemas.service_enrichment import (
-    BookingAction,
-    BookingProduct,
     FreshWebEvidence,
-    RouteFeasibilityReport,
-    RouteLegCheck,
     ServiceEnrichmentContext,
-    WeatherImpact,
 )
 from huaxia_tourismrag.schemas.travel_checkpoints import (
     FeasibilityIssue,
@@ -325,48 +320,6 @@ def test_build_final_answer_prompt_includes_preference_and_feasibility_context()
 
 def test_build_final_answer_prompt_includes_service_enrichment_context():
     service_enrichment = ServiceEnrichmentContext(
-        route_feasibility=RouteFeasibilityReport(
-            provider="baidu_maps",
-            route_summary="百度地图 MCP 检查显示路线整体可执行。",
-            legs=[
-                RouteLegCheck(
-                    origin="北京",
-                    destination="涿州",
-                    recommended_mode="driving",
-                    estimated_duration_minutes=70,
-                    feasibility_level="reasonable",
-                )
-            ],
-        ),
-        weather_impacts=[
-            WeatherImpact(
-                provider="baidu_maps",
-                city="成都",
-                condition="小雨",
-                impact_level="medium",
-                recommendation="建议调整户外时段。",
-            )
-        ],
-        booking_products=[
-            BookingProduct(
-                provider="tuniu",
-                product_type="hotel",
-                title="成都武侯祠周边酒店",
-                city="成都",
-                price_cny=680,
-                availability_status="available",
-                booking_url="https://example.com/hotel",
-            )
-        ],
-        booking_actions=[
-            BookingAction(
-                provider="tuniu",
-                action_type="open_booking_link",
-                label="查看酒店实时价格",
-                url="https://example.com/hotel",
-                safety_note="以途牛实时页面为准。",
-            )
-        ],
         fresh_web_evidence=[
             FreshWebEvidence(
                 provider="firecrawl",
@@ -388,36 +341,21 @@ def test_build_final_answer_prompt_includes_service_enrichment_context():
     )
 
     assert "服务能力校验" in prompt
-    assert "百度地图路线校验" in prompt
-    assert "北京 -> 涿州" in prompt
-    assert "70分钟" in prompt
-    assert "成都 小雨" in prompt
-    assert "途牛产品" in prompt
-    assert "成都武侯祠周边酒店" in prompt
-    assert "可操作入口" in prompt
-    assert "查看酒店实时价格" in prompt
     assert "Firecrawl新鲜网页证据" in prompt
     assert "成都武侯祠官方参观信息" in prompt
-    assert "地图 MCP 结果只用于路线顺路性" in prompt
-    assert "途牛 MCP 结果只用于酒店、门票、交通、产品和预订链接" in prompt
     assert "Firecrawl MCP 结果只用于当前网页证据" in prompt
     assert "不要声称已经完成预订或付款" in prompt
 
 
-def test_service_enrichment_context_marks_unknown_map_leg_as_unverified():
+def test_service_enrichment_context_includes_unavailable_fresh_web_provider():
     service_enrichment = ServiceEnrichmentContext(
-        route_feasibility=RouteFeasibilityReport(
-            provider="baidu_maps",
-            route_summary="地图 MCP 未返回可用时长。",
-            legs=[
-                RouteLegCheck(
-                    origin="上海",
-                    destination="山西",
-                    recommended_mode="driving",
-                    feasibility_level="unknown",
-                )
-            ],
-        )
+        unavailable_providers=[
+            {
+                "provider": "firecrawl",
+                "reason": "Firecrawl MCP 已达到本次请求调用预算。",
+                "retryable": True,
+            }
+        ]
     )
 
     prompt = build_final_answer_prompt(
@@ -427,10 +365,8 @@ def test_service_enrichment_context_marks_unknown_map_leg_as_unverified():
         service_enrichment=service_enrichment,
     )
 
-    assert "上海 -> 山西" in prompt
-    assert "未返回可用车程/距离" in prompt
-    assert "不能作为路线可行性的正向依据" in prompt
-    assert "地图 MCP 返回 unknown 或缺少时长/距离" in prompt
+    assert "服务暂不可用: firecrawl" in prompt
+    assert "调用预算" in prompt
 
 
 def test_tourism_agent_is_defined():
@@ -446,8 +382,9 @@ async def test_generate_answer_with_context_uses_qwen_cloud_runner(monkeypatch):
         output_type,
         instructions,
         model_override=None,
+        role="final",
     ):
-        calls.append((prompt, output_type, instructions, model_override))
+        calls.append((prompt, output_type, instructions, model_override, role))
         return TravelAnswer(
             answer="夏夏建议先走成都再去重庆。",
             highlights=["成渝美食线"],
@@ -456,7 +393,7 @@ async def test_generate_answer_with_context_uses_qwen_cloud_runner(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "huaxia_tourismrag.agents.tourism_agent.is_qwen_cloud_provider",
+        "huaxia_tourismrag.agents.tourism_agent.is_external_structured_provider",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -483,6 +420,7 @@ async def test_generate_answer_with_context_uses_qwen_cloud_runner(monkeypatch):
     assert calls[0][1] is TravelAnswer
     assert calls[0][2] == TOURISM_AGENT_INSTRUCTIONS
     assert calls[0][3] == "qwen3.7-max"
+    assert calls[0][4] == "final"
 
 
 def test_travel_answer_accepts_partial_generated_itinerary_activities():

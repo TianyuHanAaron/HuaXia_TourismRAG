@@ -106,19 +106,26 @@ class EvidenceRetrievalOrchestrator:
         ordered_tasks = tasks[: budget.max_tasks]
         cache = retrieval_cache or self.retrieval_cache
 
-        internal_chunks, internal_warning = await self._retrieve_internal(
-            tasks=ordered_tasks,
-            tenant_id=tenant_id,
-            budget=budget,
-            internal_rag=internal_rag,
-            cache=cache,
-        )
-        hits = await self._search_web(
-            tasks=ordered_tasks,
-            budget=budget,
-            web_search=web_search,
-            cache=cache,
-        )
+        async with asyncio.TaskGroup() as task_group:
+            internal_task = task_group.create_task(
+                self._retrieve_internal(
+                    tasks=ordered_tasks,
+                    tenant_id=tenant_id,
+                    budget=budget,
+                    internal_rag=internal_rag,
+                    cache=cache,
+                )
+            )
+            web_task = task_group.create_task(
+                self._search_web(
+                    tasks=ordered_tasks,
+                    budget=budget,
+                    web_search=web_search,
+                    cache=cache,
+                )
+            )
+        internal_chunks, internal_warning = internal_task.result()
+        hits = web_task.result()
         selected_hits = self._dedupe_hits(hits)[: budget.max_pages_to_read]
         web_chunks = await self._read_pages(
             hits=selected_hits,

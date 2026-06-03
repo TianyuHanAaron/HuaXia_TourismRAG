@@ -6,7 +6,7 @@ from pydantic_ai import Agent, RunContext
 
 from huaxia_tourismrag.agents.model_runtime import (
     ensure_agent_model_ready,
-    is_qwen_cloud_provider,
+    is_external_structured_provider,
 )
 from huaxia_tourismrag.agents.qwen_structured_runner import run_qwen_structured
 from huaxia_tourismrag.core.config import get_settings
@@ -507,10 +507,8 @@ def _format_service_enrichment(context: ServiceEnrichmentContext | None) -> str:
 
 def _provider_label(provider: str) -> str:
     return {
-        "baidu_maps": "百度地图",
         "firecrawl": "Firecrawl",
         "tavily": "Tavily",
-        "tuniu": "途牛",
     }.get(provider, provider)
 
 
@@ -541,13 +539,14 @@ async def generate_answer_with_context(
         detail_level=detail_level,
         topic_section_mode=topic_section_mode,
     )
-    if is_qwen_cloud_provider():
+    if is_external_structured_provider():
         settings = get_settings()
         return await run_qwen_structured(
             prompt=prompt,
             output_type=TravelAnswer,
             instructions=TOURISM_AGENT_INSTRUCTIONS,
             model_override=settings.final_answer_model,
+            role="final",
         )
 
     ensure_agent_model_ready()

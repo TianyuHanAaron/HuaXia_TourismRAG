@@ -35,7 +35,8 @@ def build_entity_extraction_prompt(
     form_summary = form_request.model_dump_json(exclude_none=True) if form_request else "{}"
     return (
         "请从以下旅行请求中提取最多 12 个适合等待室小百科的实体。"
-        "优先选择城市、景点、本地食物、地域文化或需要温和提醒的地区。"
+        "优先选择真正的旅游目的地、景点、本地食物、地域文化或需要温和提醒的地区。"
+        "不要输出出发地、返程地或纯中转地，除非用户明确把它们也作为游玩目的地。"
         "不要输出泛化词，例如“美食”“酒店”“交通”。"
         f"\n语言: {language}"
         f"\n用户请求: {question.question}"
@@ -53,13 +54,29 @@ def build_engagement_card_prompt(
 
     entity_text = "、".join(entities) if entities else "用户提到的目的地"
     type_text = "、".join(spec.card_types)
+    primary_type = spec.card_types[0] if spec.card_types else "attraction_knowledge"
+    zh_topic_names = {
+        "attraction_knowledge": "景点冷知识",
+        "city_folk_custom": "城市民俗",
+        "local_flavor": "本地味道",
+        "traveler_reminder": "旅客提醒",
+    }
+    en_topic_names = {
+        "attraction_knowledge": "place lore and attraction background",
+        "city_folk_custom": "city culture and local customs",
+        "local_flavor": "local food and specialties",
+        "traveler_reminder": "traveler reminders and comfort notes",
+    }
     if language == "en":
         return (
             "Create a JSON batch of waiting-room travel almanac cards. "
             "Do not invent citations, URLs, real-time prices, opening hours, hotel availability, "
             "weather forecasts, traffic status, or booking status. "
+            "Only write about trip destinations, not origin cities, return cities, or transfer-only places. "
             "Each card body should be a useful 120-220 word mini article. "
             "Do not repeat the same fact, entity angle, or wording across cards in one batch. "
+            f"This batch must focus only on {en_topic_names[primary_type]}. "
+            "All six cards should share that topic family while covering different facts or entities. "
             "Do not include a section called 'why it matters'. "
             f"Entities: {entity_text}. Batch index: {spec.batch_index}. Card types: {type_text}."
         )
@@ -67,9 +84,13 @@ def build_engagement_card_prompt(
         "请生成一批等待室“目的地小百科”卡片。"
         "这些卡片只用于用户等待正式 RAG 行程时阅读，不能当作最终引用来源。"
         "不要编造引用、URL、网页标题或来源编号。"
+        "只写用户真正要游玩的旅游目的地，不写出发地、返程地或纯中转地。"
         "不要写实时票价、实时开放时间、今日天气、酒店房态、实时路况、预订状态或排行榜。"
         "每张卡片的 body 写 300-500 个中文字符，像一页小百科，信息密度要高。"
         "同一批 6 张卡不要重复同一个事实、同一个实体角度或相近措辞。"
+        f"本批只能聚焦“{zh_topic_names[primary_type]}”这个主题。"
+        "六张卡都属于这个主题家族，但要覆盖不同实体、不同事实或不同切口。"
+        "下一批会换主题，所以本批不要混入其他主题。"
         "语气要自然、克制、尊重当地宗教、民族与边境文化，不要刻板化。"
         "不要出现旧版 mockup 的固定解释小标题或类似固定说明区。"
         f"\n实体候选: {entity_text}"
@@ -103,6 +124,7 @@ class EngagementFeedAgent:
             instructions=ENTITY_EXTRACTION_INSTRUCTIONS,
             settings=self.settings,
             model_override=self.settings.engagement_model,
+            role="engagement",
         )
 
     async def generate_batch(
@@ -124,4 +146,5 @@ class EngagementFeedAgent:
             instructions=CARD_GENERATION_INSTRUCTIONS,
             settings=self.settings,
             model_override=self.settings.engagement_model,
+            role="engagement",
         )

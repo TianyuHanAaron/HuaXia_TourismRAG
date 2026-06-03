@@ -5,7 +5,7 @@ from pydantic_ai import Agent
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.agents.model_runtime import (
     ensure_agent_model_ready,
-    is_qwen_cloud_provider,
+    is_external_structured_provider,
 )
 from huaxia_tourismrag.agents.qwen_structured_runner import run_qwen_structured
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
@@ -104,13 +104,14 @@ request_mode: {request_mode}
 question:
 {question.to_retrieval_query()}
 """.strip()
-    if is_qwen_cloud_provider():
+    if is_external_structured_provider():
         settings = get_settings()
         return await run_qwen_structured(
             prompt=prompt,
             output_type=IntentDecision,
             instructions=INTENT_CHECKPOINT_INSTRUCTIONS,
             model_override=settings.checkpoint_model,
+            role="checkpoint",
         )
 
     ensure_agent_model_ready()
@@ -132,13 +133,14 @@ intent_reason: {intent_decision.reason}
 question:
 {question.to_retrieval_query()}
 """.strip()
-    if is_qwen_cloud_provider():
+    if is_external_structured_provider():
         settings = get_settings()
         return await run_qwen_structured(
             prompt=prompt,
             output_type=ClarificationDecision,
             instructions=PREFERENCE_CHECKPOINT_INSTRUCTIONS,
             model_override=settings.checkpoint_model,
+            role="checkpoint",
         )
 
     ensure_agent_model_ready()
@@ -169,13 +171,14 @@ research_plan:
 diy_plan:
 {diy_plan.model_dump_json() if diy_plan else "未提供"}
 """.strip()
-    if is_qwen_cloud_provider():
+    if is_external_structured_provider():
         settings = get_settings()
         return await run_qwen_structured(
             prompt=prompt,
             output_type=FeasibilityReport,
             instructions=FEASIBILITY_CHECKPOINT_INSTRUCTIONS,
             model_override=settings.checkpoint_model,
+            role="checkpoint",
         )
 
     ensure_agent_model_ready()

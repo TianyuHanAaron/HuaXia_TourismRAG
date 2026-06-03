@@ -1,7 +1,7 @@
 import pytest
 
 from huaxia_tourismrag.schemas.engagement import EngagementBatch, EngagementCard
-from huaxia_tourismrag.schemas.evidence import TravelQuestion
+from huaxia_tourismrag.schemas.evidence import TravelFormRequest, TravelQuestion
 from huaxia_tourismrag.services.engagement_feed_graph import (
     run_engagement_feed_graph,
     validate_engagement_batch,
@@ -62,8 +62,17 @@ async def test_engagement_graph_persists_first_batch_before_finishing():
     saved = await store.get(job.job_id, "demo")
     assert saved.engagement_feed is not None
     assert saved.engagement_feed.status == "ready"
-    assert len(saved.engagement_feed.batches) == 3
+    assert len(saved.engagement_feed.batches) == 4
     assert len(saved.engagement_feed.batches[0].cards) == 6
+    assert {
+        tuple(card.card_type for card in batch.cards)
+        for batch in saved.engagement_feed.batches
+    } == {
+        ("attraction_knowledge",) * 6,
+        ("city_folk_custom",) * 6,
+        ("local_flavor",) * 6,
+        ("traveler_reminder",) * 6,
+    }
 
 
 def test_engagement_batch_validation_removes_repetitive_cards():
@@ -106,3 +115,46 @@ def test_engagement_batch_validation_removes_repetitive_cards():
 
     assert valid is not None
     assert [card.card_id for card in valid.cards] == ["repeat-1", "unique"]
+
+
+@pytest.mark.asyncio
+async def test_engagement_graph_structured_seeds_skip_origin_and_return_city():
+    store = InMemoryTravelJobStore()
+    question = TravelQuestion(question="上海出发，新疆10天深度游，上海返回。")
+    form_request = TravelFormRequest(
+        request_mode="normal",
+        origin_city="上海",
+        destination="新疆",
+        return_city="上海",
+        traveler_composition={"adults": 2, "elders": 0, "children": 0},
+        budget_level="mid_range",
+        travel_mode_preference="mixed",
+        pace="balanced",
+        route_strictness="flexible",
+        attraction_preferences=["history_culture", "nature"],
+        detail_level="deep",
+    )
+    job = await store.create("demo", question, kind="general_question")
+
+    await run_engagement_feed_graph(
+        job_id=job.job_id,
+        tenant_id="demo",
+        question=question,
+        form_request=form_request,
+        agent=FakeEngagementAgent(),
+        job_store=store,
+        first_batch_timeout_seconds=8,
+        full_feed_timeout_seconds=20,
+    )
+
+    saved = await store.get(job.job_id, "demo")
+    assert saved.engagement_feed is not None
+    entities = {
+        card.entity
+        for batch in saved.engagement_feed.batches
+        for card in batch.cards
+    }
+    assert "新疆" in entities
+    assert "上海" not in entities
+    assert "history_culture" not in entities
+    assert "nature" not in entities

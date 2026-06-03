@@ -127,6 +127,9 @@ class TopicEvidenceSelector:
             ranked = sorted(
                 compatible,
                 key=lambda quote: (
+                    0
+                    if quote.content_type in TOPIC_PRIMARY_CONTENT_TYPES[category]
+                    else 1,
                     0 if self._matches_route_scope(quote, route_terms) else 1,
                     0 if quote.source_type == "web" else 1,
                     quote.citation_id,

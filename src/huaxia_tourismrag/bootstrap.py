@@ -17,11 +17,9 @@ from huaxia_tourismrag.agents.engagement_feed_agent import EngagementFeedAgent
 from huaxia_tourismrag.agents.tourism_agent import TourismDeps
 from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.core.config import Settings
-from huaxia_tourismrag.integrations.baidu_maps_mcp import BaiduMapsMCPAdapter
 from huaxia_tourismrag.integrations.firecrawl_mcp import FirecrawlMCPAdapter
 from huaxia_tourismrag.integrations.mcp_client import ExternalMCPClient
 from huaxia_tourismrag.integrations.tavily_mcp import TavilyMCPAdapter
-from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
 from huaxia_tourismrag.rag.embeddings import Embedder
 from huaxia_tourismrag.rag.embeddings import QwenCloudEmbedder
 from huaxia_tourismrag.rag.embeddings import RemoteHttpEmbedder
@@ -100,6 +98,11 @@ def build_embedder(settings: Settings | None = None) -> Embedder:
     if provider_name == "qwen_cloud":
         if not settings.dashscope_api_key:
             raise RuntimeError("DASHSCOPE_API_KEY is required when EMBEDDING_PROVIDER=qwen_cloud")
+        client = (
+            httpx.AsyncClient(timeout=settings.embedding_timeout_seconds)
+            if settings.embedding_http_keepalive
+            else None
+        )
         return QwenCloudEmbedder(
             base_url=settings.qwen_cloud_base_url,
             api_key=settings.dashscope_api_key,
@@ -108,10 +111,16 @@ def build_embedder(settings: Settings | None = None) -> Embedder:
             timeout_seconds=settings.embedding_timeout_seconds,
             max_retries=settings.embedding_max_retries,
             retry_delay_seconds=settings.embedding_retry_delay_seconds,
+            client=client,
         )
     if provider_name == "remote":
         if not settings.embedding_api_url:
             raise RuntimeError("EMBEDDING_API_URL is required when EMBEDDING_PROVIDER=remote")
+        client = (
+            httpx.AsyncClient(timeout=settings.embedding_timeout_seconds)
+            if settings.embedding_http_keepalive
+            else None
+        )
         return RemoteHttpEmbedder(
             api_url=settings.embedding_api_url,
             api_key=settings.embedding_api_key,
@@ -119,6 +128,7 @@ def build_embedder(settings: Settings | None = None) -> Embedder:
             timeout_seconds=settings.embedding_timeout_seconds,
             max_retries=settings.embedding_max_retries,
             retry_delay_seconds=settings.embedding_retry_delay_seconds,
+            client=client,
         )
     if provider_name == "local":
         return SentenceTransformerEmbedder(load_embedding_model())
@@ -164,6 +174,7 @@ def build_tourism_qa_service(
         enable_prompt_compaction=settings.enable_prompt_compaction,
         final_context_quote_caps=_final_context_quote_caps(settings),
         topic_section_mode=settings.topic_section_mode,
+        topic_section_concurrency=settings.topic_section_concurrency,
     )
 
 
@@ -206,6 +217,7 @@ def build_diy_itinerary_service(
         enable_prompt_compaction=settings.enable_prompt_compaction,
         final_context_quote_caps=_final_context_quote_caps(settings),
         topic_section_mode=settings.topic_section_mode,
+        topic_section_concurrency=settings.topic_section_concurrency,
     )
 
 
@@ -283,8 +295,6 @@ def _provider_max_calls(settings: Settings) -> dict[str, int]:
     return {
         "tavily": settings.tavily_max_calls_per_request,
         "firecrawl": settings.firecrawl_max_calls_per_request,
-        "baidu_maps": settings.page_read_max_calls_per_request,
-        "tuniu": settings.page_read_max_calls_per_request,
     }
 
 
@@ -321,37 +331,11 @@ def build_service_enrichment(
     """Build optional MCP-backed service enrichment.
 
     Providers are disabled by default. When explicitly enabled, this builder
-    wires them through the typed MCP client boundary and provider adapters.
+    wires fresh-web providers through the typed MCP client boundary.
     """
 
     settings = settings or get_settings()
-    maps = None
-    tuniu = None
     fresh_web_providers = []
-    if settings.baidu_maps_mcp_enabled:
-        maps = BaiduMapsMCPAdapter(
-            _build_external_mcp_client(
-                provider="baidu_maps",
-                transport=settings.baidu_maps_mcp_transport,
-                url=settings.baidu_maps_mcp_url,
-                command=settings.baidu_maps_mcp_command,
-                api_key=settings.baidu_maps_api_key,
-                timeout_seconds=settings.qdrant_timeout_seconds,
-                env_prefix="BAIDU_MAPS",
-            )
-        )
-    if settings.tuniu_mcp_enabled:
-        tuniu = TuniuMCPAdapter(
-            _build_external_mcp_client(
-                provider="tuniu",
-                transport=settings.tuniu_mcp_transport,
-                url=settings.tuniu_mcp_url,
-                command=settings.tuniu_mcp_command,
-                api_key=settings.tuniu_api_key,
-                timeout_seconds=settings.qdrant_timeout_seconds,
-                env_prefix="TUNIU",
-            )
-        )
     if settings.firecrawl_mcp_enabled:
         if not settings.firecrawl_api_key:
             raise RuntimeError("FIRECRAWL_API_KEY is required")
@@ -386,8 +370,6 @@ def build_service_enrichment(
         )
 
     return TravelServiceEnrichmentService(
-        maps=maps,
-        tuniu=tuniu,
         fresh_web_providers=fresh_web_providers,
         provider_max_calls=_provider_max_calls(settings),
         provider_cooldown=ProviderCooldown(

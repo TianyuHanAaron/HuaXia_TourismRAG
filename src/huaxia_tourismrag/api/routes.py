@@ -2,8 +2,13 @@
 
 import base64
 import asyncio
+import inspect
 import io
+import json
+import logging
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from time import monotonic
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -14,11 +19,13 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     Request,
     Response,
     UploadFile,
 )
 from pydantic import BaseModel
+from starlette.responses import StreamingResponse
 
 from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.core.config import Settings, get_settings
@@ -26,6 +33,7 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelFormRequest,
     TravelQuestion,
+    TravelTopicSection,
 )
 from huaxia_tourismrag.schemas.jobs import (
     TravelJobCreateResponse,
@@ -45,6 +53,7 @@ from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import SessionNotFoundError
 
 router = APIRouter(prefix="/tourism", tags=["tourism-rag"])
+logger = logging.getLogger(__name__)
 
 
 class TourismCapabilitiesResponse(BaseModel):
@@ -327,14 +336,15 @@ async def create_form_job(
     else:
         task = _run_diy_itinerary_job if kind == "diy_itinerary" else _run_general_question_job
         service = diy_service if kind == "diy_itinerary" else qa_service
-        background_tasks.add_task(
-            task,
-            job_id=job.job_id,
-            tenant_id=user.tenant_id,
-            question=question,
-            service=service,
-            job_store=job_store,
-            form_request=body,
+        _spawn_in_process_job(
+            task(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                question=question,
+                service=service,
+                job_store=job_store,
+                form_request=body,
+            )
         )
     return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
 
@@ -372,13 +382,14 @@ async def create_diy_itinerary_job(
             )
         )
     else:
-        background_tasks.add_task(
-            _run_diy_itinerary_job,
-            job_id=job.job_id,
-            tenant_id=user.tenant_id,
-            question=body,
-            service=service,
-            job_store=job_store,
+        _spawn_in_process_job(
+            _run_diy_itinerary_job(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                question=body,
+                service=service,
+                job_store=job_store,
+            )
         )
     return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
 
@@ -416,13 +427,14 @@ async def create_general_question_job(
             )
         )
     else:
-        background_tasks.add_task(
-            _run_general_question_job,
-            job_id=job.job_id,
-            tenant_id=user.tenant_id,
-            question=body,
-            service=service,
-            job_store=job_store,
+        _spawn_in_process_job(
+            _run_general_question_job(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                question=body,
+                service=service,
+                job_store=job_store,
+            )
         )
     return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
 
@@ -443,6 +455,39 @@ async def get_travel_job_status(
     except TravelJobNotFoundError as exc:
         raise HTTPException(status_code=404, detail="job not found") from exc
     return TravelJobStatusResponse.from_job(job)
+
+
+@router.get("/jobs/{job_id}/events")
+async def stream_travel_job_events(
+    job_id: str,
+    request: Request,
+    once: bool = Query(default=False),
+    user: CurrentUser = Depends(get_current_user),
+    job_store: TravelJobStore = Depends(get_travel_job_store),
+) -> StreamingResponse:
+    """Stream travel job progress snapshots through Server-Sent Events."""
+
+    require_tourism_access(user)
+    try:
+        await job_store.get(job_id, user.tenant_id)
+    except TravelJobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="job not found") from exc
+
+    return StreamingResponse(
+        _travel_job_event_stream(
+            job_id=job_id,
+            tenant_id=user.tenant_id,
+            request=request,
+            job_store=job_store,
+            once=once,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/sessions/{session_id}/reply", response_model=TravelAnswer)
@@ -515,15 +560,16 @@ async def create_session_reply_job(
             )
         )
     else:
-        background_tasks.add_task(
-            _run_session_reply_job,
-            job_id=job.job_id,
-            tenant_id=user.tenant_id,
-            session_id=session_id,
-            kind=kind,
-            question=question,
-            service=service,
-            job_store=job_store,
+        _spawn_in_process_job(
+            _run_session_reply_job(
+                job_id=job.job_id,
+                tenant_id=user.tenant_id,
+                session_id=session_id,
+                kind=kind,
+                question=question,
+                service=service,
+                job_store=job_store,
+            )
         )
     return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
 
@@ -703,6 +749,23 @@ def _voice_transcription_language(language: Literal["zh-CN", "en"]) -> str:
     return "en" if language == "en" else "zh"
 
 
+def _spawn_in_process_job(coro: Awaitable[None]) -> asyncio.Task[None]:
+    """Start an in-process job without tying it to the HTTP response lifecycle."""
+
+    task = asyncio.create_task(coro)
+    task.add_done_callback(_log_in_process_job_result)
+    return task
+
+
+def _log_in_process_job_result(task: asyncio.Task[None]) -> None:
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        logger.info("In-process travel job task was cancelled.")
+    except Exception:
+        logger.exception("In-process travel job task failed unexpectedly.")
+
+
 async def _run_diy_itinerary_job(
     job_id: str,
     tenant_id: str,
@@ -712,17 +775,158 @@ async def _run_diy_itinerary_job(
     form_request: TravelFormRequest | None = None,
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
+    settings = get_settings()
+    partial_answer_callback = (
+        _job_partial_answer_callback(job_store, job_id, tenant_id)
+        if settings.enable_progressive_topic_sections
+        else None
+    )
+    topic_section_callback = (
+        _job_topic_section_callback(job_store, job_id, tenant_id)
+        if settings.enable_progressive_topic_sections
+        else None
+    )
     try:
-        answer = await service.answer(
+        answer = await _call_with_supported_kwargs(
+            service.answer,
             question,
             progress_callback=_job_progress_callback(job_store, job_id, tenant_id),
             form_request=form_request,
+            partial_answer_callback=partial_answer_callback,
+            topic_section_callback=topic_section_callback,
         )
     except Exception as exc:
         await job_store.fail(job_id, tenant_id, public_job_error(exc))
         return
 
     await job_store.complete(job_id, tenant_id, answer)
+
+
+async def _travel_job_event_stream(
+    *,
+    job_id: str,
+    tenant_id: str,
+    request: Request,
+    job_store: TravelJobStore,
+    once: bool = False,
+):
+    """Yield compact SSE snapshots until the job reaches a terminal state."""
+
+    last_status_signature: str | None = None
+    last_engagement_signature: str | None = None
+    last_partial_answer_signature: str | None = None
+    last_topic_sections_signature: str | None = None
+    last_heartbeat = monotonic()
+    while True:
+        if await request.is_disconnected():
+            return
+        try:
+            job = await job_store.get(job_id, tenant_id)
+        except TravelJobNotFoundError:
+            yield _sse_event(
+                "failed",
+                {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": "job not found",
+                    "updated_at": datetime.now(UTC).isoformat(),
+                },
+            )
+            return
+
+        payload = TravelJobStatusResponse.from_job(job)
+        if job.status in {"completed", "failed"}:
+            if payload.partial_answer is not None:
+                yield _sse_event("core_answer", payload)
+            if payload.partial_topic_sections:
+                yield _sse_event("topic_section", payload)
+            yield _sse_event(job.status, payload)
+            return
+
+        if once:
+            event_name = _job_stream_once_event_name(payload)
+            yield _sse_event(event_name, payload)
+            return
+
+        status_signature = _job_status_stream_signature(payload)
+        if status_signature != last_status_signature:
+            yield _sse_event("job_status", payload)
+            last_status_signature = status_signature
+
+        partial_answer_signature = _job_partial_answer_stream_signature(payload)
+        if partial_answer_signature != last_partial_answer_signature:
+            if payload.partial_answer is not None:
+                yield _sse_event("core_answer", payload)
+            last_partial_answer_signature = partial_answer_signature
+
+        topic_sections_signature = _job_topic_sections_stream_signature(payload)
+        if topic_sections_signature != last_topic_sections_signature:
+            if payload.partial_topic_sections:
+                yield _sse_event("topic_section", payload)
+            last_topic_sections_signature = topic_sections_signature
+
+        engagement_signature = _job_engagement_stream_signature(payload)
+        if engagement_signature != last_engagement_signature:
+            if payload.engagement_feed is not None:
+                yield _sse_event("engagement_feed", payload)
+            last_engagement_signature = engagement_signature
+
+        now = monotonic()
+        if now - last_heartbeat >= 15:
+            yield _sse_event(
+                "heartbeat",
+                {"job_id": job_id, "ts": datetime.now(UTC).isoformat()},
+            )
+            last_heartbeat = now
+
+        await asyncio.sleep(0.8)
+
+
+def _job_status_stream_signature(payload: TravelJobStatusResponse) -> str:
+    return "|".join(
+        [
+            payload.status,
+            payload.current_stage or "",
+            str(payload.progress_percent or 0),
+            payload.error or "",
+        ]
+    )
+
+
+def _job_partial_answer_stream_signature(payload: TravelJobStatusResponse) -> str:
+    return payload.partial_answer.model_dump_json() if payload.partial_answer else ""
+
+
+def _job_topic_sections_stream_signature(payload: TravelJobStatusResponse) -> str:
+    return json.dumps(
+        [section.model_dump(mode="json") for section in payload.partial_topic_sections],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _job_engagement_stream_signature(payload: TravelJobStatusResponse) -> str:
+    return payload.engagement_feed.model_dump_json() if payload.engagement_feed else ""
+
+
+def _job_stream_once_event_name(payload: TravelJobStatusResponse) -> str:
+    if payload.partial_topic_sections:
+        return "topic_section"
+    if payload.partial_answer is not None:
+        return "core_answer"
+    if payload.engagement_feed is not None:
+        return "engagement_feed"
+    return "job_status"
+
+
+def _sse_event(event: str, data: BaseModel | dict[str, Any]) -> str:
+    payload = (
+        data.model_dump_json()
+        if isinstance(data, BaseModel)
+        else json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    )
+    event_id = datetime.now(UTC).isoformat()
+    return f"id: {event_id}\nevent: {event}\ndata: {payload}\n\n"
 
 
 async def _run_general_question_job(
@@ -734,11 +938,25 @@ async def _run_general_question_job(
     form_request: TravelFormRequest | None = None,
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
+    settings = get_settings()
+    partial_answer_callback = (
+        _job_partial_answer_callback(job_store, job_id, tenant_id)
+        if settings.enable_progressive_topic_sections
+        else None
+    )
+    topic_section_callback = (
+        _job_topic_section_callback(job_store, job_id, tenant_id)
+        if settings.enable_progressive_topic_sections
+        else None
+    )
     try:
-        answer = await service.answer(
+        answer = await _call_with_supported_kwargs(
+            service.answer,
             question,
             progress_callback=_job_progress_callback(job_store, job_id, tenant_id),
             form_request=form_request,
+            partial_answer_callback=partial_answer_callback,
+            topic_section_callback=topic_section_callback,
         )
     except Exception as exc:
         await job_store.fail(job_id, tenant_id, public_job_error(exc))
@@ -757,11 +975,25 @@ async def _run_session_reply_job(
     job_store: TravelJobStore,
 ) -> None:
     await job_store.mark_running(job_id, tenant_id)
+    settings = get_settings()
+    partial_answer_callback = (
+        _job_partial_answer_callback(job_store, job_id, tenant_id)
+        if settings.enable_progressive_topic_sections
+        else None
+    )
+    topic_section_callback = (
+        _job_topic_section_callback(job_store, job_id, tenant_id)
+        if settings.enable_progressive_topic_sections
+        else None
+    )
     try:
-        answer = await service.answer_prepared_question(
+        answer = await _call_with_supported_kwargs(
+            service.answer_prepared_question,
             question,
             kind,
             progress_callback=_job_progress_callback(job_store, job_id, tenant_id),
+            partial_answer_callback=partial_answer_callback,
+            topic_section_callback=topic_section_callback,
         )
         answer = await service.complete_job_session(session_id, answer)
     except Exception as exc:
@@ -771,6 +1003,23 @@ async def _run_session_reply_job(
     await job_store.complete(job_id, tenant_id, answer)
 
 
+async def _call_with_supported_kwargs(
+    method: Callable[..., Awaitable[TravelAnswer]],
+    *args: Any,
+    **kwargs: Any,
+) -> TravelAnswer:
+    signature = inspect.signature(method)
+    if any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    ):
+        return await method(*args, **kwargs)
+    supported = {
+        name: value for name, value in kwargs.items() if name in signature.parameters
+    }
+    return await method(*args, **supported)
+
+
 def _job_progress_callback(
     job_store: TravelJobStore,
     job_id: str,
@@ -778,6 +1027,28 @@ def _job_progress_callback(
 ) -> Callable[[str, int], Awaitable[None]]:
     async def report(stage: str, progress_percent: int) -> None:
         await job_store.update_progress(job_id, tenant_id, stage, progress_percent)
+
+    return report
+
+
+def _job_partial_answer_callback(
+    job_store: TravelJobStore,
+    job_id: str,
+    tenant_id: str,
+) -> Callable[[TravelAnswer], Awaitable[None]]:
+    async def report(answer: TravelAnswer) -> None:
+        await job_store.update_partial_answer(job_id, tenant_id, answer)
+
+    return report
+
+
+def _job_topic_section_callback(
+    job_store: TravelJobStore,
+    job_id: str,
+    tenant_id: str,
+) -> Callable[[TravelTopicSection], Awaitable[None]]:
+    async def report(section: TravelTopicSection) -> None:
+        await job_store.append_topic_section(job_id, tenant_id, section)
 
     return report
 
@@ -799,7 +1070,7 @@ async def _schedule_engagement_feed(
     await job_store.update_engagement_feed(
         job_id,
         tenant_id,
-        service.initial_feed(),
+        service.initial_feed(question=question, form_request=form_request),
     )
     asyncio.create_task(
         service.start_for_job(

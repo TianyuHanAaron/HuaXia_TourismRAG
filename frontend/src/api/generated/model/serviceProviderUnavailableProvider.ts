@@ -9,8 +9,6 @@ export type ServiceProviderUnavailableProvider = typeof ServiceProviderUnavailab
 
 
 export const ServiceProviderUnavailableProvider = {
-  baidu_maps: 'baidu_maps',
-  tuniu: 'tuniu',
   firecrawl: 'firecrawl',
   tavily: 'tavily',
 } as const;

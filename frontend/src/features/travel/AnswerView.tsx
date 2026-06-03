@@ -1,4 +1,6 @@
 import DownloadIcon from '@mui/icons-material/Download';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import {
   Alert,
@@ -6,6 +8,7 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   List,
   ListItem,
   ListItemText,
@@ -15,7 +18,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { ActivityItem, DailyPlan, TravelAnswer } from '../../api/generated/model';
 import { getStaggerDelay } from '../../app/motion';
@@ -23,7 +26,8 @@ import { HuaxiaActionButton } from '../../components/HuaxiaActionButton';
 import { HuaxiaSectionHeader } from '../../components/HuaxiaSectionHeader';
 import { HuaxiaSurface } from '../../components/HuaxiaSurface';
 import { useUIStore } from '../../state/uiStore';
-import { answerSnapshot, formatActivityTime } from '../../utils/format';
+import { formatActivityTime } from '../../utils/format';
+import { downloadPdf } from './pdfExport';
 
 type Props = {
   answer: TravelAnswer | null;
@@ -48,6 +52,10 @@ const sectionNames = {
     },
     csv: '下载表格',
     pdf: '下载 PDF',
+    detailed: '详细版',
+    collapse: '收起',
+    hiddenMore: '还有 {count} 条专题建议，点“详细版”展开。',
+    pdfWorking: '正在生成 PDF',
     noItinerary: '这次回答没有结构化 itinerary，正文里已经包含主要安排。',
   },
   en: {
@@ -67,6 +75,10 @@ const sectionNames = {
     },
     csv: 'Download CSV',
     pdf: 'Download PDF',
+    detailed: 'Detailed',
+    collapse: 'Collapse',
+    hiddenMore: '{count} more topic suggestions are available in the detailed view.',
+    pdfWorking: 'Generating PDF',
     noItinerary: 'This response does not include a structured itinerary yet.',
   },
 };
@@ -75,6 +87,8 @@ export function AnswerView({ answer, language }: Props) {
   const viewMode = useUIStore((state) => state.itineraryViewMode);
   const setViewMode = useUIStore((state) => state.setItineraryViewMode);
   const setHandoffOpen = useUIStore((state) => state.setHandoffOpen);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
   const copy = sectionNames[language];
   const days = answer?.generated_itinerary?.itinerary ?? [];
   const isCompletedItinerary = Boolean(answer && !answer.needs_reply && (days.length > 0 || answer.answer));
@@ -99,6 +113,19 @@ export function AnswerView({ answer, language }: Props) {
   if (!answer) {
     return null;
   }
+
+  const handleDownloadPdf = async () => {
+    setPdfGenerating(true);
+    try {
+      await downloadPdf(answer, language);
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
+  const toggleTopic = (category: string) => {
+    setExpandedTopics((current) => ({ ...current, [category]: !current[category] }));
+  };
 
   return (
     <HuaxiaSurface className="answer-panel animated-presence" ariaLabel="answer panel">
@@ -145,8 +172,12 @@ export function AnswerView({ answer, language }: Props) {
               <HuaxiaActionButton startIcon={<DownloadIcon />} onClick={() => downloadCsv(days)}>
                 {copy.csv}
               </HuaxiaActionButton>
-              <HuaxiaActionButton startIcon={<DownloadIcon />} onClick={() => downloadPdf(answer, language)}>
-                {copy.pdf}
+              <HuaxiaActionButton
+                startIcon={pdfGenerating ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+                onClick={handleDownloadPdf}
+                disabled={pdfGenerating}
+              >
+                {pdfGenerating ? copy.pdfWorking : copy.pdf}
               </HuaxiaActionButton>
             </Stack>
             {days.length === 0 ? (
@@ -161,7 +192,13 @@ export function AnswerView({ answer, language }: Props) {
 
         {topicSections.map((section, index) =>
           safeActiveTab === index + 1 ? (
-            <TopicSectionView key={section.category} section={section} />
+            <TopicSectionView
+              key={section.category}
+              section={section}
+              language={language}
+              expanded={Boolean(expandedTopics[section.category])}
+              onToggle={() => toggleTopic(section.category)}
+            />
           ) : null,
         )}
 
@@ -255,15 +292,49 @@ function ItineraryTimeline({ days, language }: { days: DailyPlan[]; language: st
   );
 }
 
-function TopicSectionView({ section }: { section: NonNullable<TravelAnswer['topic_sections']>[number] }) {
+function TopicSectionView({
+  section,
+  language,
+  expanded,
+  onToggle,
+}: {
+  section: NonNullable<TravelAnswer['topic_sections']>[number];
+  language: 'zh-CN' | 'en';
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const copy = sectionNames[language];
+  const items = section.items ?? [];
+  const recommendations = section.recommendations ?? [];
+  const visibleItems = expanded ? items : items.slice(0, 3);
+  const visibleRecommendations = expanded ? recommendations : recommendations.slice(0, 2);
+  const hiddenCount = Math.max(items.length - visibleItems.length, 0) + Math.max(recommendations.length - visibleRecommendations.length, 0);
+
   return (
-    <Stack spacing={2}>
-      <Typography variant="h5" sx={{ fontWeight: 900 }}>
-        {section.title}
-      </Typography>
+    <Stack spacing={2} data-testid={`topic-section-${section.category}`}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+        <Typography variant="h5" sx={{ fontWeight: 900 }}>
+          {section.title}
+        </Typography>
+        <HuaxiaActionButton
+          size="small"
+          variant={expanded ? 'contained' : 'outlined'}
+          endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          onClick={onToggle}
+          aria-label={
+            expanded
+              ? `${copy.collapse}${section.title}`
+              : language === 'zh-CN'
+                ? `展开${section.title}详细版`
+                : `Show detailed ${section.title}`
+          }
+        >
+          {expanded ? copy.collapse : copy.detailed}
+        </HuaxiaActionButton>
+      </Stack>
       {section.summary ? <Typography sx={{ lineHeight: 1.8 }}>{section.summary}</Typography> : null}
       <Stack spacing={1.5}>
-        {(section.items ?? []).map((item, index) => (
+        {visibleItems.map((item, index) => (
           <Card
             key={`${item.title}-${item.city ?? ''}`}
             variant="outlined"
@@ -288,11 +359,16 @@ function TopicSectionView({ section }: { section: NonNullable<TravelAnswer['topi
             </CardContent>
           </Card>
         ))}
-        {(section.recommendations ?? []).map((recommendation) => (
+        {visibleRecommendations.map((recommendation) => (
           <Alert key={recommendation} severity="info">
             {recommendation}
           </Alert>
         ))}
+        {!expanded && hiddenCount > 0 ? (
+          <Alert severity="success">
+            {copy.hiddenMore.replace('{count}', String(hiddenCount))}
+          </Alert>
+        ) : null}
       </Stack>
     </Stack>
   );
@@ -351,19 +427,6 @@ function downloadCsv(days: DailyPlan[]) {
   ];
   const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
   downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'huaxia-itinerary.csv');
-}
-
-async function downloadPdf(answer: TravelAnswer, language: string) {
-  const { default: jsPDF } = await import('jspdf');
-  const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-  const content = answerSnapshot(answer);
-  const margin = 48;
-  const lines = pdf.splitTextToSize(content, 500);
-  pdf.setFontSize(16);
-  pdf.text(language === 'zh-CN' ? '华夏旅行社行程方案' : 'HuaXia Itinerary', margin, 48);
-  pdf.setFontSize(10);
-  pdf.text(lines, margin, 82);
-  pdf.save('huaxia-itinerary.pdf');
 }
 
 function downloadBlob(blob: Blob, filename: string) {

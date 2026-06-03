@@ -8,7 +8,7 @@ import type { WeatherImpactImpactLevel } from './weatherImpactImpactLevel';
 import type { WeatherImpactProvider } from './weatherImpactProvider';
 
 /**
- * Weather impact for a city/day from a provider such as Baidu Maps.
+ * Weather impact for a city/day from a typed service provider.
  */
 export interface WeatherImpact {
   provider: WeatherImpactProvider;

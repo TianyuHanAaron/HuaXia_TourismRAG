@@ -9,8 +9,6 @@ export type FreshWebEvidenceProvider = typeof FreshWebEvidenceProvider[keyof typ
 
 
 export const FreshWebEvidenceProvider = {
-  baidu_maps: 'baidu_maps',
-  tuniu: 'tuniu',
   firecrawl: 'firecrawl',
   tavily: 'tavily',
 } as const;

@@ -12,7 +12,10 @@ from huaxia_tourismrag.schemas.evidence import (
 from huaxia_tourismrag.schemas.jobs import TravelJobKind
 from huaxia_tourismrag.schemas.session import SessionReplyRequest, TravelSession
 from huaxia_tourismrag.services.session_store import TravelSessionStore
-from huaxia_tourismrag.services.travel_checkpoints import clear_unbacked_reply_state
+from huaxia_tourismrag.services.travel_checkpoints import (
+    MAX_CHECKPOINT_REPLY_TURNS,
+    clear_unbacked_reply_state,
+)
 
 
 class AnswerService(Protocol):
@@ -62,7 +65,11 @@ class SessionReplyService:
             )
         )
 
+        if _checkpoint_reply_limit_reached(session):
+            answer = _close_reply_state_after_checkpoint_limit(answer)
+
         if answer.needs_reply:
+            await self._update_existing_pending_session(session, answer)
             answer.session_id = session.session_id
             return answer
 
@@ -115,7 +122,12 @@ class SessionReplyService:
     ) -> TravelAnswer:
         """Attach session metadata and complete session when no reply is needed."""
 
+        session = await self.session_store.get(session_id, self.tenant_id)
+        if _checkpoint_reply_limit_reached(session):
+            answer = _close_reply_state_after_checkpoint_limit(answer)
+
         if answer.needs_reply:
+            await self._update_existing_pending_session(session, answer)
             answer.session_id = session_id
             return answer
 
@@ -139,6 +151,7 @@ class SessionReplyService:
         data = session.original_question.model_dump()
         data["continuation_pending_kind"] = session.pending_kind
         data["continuation_quick_reply_action_id"] = quick_reply_action_id
+        data["checkpoint_reply_count"] = len(session.messages)
         if session.pending_kind == "detail_level":
             detail_level = _detail_level_from_action(quick_reply_action_id)
             if detail_level:
@@ -166,6 +179,21 @@ class SessionReplyService:
             f"{replies}"
         )
         return TravelQuestion.model_validate(data)
+
+    async def _update_existing_pending_session(
+        self,
+        session: TravelSession,
+        answer: TravelAnswer,
+    ) -> None:
+        pending_kind = answer.reply_pending_kind or session.pending_kind
+        await self.session_store.update_pending(
+            session_id=session.session_id,
+            tenant_id=self.tenant_id,
+            pending_reason=answer.reply_pending_reason or session.pending_reason,
+            pending_kind=pending_kind,
+            pending_question=answer.reply_pending_question or session.pending_question,
+            pending_quick_replies=answer.quick_replies,
+        )
 
 
 def _resolve_quick_reply_action_id(
@@ -224,3 +252,23 @@ def _detail_level_from_action(message: str | None) -> str | None:
     if message == "detail_deep":
         return "deep"
     return None
+
+
+def _checkpoint_reply_limit_reached(session: TravelSession) -> bool:
+    """Return whether this session has consumed the allowed clarification turns."""
+
+    return len(session.messages) >= MAX_CHECKPOINT_REPLY_TURNS
+
+
+def _close_reply_state_after_checkpoint_limit(answer: TravelAnswer) -> TravelAnswer:
+    """Force completion after the bounded checkpoint loop has been exhausted."""
+
+    if answer.needs_reply:
+        answer.warnings.append(
+            "已达到最多三轮确认，夏夏将基于现有偏好继续给出方案；"
+            "后续可以直接提出修改。"
+        )
+    answer.needs_reply = False
+    answer.session_id = None
+    answer.quick_replies = []
+    return answer

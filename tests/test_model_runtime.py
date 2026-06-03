@@ -5,6 +5,7 @@ import pytest
 from huaxia_tourismrag.agents.model_runtime import (
     AgentModelConfigurationError,
     ensure_agent_model_ready,
+    is_external_structured_provider,
     is_qwen_cloud_provider,
 )
 from huaxia_tourismrag.core.config import Settings
@@ -128,3 +129,14 @@ def test_ensure_agent_model_ready_requires_dashscope_key(monkeypatch):
 
     with pytest.raises(AgentModelConfigurationError, match="DASHSCOPE_API_KEY"):
         ensure_agent_model_ready(settings)
+
+
+def test_unknown_provider_is_not_an_external_structured_runtime_path():
+    settings = Settings(
+        _env_file=None,
+        TOURISM_AGENT_PROVIDER="unsupported_external_runtime",
+        TOURISM_AGENT_MODEL="qwen3-8b",
+    )
+
+    assert is_qwen_cloud_provider(settings) is False
+    assert is_external_structured_provider(settings) is False

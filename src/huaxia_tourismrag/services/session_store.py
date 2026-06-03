@@ -47,6 +47,17 @@ class TravelSessionStore(Protocol):
     async def complete(self, session_id: str, tenant_id: str) -> TravelSession:
         """Mark a session as completed."""
 
+    async def update_pending(
+        self,
+        session_id: str,
+        tenant_id: str,
+        pending_reason: str | None,
+        pending_kind: PendingKind,
+        pending_question: str | None,
+        pending_quick_replies: list[QuickReplyOption],
+    ) -> TravelSession:
+        """Update the active pending checkpoint on an existing session."""
+
 
 class InMemoryTravelSessionStore:
     """In-memory session store for tests and local fallback."""
@@ -99,6 +110,24 @@ class InMemoryTravelSessionStore:
     async def complete(self, session_id: str, tenant_id: str) -> TravelSession:
         session = await self.get(session_id, tenant_id)
         session.completed = True
+        session.updated_at = datetime.now(UTC)
+        self._sessions[session.session_id] = session
+        return session
+
+    async def update_pending(
+        self,
+        session_id: str,
+        tenant_id: str,
+        pending_reason: str | None,
+        pending_kind: PendingKind,
+        pending_question: str | None,
+        pending_quick_replies: list[QuickReplyOption],
+    ) -> TravelSession:
+        session = await self.get(session_id, tenant_id)
+        session.pending_reason = pending_reason
+        session.pending_kind = pending_kind
+        session.pending_question = pending_question
+        session.pending_quick_replies = pending_quick_replies
         session.updated_at = datetime.now(UTC)
         self._sessions[session.session_id] = session
         return session
@@ -160,6 +189,24 @@ class RedisTravelSessionStore:
     async def complete(self, session_id: str, tenant_id: str) -> TravelSession:
         session = await self.get(session_id, tenant_id)
         session.completed = True
+        session.updated_at = datetime.now(UTC)
+        await self._save(session)
+        return session
+
+    async def update_pending(
+        self,
+        session_id: str,
+        tenant_id: str,
+        pending_reason: str | None,
+        pending_kind: PendingKind,
+        pending_question: str | None,
+        pending_quick_replies: list[QuickReplyOption],
+    ) -> TravelSession:
+        session = await self.get(session_id, tenant_id)
+        session.pending_reason = pending_reason
+        session.pending_kind = pending_kind
+        session.pending_question = pending_question
+        session.pending_quick_replies = pending_quick_replies
         session.updated_at = datetime.now(UTC)
         await self._save(session)
         return session

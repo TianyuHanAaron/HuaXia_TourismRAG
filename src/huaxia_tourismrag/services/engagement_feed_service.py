@@ -18,6 +18,10 @@ from huaxia_tourismrag.schemas.engagement import (
     EngagementFeed,
 )
 from huaxia_tourismrag.schemas.evidence import TravelFormRequest, TravelQuestion
+from huaxia_tourismrag.services.engagement_entity_filter import (
+    clean_engagement_entities,
+    is_destination_like_engagement_entity,
+)
 from huaxia_tourismrag.services.engagement_feed_graph import run_engagement_feed_graph
 from huaxia_tourismrag.services.job_store import TravelJobStore
 
@@ -45,7 +49,11 @@ class EngagementFeedService:
         self.settings = settings
         self.agent = agent
 
-    def initial_feed(self) -> EngagementFeed:
+    def initial_feed(
+        self,
+        question: TravelQuestion | None = None,
+        form_request: TravelFormRequest | None = None,
+    ) -> EngagementFeed:
         """Return the immediate job-status feed state."""
 
         if not self.settings.enable_engagement_feed:
@@ -75,7 +83,7 @@ class EngagementFeedService:
             await job_store.update_engagement_feed(
                 job_id,
                 tenant_id,
-                EngagementFeed(status="loading"),
+                self.initial_feed(question, form_request),
             )
         try:
             await asyncio.wait_for(
@@ -93,42 +101,11 @@ class EngagementFeedService:
                 ),
                 timeout=self.settings.engagement_full_timeout_seconds + 2,
             )
-            await self._ensure_preview_when_empty(
-                job_id=job_id,
-                tenant_id=tenant_id,
-                question=question,
-                form_request=form_request,
-                job_store=job_store,
-            )
         except Exception as exc:  # pragma: no cover - defensive logging branch
             logger.info(
-                "Engagement feed sidecar fell back to preview cards for job %s: %r",
+                "Engagement feed sidecar failed for job %s: %r",
                 job_id,
                 exc,
-            )
-            await self._ensure_preview_when_empty(
-                job_id=job_id,
-                tenant_id=tenant_id,
-                question=question,
-                form_request=form_request,
-                job_store=job_store,
-            )
-
-    async def _ensure_preview_when_empty(
-        self,
-        *,
-        job_id: str,
-        tenant_id: str,
-        question: TravelQuestion,
-        form_request: TravelFormRequest | None,
-        job_store: TravelJobStore,
-    ) -> None:
-        current = await job_store.get(job_id, tenant_id)
-        if not current.engagement_feed or not current.engagement_feed.batches:
-            await job_store.update_engagement_feed(
-                job_id,
-                tenant_id,
-                build_preview_engagement_feed(question, form_request),
             )
 
 
@@ -152,18 +129,99 @@ def build_preview_engagement_feed(
         "local_flavor",
         "traveler_reminder",
     )
+    batches: list[EngagementBatch] = []
+    for batch_index, card_type in enumerate(card_types):
+        cards = _preview_cards_for_type(card_type, entities, batch_index=batch_index)
+        if cards:
+            batches.append(EngagementBatch(batch_index=batch_index, cards=cards))
+    if not batches:
+        return EngagementFeed(
+            status="loading",
+            batches=[],
+            message="夏夏正在识别这条路线的目的地，正式行程生成后会接管页面。",
+        )
+    return EngagementFeed(
+        status="partial",
+        batches=batches,
+        message="目的地小百科先用轻量预览顶上，正式行程仍以引用校验后的答案为准。",
+    )
+
+
+def _merge_missing_preview_batches(
+    current: EngagementFeed,
+    preview: EngagementFeed,
+) -> EngagementFeed | None:
+    """Backfill missing topic batches so the carousel can rotate topics."""
+
+    if not current.batches or not preview.batches:
+        return None
+
+    current_by_type = _batch_by_primary_type(current.batches)
+    preview_by_type = _batch_by_primary_type(preview.batches)
+    expected_types: tuple[EngagementCardType, ...] = (
+        "attraction_knowledge",
+        "city_folk_custom",
+        "local_flavor",
+        "traveler_reminder",
+    )
+    used_preview = False
+    merged_batches: list[EngagementBatch] = []
+    for index, card_type in enumerate(expected_types):
+        batch = current_by_type.get(card_type)
+        if batch is None:
+            batch = preview_by_type.get(card_type)
+            used_preview = used_preview or batch is not None
+        if batch is not None:
+            merged_batches.append(batch.model_copy(update={"batch_index": index}))
+
+    if len(merged_batches) <= len(current.batches) and not used_preview:
+        return None
+    if len(merged_batches) == len(current.batches) and all(
+        left.model_dump() == right.model_dump()
+        for left, right in zip(merged_batches, current.batches, strict=False)
+    ):
+        return None
+    return current.model_copy(
+        update={
+            "status": "partial" if used_preview else current.status,
+            "batches": merged_batches[:4],
+            "message": (
+                "目的地小百科已补齐四类主题；正式行程仍以引用校验后的答案为准。"
+                if used_preview
+                else current.message
+            ),
+        }
+    )
+
+
+def _batch_by_primary_type(
+    batches: list[EngagementBatch],
+) -> dict[EngagementCardType, EngagementBatch]:
+    by_type: dict[EngagementCardType, EngagementBatch] = {}
+    for batch in batches:
+        if not batch.cards:
+            continue
+        primary_type = batch.cards[0].card_type
+        by_type.setdefault(primary_type, batch)
+    return by_type
+
+
+def _preview_cards_for_type(
+    card_type: EngagementCardType,
+    entities: list[str],
+    *,
+    batch_index: int,
+) -> list[EngagementCard]:
     cards: list[EngagementCard] = []
     seen_titles: set[str] = set()
-    for card_type in card_types:
-        for entity in entities:
-            title = _preview_title(card_type, entity)
+    for entity in entities:
+        for title, body in _preview_card_variants(card_type, entity):
             if title in seen_titles:
                 continue
             seen_titles.add(title)
-            body = _preview_body(card_type, entity)
             cards.append(
                 EngagementCard(
-                    card_id=f"preview-0-{len(cards)}",
+                    card_id=f"preview-{batch_index}-{len(cards)}",
                     card_type=card_type,
                     entity=entity,
                     title=title,
@@ -172,20 +230,8 @@ def build_preview_engagement_feed(
                 )
             )
             if len(cards) >= 6:
-                break
-        if len(cards) >= 6:
-            break
-    if not cards:
-        return EngagementFeed(
-            status="loading",
-            batches=[],
-            message="夏夏正在识别这条路线的目的地，正式行程生成后会接管页面。",
-        )
-    return EngagementFeed(
-        status="partial",
-        batches=[EngagementBatch(batch_index=0, cards=cards)],
-        message="目的地小百科先用轻量预览顶上，正式行程仍以引用校验后的答案为准。",
-    )
+                return cards
+    return cards
 
 
 def _preview_entities(
@@ -197,30 +243,38 @@ def _preview_entities(
         entities.append(question.destination)
     entities.extend(question.interests)
     if form_request:
-        for value in (
-            form_request.destination,
-            form_request.origin_city,
-            form_request.return_city,
-        ):
-            if value:
-                entities.append(value)
+        if form_request.destination:
+            entities.append(form_request.destination)
         entities.extend(form_request.required_stops)
         entities.extend(form_request.must_have)
+    excluded_entities = _route_endpoint_entities(question.question, form_request)
     cleaned: list[str] = []
     for entity in entities:
-        compact = entity.strip()
-        if compact and compact not in cleaned:
+        compact = _preview_display_name(entity.strip())
+        if compact and compact not in excluded_entities and compact not in cleaned:
             cleaned.append(compact)
     if cleaned:
-        return cleaned[:6]
-    return _catalog_preview_entities(question.question)[:6]
+        destination_entities = clean_engagement_entities(cleaned, limit=6)
+        if destination_entities:
+            return destination_entities
+    return _catalog_preview_entities(
+        question.question,
+        excluded_entities=excluded_entities,
+    )[:6]
 
 
-def _catalog_preview_entities(question_text: str) -> list[str]:
+def _catalog_preview_entities(
+    question_text: str,
+    *,
+    excluded_entities: set[str] | None = None,
+) -> list[str]:
     """Find destination-like entities from the local corpus when DTO fields are empty."""
 
+    excluded = excluded_entities or set()
     matches: list[tuple[int, int, str]] = []
     for profile in _preview_entity_catalog():
+        if profile.display in excluded:
+            continue
         positions = [
             question_text.find(alias)
             for alias in profile.aliases
@@ -230,7 +284,49 @@ def _catalog_preview_entities(question_text: str) -> list[str]:
             score = _preview_entity_score(profile)
             matches.append((-score, min(positions), -len(profile.display), profile.display))
     matches.sort()
-    return _unique_preview_entities([display for _, _, _, display in matches], limit=6)
+    return clean_engagement_entities(
+        _unique_preview_entities([display for _, _, _, display in matches], limit=6),
+        limit=6,
+    )
+
+
+def _route_endpoint_entities(
+    question_text: str,
+    form_request: TravelFormRequest | None,
+) -> set[str]:
+    """Return origin/return-only entities that should not become waiting-room cards."""
+
+    excluded: set[str] = set()
+    if form_request is not None:
+        for value in (form_request.origin_city, form_request.return_city):
+            if value:
+                excluded.add(_preview_display_name(value))
+
+    for profile in _preview_entity_catalog():
+        if _appears_as_route_endpoint(question_text, profile.aliases):
+            excluded.add(profile.display)
+    return excluded
+
+
+def _appears_as_route_endpoint(question_text: str, aliases: tuple[str, ...]) -> bool:
+    """Detect explicit origin/return mentions without classifying destinations."""
+
+    for alias in aliases:
+        if not alias:
+            continue
+        route_endpoint_patterns = (
+            f"从{alias}出发",
+            f"{alias}出发",
+            f"从{alias}起止",
+            f"{alias}起止",
+            f"{alias}往返",
+            f"{alias}返回",
+            f"回到{alias}",
+            f"{alias}返程",
+        )
+        if any(pattern in question_text for pattern in route_endpoint_patterns):
+            return True
+    return False
 
 
 def _focus_preview_entities(entities: list[str]) -> list[str]:
@@ -370,7 +466,7 @@ def _unique_preview_entities(values: list[str], *, limit: int) -> list[str]:
     cleaned: list[str] = []
     for value in values:
         text = value.strip()
-        if not text or text in seen:
+        if not is_destination_like_engagement_entity(text) or text in seen:
             continue
         seen.add(text)
         cleaned.append(text)
@@ -387,6 +483,177 @@ def _preview_title(card_type: EngagementCardType, entity: str) -> str:
         "traveler_reminder": f"{entity}旅行提醒",
     }
     return titles[card_type]
+
+
+def _preview_card_variants(
+    card_type: EngagementCardType,
+    entity: str,
+) -> list[tuple[str, str]]:
+    profile = _preview_profile_for_entity(entity)
+    if profile is None:
+        return _common_sense_preview_variants(card_type, entity)
+
+    attractions = _unique_preview_entities(
+        [*profile.attractions, *profile.heritage_sites],
+        limit=8,
+    )
+    heritage_sites = _unique_preview_entities(
+        [*profile.heritage_sites, *profile.attractions],
+        limit=8,
+    )
+    foods = _unique_preview_entities([*profile.foods, *profile.specialties], limit=8)
+    variants: list[tuple[str, str]] = []
+
+    if card_type == "attraction_knowledge":
+        for name in attractions:
+            variants.append(
+                (
+                    f"{name}的一页背景",
+                    (
+                        f"{name}是{entity}行程里值得先认识的旅行锚点。等待正式方案时，可以先把它理解成"
+                        f"{entity}景观、古建、文博或城市记忆的一扇门：真正落到行程里时，夏夏还会再按"
+                        "开放预约、同行人体力、车程顺路性和引用证据来判断它适合放在上午精讲、下午慢游，"
+                        "还是只作为路过拍照与讲解背景。"
+                    ),
+                )
+            )
+        return variants
+
+    if card_type == "city_folk_custom":
+        for name in heritage_sites:
+            variants.append(
+                (
+                    f"{entity}的人文线索：{name}",
+                    (
+                        f"从{name}这类资料点看，{entity}不是只有景点清单，也有更细的地方脉络："
+                        "寺观、遗址、古城街巷、会馆、近现代建筑或民族地区生活秩序，都会影响游览节奏。"
+                        "正式行程会把这类背景转译成导览重点，例如哪里适合请讲解、哪里适合慢走，"
+                        "以及哪些空间需要更安静、更尊重当地礼俗。"
+                    ),
+                )
+            )
+        return variants
+
+    if card_type == "local_flavor":
+        for name in foods:
+            variants.append(
+                (
+                    f"{entity}味道预告：{name}",
+                    (
+                        f"{name}可以作为{entity}行程里的味觉线索。正式方案不会只列菜名，而会把它放回"
+                        "具体时段：午餐适合安排在景区与酒店之间，晚餐适合留给老街、美食街、老店或民宿餐桌，"
+                        "伴手礼则要看是否方便携带、是否顺路购买。等主行程完成后，餐饮推荐还会继续按来源和动线筛选。"
+                    ),
+                )
+            )
+        return variants
+
+    anchors = attractions or heritage_sites or foods
+    if card_type == "traveler_reminder" and anchors:
+        reminder_angles = (
+            ("体力与午休", "每天至少留出一次完整休息段，特别是老人儿童、高原、山地或长距离包车路线。"),
+            ("交通缓冲", "跨城移动不要把车程压到当天最后一刻，机场、高铁站、景区接驳都要预留冗余。"),
+            ("住宿位置", "深度游优先住在第二天动线附近，少换酒店比多打卡更能提升体验质量。"),
+            ("预约核验", "热门景点、博物馆、演出和特殊体验要在正式出行前重新核验预约方式。"),
+            ("饮食节奏", "午餐求顺路和稳定，晚餐再安排地方风味，避免连续几天重口或赶饭点。"),
+            ("天气装备", "山区、草原、边境、海边和沙漠路线都要按昼夜温差、风雨和日晒准备装备。"),
+        )
+        anchor_text = _join_preview_names(anchors, limit=4)
+        for title, note in reminder_angles:
+            variants.append(
+                (
+                    f"{entity}提醒：{title}",
+                    (
+                        f"{entity}相关资料点包括 {anchor_text}。{note}"
+                        "这张等待卡不替代实时政策，也不替代最终引用；它的作用是让你在正式行程生成前，"
+                        "先把安全、舒适、顺路和同行人状态放到与景点数量同等重要的位置。"
+                    ),
+                )
+            )
+    return variants
+
+
+def _common_sense_preview_variants(
+    card_type: EngagementCardType,
+    entity: str,
+) -> list[tuple[str, str]]:
+    """Fallback copy for sparse entities without exposing placeholder prompt text."""
+
+    if card_type == "attraction_knowledge":
+        return [
+            (
+                f"{entity}的第一印象",
+                (
+                    f"{entity}可以先从景观与文化关系来读：它在这次路线里不是孤立打卡点，而是帮助用户理解"
+                    "地貌、聚落、道路和历史记忆的一组线索。正式行程会再判断哪些点适合精讲，哪些点适合远观、"
+                    "散步或作为途中休整，让景点背景服务于体验，而不是把每天排成景点清单。"
+                ),
+            ),
+            (
+                f"{entity}的路线角色",
+                (
+                    f"如果{entity}进入正式方案，它通常需要承担一个清楚的路线角色：主景点、过渡停留、"
+                    "住宿节点、文化体验或风险提醒。等待时先这样理解它，会比单纯问“去不去”更有用；"
+                    "最终方案仍会按证据、车程、季节和同行人体力决定取舍。"
+                ),
+            ),
+        ]
+    if card_type == "city_folk_custom":
+        return [
+            (
+                f"{entity}的人文入口",
+                (
+                    f"{entity}的人文体验应当从生活方式开始理解：当地人的作息、村镇空间、节庆礼俗、"
+                    "宗教信仰、语言饮食和待客方式，都会影响旅行的舒适度。正式行程会尽量把这些背景转化成"
+                    "可执行安排，例如何时适合入村、何处适合请讲解、哪些场合要保持安静和尊重。"
+                ),
+            ),
+            (
+                f"{entity}的在地节奏",
+                (
+                    f"阅读{entity}时，可以先把速度放慢：深度旅行不只是多跑几个点，也包括在市场、街巷、"
+                    "村落、江河或山路旁理解当地生活。等待卡只做语境补充，正式方案会再决定哪些民俗体验"
+                    "适合安排进白天，哪些更适合放在晚餐、住宿或自由活动里。"
+                ),
+            ),
+        ]
+    if card_type == "local_flavor":
+        return [
+            (
+                f"{entity}的味道线索",
+                (
+                    f"{entity}的本地味道可以先按“早餐、午餐、晚餐、夜市、伴手礼”来想象。"
+                    "好的旅行餐饮不是堆名店，而是把地方小吃、老店、美食街、民宿餐和路途补给放到合适时段。"
+                    "正式方案会再按顺路性和可追溯来源筛选，避免为了吃而绕路过度。"
+                ),
+            ),
+            (
+                f"{entity}的餐桌节奏",
+                (
+                    f"{entity}这类目的地更适合把午餐安排得稳定顺路，把晚餐留给更有地方气息的街区、"
+                    "老店或民宿。这样既能体验本地味道，也能保留体力。正式行程完成后，夏夏会把餐饮建议"
+                    "嵌入每天时间线，而不是单独丢一串菜名。"
+                ),
+            ),
+        ]
+    return [
+        (
+            f"{entity}的舒适提醒",
+            (
+                f"{entity}进入深度行程时，最容易被低估的是缓冲：天气、车程、海拔、步行强度、住宿位置"
+                "和午休都会影响体验。等待时先把安全和舒适放到与景点数量同等重要的位置，正式方案会再用"
+                "时间线把这些提醒落实到出发、午餐、换乘、入住和晚间休息。"
+            ),
+        ),
+        (
+            f"{entity}的取舍提醒",
+            (
+                f"{entity}相关路线如果想做得从容，就要允许“少一点但更深入”。正式方案会优先保证每天"
+                "有可执行的交通和休息，不会只追求把所有名字塞进去。对老人儿童、高原、山地、边境或长线包车"
+                "场景，取舍本身就是旅行质量的一部分。"
+            ),
+        ),
+    ]
 
 
 def _preview_body(card_type: EngagementCardType, entity: str) -> str:

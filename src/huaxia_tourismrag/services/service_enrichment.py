@@ -6,51 +6,12 @@ from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.schemas.research import TravelResearchPlan
 from huaxia_tourismrag.schemas.service_enrichment import (
-    BookingAction,
-    BookingProduct,
     FreshWebEvidence,
-    RouteFeasibilityReport,
-    RouteLegCheck,
     ServiceEnrichmentContext,
     ServiceProviderUnavailable,
     TravelServiceProvider,
-    WeatherImpact,
 )
 from huaxia_tourismrag.services.provider_budget import ProviderBudget, ProviderCooldown
-
-
-class MapsEnrichmentProvider(Protocol):
-    """Provider contract for maps and weather service enrichment."""
-
-    async def check_route_leg(
-        self,
-        origin: str,
-        destination: str,
-        preferred_mode: str = "driving",
-    ) -> RouteLegCheck:
-        """Check one route leg."""
-
-    async def check_weather(
-        self,
-        city: str,
-        date_label: str | None = None,
-    ) -> WeatherImpact:
-        """Check one city's weather impact."""
-
-
-class BookingEnrichmentProvider(Protocol):
-    """Provider contract for commercial travel products."""
-
-    async def search_hotels(
-        self,
-        city: str,
-        keywords: list[str],
-        budget_level: str | None,
-    ) -> list[BookingProduct]:
-        """Search hotel products."""
-
-    def to_booking_action(self, product: BookingProduct) -> BookingAction:
-        """Create a safe user-facing booking action."""
 
 
 class FreshWebEvidenceProvider(Protocol):
@@ -69,15 +30,11 @@ class TravelServiceEnrichmentService:
 
     def __init__(
         self,
-        maps: MapsEnrichmentProvider | None = None,
-        tuniu: BookingEnrichmentProvider | None = None,
         fresh_web: FreshWebEvidenceProvider | None = None,
         fresh_web_providers: list[FreshWebEvidenceProvider] | None = None,
         provider_max_calls: dict[str, int] | None = None,
         provider_cooldown: ProviderCooldown | None = None,
     ) -> None:
-        self.maps = maps
-        self.tuniu = tuniu
         self.fresh_web_providers = fresh_web_providers or (
             [fresh_web] if fresh_web is not None else []
         )
@@ -97,88 +54,12 @@ class TravelServiceEnrichmentService:
 
         route = self._route_from_plans(diy_plan, research_plan)
         unavailable: list[ServiceProviderUnavailable] = []
-        route_report: RouteFeasibilityReport | None = None
-        weather: list[WeatherImpact] = []
-        products: list[BookingProduct] = []
-        actions: list[BookingAction] = []
         fresh_web_evidence: list[FreshWebEvidence] = []
         provider_budget = (
             ProviderBudget(self.provider_max_calls)
             if self.provider_max_calls
             else None
         )
-
-        if self.maps and len(route) >= 2:
-            maps_provider = self._provider_name(self.maps, default="baidu_maps")
-            try:
-                legs: list[RouteLegCheck] = []
-                for origin, destination in zip(route, route[1:], strict=False):
-                    if not self._can_call_provider(
-                        maps_provider,
-                        provider_budget,
-                        unavailable,
-                    ):
-                        break
-                    legs.append(
-                        await self.maps.check_route_leg(
-                            origin,
-                            destination,
-                            preferred_mode="driving",
-                        )
-                    )
-                route_report = RouteFeasibilityReport(
-                    provider=maps_provider,
-                    route_summary=self._route_summary(maps_provider, legs),
-                    legs=legs,
-                    warnings=self._route_warnings(legs),
-                )
-                for city in self._unique_cities(route)[:8]:
-                    if not self._can_call_provider(
-                        maps_provider,
-                        provider_budget,
-                        unavailable,
-                    ):
-                        break
-                    weather.append(await self.maps.check_weather(city))
-            except Exception as exc:
-                self._mark_provider_failure(maps_provider)
-                unavailable.append(
-                    ServiceProviderUnavailable(
-                        provider=maps_provider,
-                        reason=(
-                            f"{self._provider_label(maps_provider)} MCP 暂不可用：{exc}"
-                        ),
-                        retryable=True,
-                    )
-                )
-
-        if self.tuniu:
-            try:
-                for city in self._booking_cities(route)[:6]:
-                    if not self._can_call_provider(
-                        "tuniu",
-                        provider_budget,
-                        unavailable,
-                    ):
-                        break
-                    city_products = await self.tuniu.search_hotels(
-                        city=city,
-                        keywords=question.interests,
-                        budget_level=question.budget_level,
-                    )
-                    products.extend(city_products[:2])
-                actions = [
-                    self.tuniu.to_booking_action(product) for product in products[:6]
-                ]
-            except Exception as exc:
-                self._mark_provider_failure("tuniu")
-                unavailable.append(
-                    ServiceProviderUnavailable(
-                        provider="tuniu",
-                        reason=f"途牛 MCP 暂不可用：{exc}",
-                        retryable=True,
-                    )
-                )
 
         for fresh_web_provider in self.fresh_web_providers:
             fresh_provider = self._provider_name(
@@ -216,10 +97,6 @@ class TravelServiceEnrichmentService:
                 )
 
         return ServiceEnrichmentContext(
-            route_feasibility=route_report,
-            weather_impacts=weather,
-            booking_products=products[:12],
-            booking_actions=actions[:8],
             fresh_web_evidence=fresh_web_evidence[:12],
             unavailable_providers=unavailable,
         )
@@ -297,22 +174,6 @@ class TravelServiceEnrichmentService:
             ]
         )
 
-    def _booking_cities(self, route: list[str]) -> list[str]:
-        return self._unique_cities(route)
-
-    def _route_warnings(self, legs: list[RouteLegCheck]) -> list[str]:
-        warnings: list[str] = []
-        for leg in legs:
-            if leg.notes and leg.feasibility_level in {"tight", "not_recommended"}:
-                warnings.append(leg.notes[0])
-            if leg.feasibility_level == "unknown" or (
-                leg.estimated_duration_minutes is None and leg.distance_km is None
-            ):
-                warnings.append(
-                    f"{leg.origin}至{leg.destination}未返回可用车程/距离，需二次核验。"
-                )
-        return self._unique_strings(warnings)[:12]
-
     def _unique_cities(self, route: list[str]) -> list[str]:
         seen: set[str] = set()
         cities: list[str] = []
@@ -360,58 +221,12 @@ class TravelServiceEnrichmentService:
         default: TravelServiceProvider,
     ) -> TravelServiceProvider:
         value = getattr(provider, "provider_name", default)
-        if value in {"baidu_maps", "tuniu", "firecrawl", "tavily"}:
+        if value in {"firecrawl", "tavily"}:
             return value
         return default
 
     def _provider_label(self, provider: TravelServiceProvider) -> str:
         return {
-            "baidu_maps": "百度地图",
             "firecrawl": "Firecrawl",
             "tavily": "Tavily",
-            "tuniu": "途牛",
         }[provider]
-
-    def _route_summary(
-        self,
-        provider: TravelServiceProvider,
-        legs: list[RouteLegCheck],
-    ) -> str:
-        if not legs:
-            return f"{self._provider_label(provider)} MCP 未返回路线分段，需要二次核验。"
-        tight_count = sum(
-            1
-            for leg in legs
-            if leg.feasibility_level in {"tight", "not_recommended"}
-        )
-        known_duration_count = sum(
-            1 for leg in legs if leg.estimated_duration_minutes is not None
-        )
-        unknown_count = sum(
-            1
-            for leg in legs
-            if leg.feasibility_level == "unknown"
-            or (
-                leg.estimated_duration_minutes is None
-                and leg.distance_km is None
-            )
-        )
-        provider_label = self._provider_label(provider)
-        if known_duration_count == 0:
-            return (
-                f"{provider_label} MCP 已检查 {len(legs)} 段路线，"
-                "但未返回可用时长/距离，需要二次核验具体车程。"
-            )
-        if tight_count:
-            summary = (
-                f"{provider_label} MCP 检查显示有 {tight_count} 段交通偏紧，"
-                "建议调整节奏。"
-            )
-        else:
-            summary = (
-                f"{provider_label} MCP 检查显示有 {known_duration_count} 段路线"
-                "返回了可用车程，可作为顺路性参考。"
-            )
-        if unknown_count:
-            summary += f" 另有 {unknown_count} 段缺少时长/距离，需要二次核验。"
-        return summary

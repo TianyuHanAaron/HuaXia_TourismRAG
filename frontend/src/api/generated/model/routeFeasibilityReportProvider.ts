@@ -9,8 +9,6 @@ export type RouteFeasibilityReportProvider = typeof RouteFeasibilityReportProvid
 
 
 export const RouteFeasibilityReportProvider = {
-  baidu_maps: 'baidu_maps',
-  tuniu: 'tuniu',
   firecrawl: 'firecrawl',
   tavily: 'tavily',
 } as const;

@@ -9,7 +9,7 @@ import type { BookingProductProductType } from './bookingProductProductType';
 import type { BookingProductProvider } from './bookingProductProvider';
 
 /**
- * One commercial travel product candidate returned by Tuniu.
+ * One commercial travel product candidate returned by a typed provider.
  */
 export interface BookingProduct {
   provider: BookingProductProvider;

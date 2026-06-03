@@ -1,9 +1,13 @@
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlineOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import { Alert, CircularProgress, Stack, TextField } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { useCreateSessionReplyJobTourismSessionsSessionIdReplyJobPost } from '../../api/generated/huaxia';
+import {
+  getGetTravelJobStatusTourismJobsJobIdGetQueryOptions,
+  useCreateSessionReplyJobTourismSessionsSessionIdReplyJobPost,
+} from '../../api/generated/huaxia';
 import type { QuickReplyOption, TravelAnswer } from '../../api/generated/model';
 import { HuaxiaActionButton } from '../../components/HuaxiaActionButton';
 import { HuaxiaSectionHeader } from '../../components/HuaxiaSectionHeader';
@@ -18,13 +22,17 @@ type Props = {
 export function CheckpointPanel({ answer, language }: Props) {
   const setActiveJobId = useUIStore((state) => state.setActiveJobId);
   const setLatestAnswer = useUIStore((state) => state.setLatestAnswer);
+  const setEngagementBatchIndex = useUIStore((state) => state.setEngagementBatchIndex);
   const [manualReply, setManualReply] = useState('');
+  const queryClient = useQueryClient();
   const mutation = useCreateSessionReplyJobTourismSessionsSessionIdReplyJobPost({
     mutation: {
       onSuccess: (job) => {
         setActiveJobId(job.job_id);
+        setEngagementBatchIndex(0);
         setLatestAnswer(null);
         setManualReply('');
+        void queryClient.prefetchQuery(getGetTravelJobStatusTourismJobsJobIdGetQueryOptions(job.job_id));
       },
     },
   });

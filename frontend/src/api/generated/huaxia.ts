@@ -30,6 +30,7 @@ import type {
   SalesHandoffRequest,
   SalesHandoffResponse,
   SessionReplyRequest,
+  StreamTravelJobEventsTourismJobsJobIdEventsGetParams,
   TourismCapabilitiesResponse,
   TravelAnswer,
   TravelFormRequest,
@@ -769,6 +770,108 @@ export function useGetTravelJobStatusTourismJobsJobIdGet<TData = Awaited<ReturnT
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetTravelJobStatusTourismJobsJobIdGetQueryOptions(jobId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Stream travel job progress snapshots through Server-Sent Events.
+ * @summary Stream Travel Job Events
+ */
+export const streamTravelJobEventsTourismJobsJobIdEventsGet = (
+    jobId: string,
+    params?: StreamTravelJobEventsTourismJobsJobIdEventsGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<unknown>(
+      {url: `/tourism/jobs/${jobId}/events`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getStreamTravelJobEventsTourismJobsJobIdEventsGetQueryKey = (jobId: string,
+    params?: StreamTravelJobEventsTourismJobsJobIdEventsGetParams,) => {
+    return [
+    `/tourism/jobs/${jobId}/events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getStreamTravelJobEventsTourismJobsJobIdEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError = HTTPValidationError>(jobId: string,
+    params?: StreamTravelJobEventsTourismJobsJobIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamTravelJobEventsTourismJobsJobIdEventsGetQueryKey(jobId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>> = ({ signal }) => streamTravelJobEventsTourismJobsJobIdEventsGet(jobId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: jobId !== null && jobId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type StreamTravelJobEventsTourismJobsJobIdEventsGetQueryResult = NonNullable<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>>
+export type StreamTravelJobEventsTourismJobsJobIdEventsGetQueryError = HTTPValidationError
+
+
+export function useStreamTravelJobEventsTourismJobsJobIdEventsGet<TData = Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params: undefined |  StreamTravelJobEventsTourismJobsJobIdEventsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamTravelJobEventsTourismJobsJobIdEventsGet<TData = Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params?: StreamTravelJobEventsTourismJobsJobIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamTravelJobEventsTourismJobsJobIdEventsGet<TData = Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params?: StreamTravelJobEventsTourismJobsJobIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream Travel Job Events
+ */
+
+export function useStreamTravelJobEventsTourismJobsJobIdEventsGet<TData = Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params?: StreamTravelJobEventsTourismJobsJobIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTravelJobEventsTourismJobsJobIdEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getStreamTravelJobEventsTourismJobsJobIdEventsGetQueryOptions(jobId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

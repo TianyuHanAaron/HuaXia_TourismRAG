@@ -4,7 +4,7 @@ from pydantic_ai import Agent
 
 from huaxia_tourismrag.agents.model_runtime import (
     ensure_agent_model_ready,
-    is_qwen_cloud_provider,
+    is_external_structured_provider,
 )
 from huaxia_tourismrag.agents.qwen_structured_runner import run_qwen_structured
 from huaxia_tourismrag.core.config import get_settings
@@ -64,13 +64,14 @@ async def create_diy_itinerary_plan(
         preference_profile=preference_profile,
         intent_decision=intent_decision,
     )
-    if is_qwen_cloud_provider():
+    if is_external_structured_provider():
         settings = get_settings()
         return await run_qwen_structured(
             prompt=prompt,
             output_type=DIYItineraryPlan,
             instructions=DIY_ITINERARY_PLANNER_INSTRUCTIONS,
             model_override=settings.planner_model,
+            role="planner",
         )
 
     ensure_agent_model_ready()

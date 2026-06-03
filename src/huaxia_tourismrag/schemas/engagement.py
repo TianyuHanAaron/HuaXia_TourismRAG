@@ -46,7 +46,7 @@ class EngagementFeed(BaseModel):
     """Public feed persisted on a long-running travel job."""
 
     status: EngagementFeedStatus = "loading"
-    batches: list[EngagementBatch] = Field(default_factory=list, max_length=3)
+    batches: list[EngagementBatch] = Field(default_factory=list, max_length=4)
     message: str | None = Field(default=None, max_length=240)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

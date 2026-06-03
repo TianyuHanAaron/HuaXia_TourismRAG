@@ -580,7 +580,7 @@ def test_route_leg_label_explains_unknown_map_result():
             "recommended_mode": "driving",
             "feasibility_level": "unknown",
         },
-        provider="baidu_maps",
+        provider="firecrawl",
     )
 
     assert "未返回可用车程" in label

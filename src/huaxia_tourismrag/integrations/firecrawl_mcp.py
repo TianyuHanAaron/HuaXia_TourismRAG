@@ -26,7 +26,6 @@ OFFICIAL_DOMAIN_HINTS = (
 COMMERCIAL_DOMAIN_HINTS = (
     "ctrip",
     "trip.com",
-    "tuniu",
     "fliggy",
     "meituan",
     "dianping",

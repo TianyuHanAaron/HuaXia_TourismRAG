@@ -22,6 +22,7 @@ CheckpointReason = Literal[
     "answered_feasibility_checkpoint",
     "typed_short_single_destination",
     "complete_form_preferences",
+    "checkpoint_reply_limit_reached",
 ]
 
 
@@ -247,6 +248,8 @@ class CheckpointContext(BaseModel):
         "feasibility_accept_adjustment",
         "feasibility_keep_original",
     ] | None = None
+
+    checkpoint_reply_count: int = Field(default=0, ge=0, le=20)
 
 
 class CheckpointPolicyDecision(BaseModel):

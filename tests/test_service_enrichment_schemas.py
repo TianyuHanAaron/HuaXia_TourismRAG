@@ -14,7 +14,7 @@ from huaxia_tourismrag.schemas.service_enrichment import (
 
 def test_route_feasibility_report_is_strictly_typed():
     report = RouteFeasibilityReport(
-        provider="baidu_maps",
+        provider="firecrawl",
         route_summary="北京到涿州适合短途高铁或自驾接驳。",
         legs=[
             RouteLegCheck(
@@ -31,7 +31,7 @@ def test_route_feasibility_report_is_strictly_typed():
     )
 
     assert report.legs[0].feasibility_level == "easy"
-    assert report.provider == "baidu_maps"
+    assert report.provider == "firecrawl"
 
 
 def test_route_feasibility_report_rejects_removed_legacy_map_provider():
@@ -47,10 +47,23 @@ def test_route_feasibility_report_rejects_removed_legacy_map_provider():
         raise AssertionError("RouteFeasibilityReport accepted removed map provider")
 
 
+def test_route_feasibility_report_rejects_removed_legacy_mcp_provider():
+    removed_provider = "bai" + "du_maps"
+    try:
+        RouteFeasibilityReport(
+            provider=removed_provider,
+            route_summary="Removed provider should no longer be available.",
+        )
+    except ValidationError as exc:
+        assert "provider" in str(exc)
+    else:
+        raise AssertionError("RouteFeasibilityReport accepted removed provider")
+
+
 def test_weather_impact_rejects_unknown_severity():
     try:
         WeatherImpact(
-            provider="baidu_maps",
+            provider="firecrawl",
             city="成都",
             condition="小雨",
             impact_level="extreme",
@@ -64,7 +77,7 @@ def test_weather_impact_rejects_unknown_severity():
 
 def test_booking_product_and_action_are_typed():
     product = BookingProduct(
-        provider="tuniu",
+        provider="firecrawl",
         product_type="hotel",
         title="成都武侯祠周边高品质酒店",
         city="成都",
@@ -73,11 +86,11 @@ def test_booking_product_and_action_are_typed():
         availability_status="available",
     )
     action = BookingAction(
-        provider="tuniu",
+        provider="firecrawl",
         action_type="open_booking_link",
         label="查看酒店实时价格",
         url="https://example.com/hotel",
-        safety_note="价格、库存和取消政策以途牛实时页面为准。",
+        safety_note="价格、库存和取消政策以实时页面为准。",
     )
     context = ServiceEnrichmentContext(
         route_feasibility=None,

@@ -14,11 +14,13 @@ from huaxia_tourismrag.agents.travel_checkpoints import (
 )
 from huaxia_tourismrag.schemas.diy_itinerary import DIYItineraryPlan
 from huaxia_tourismrag.schemas.evidence import (
+    CitationPack,
     TravelAnswer,
     TravelChunk,
     TravelFormRequest,
     TravelQuestion,
     TravelSearchHit,
+    TravelTopicSection,
 )
 from huaxia_tourismrag.schemas.research import (
     ResearchEntity,
@@ -49,11 +51,15 @@ from huaxia_tourismrag.services.performance import (
 )
 from huaxia_tourismrag.services.planning_cache import PlanningCache
 from huaxia_tourismrag.services.prompt_compaction import FinalPromptCompactor
+from huaxia_tourismrag.services.progressive_topic_sections import (
+    build_progressive_topic_section,
+)
 from huaxia_tourismrag.services.retrieval_cache import RetrievalCache
 from huaxia_tourismrag.services.service_enrichment import TravelServiceEnrichmentService
 from huaxia_tourismrag.services.session_store import TravelSessionStore
 from huaxia_tourismrag.services.topic_evidence_selector import (
     TopicEvidenceSelector,
+    TopicEvidenceBundle,
     format_topic_evidence_context,
 )
 from huaxia_tourismrag.services.topic_section_generation import (
@@ -109,6 +115,8 @@ INTERNAL_RAG_UNAVAILABLE_WARNING = (
 )
 logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str, int], Awaitable[None]]
+PartialAnswerCallback = Callable[[TravelAnswer], Awaitable[None]]
+TopicSectionCallback = Callable[[TravelTopicSection], Awaitable[None]]
 
 
 class DIYItineraryService:
@@ -133,6 +141,7 @@ class DIYItineraryService:
         enable_prompt_compaction: bool = True,
         final_context_quote_caps: dict[str, int] | None = None,
         topic_section_mode: TopicSectionMode = "inline",
+        topic_section_concurrency: int = 2,
     ) -> None:
         self.deps = deps
         self.merger = merger
@@ -158,6 +167,7 @@ class DIYItineraryService:
             "deep": 16,
         }
         self.topic_section_mode = topic_section_mode
+        self.topic_section_concurrency = max(1, topic_section_concurrency)
         self.relevance_filter = EvidenceRelevanceFilter()
         self.citation_guard = CitationGuard()
         self.topic_evidence_selector = TopicEvidenceSelector()
@@ -169,6 +179,8 @@ class DIYItineraryService:
         question: TravelQuestion,
         progress_callback: ProgressCallback | None = None,
         form_request: TravelFormRequest | None = None,
+        partial_answer_callback: PartialAnswerCallback | None = None,
+        topic_section_callback: TopicSectionCallback | None = None,
     ) -> TravelAnswer:
         timer = InferenceTimer()
         budget = infer_retrieval_budget(question, request_mode="diy")
@@ -439,9 +451,12 @@ class DIYItineraryService:
         topic_decision = decide_topic_section_generation(
             mode=self.topic_section_mode,
             detail_level=detail_level,
+            deferred_worker_available=(
+                partial_answer_callback is not None or topic_section_callback is not None
+            ),
         )
         with timer.stage("topic_evidence") as stage_metadata:
-            if topic_decision.generate_inline:
+            if topic_decision.generate_inline or topic_decision.deferred:
                 topic_bundles = self.topic_evidence_selector.select(
                     question=question,
                     pack=pack,
@@ -459,10 +474,11 @@ class DIYItineraryService:
             stage_metadata["inline_fallback"] = topic_decision.inline_fallback
 
         with timer.stage("prompt_compaction") as stage_metadata:
+            inline_topic_bundles = topic_bundles if topic_decision.generate_inline else []
             if self.enable_prompt_compaction:
                 compacted_context = FinalPromptCompactor(
                     max_quotes=self._final_context_quote_cap(detail_level),
-                ).compact(pack, topic_bundles)
+                ).compact(pack, inline_topic_bundles)
                 citation_context = compacted_context.context_text
                 stage_metadata["enabled"] = True
                 stage_metadata["included_citations"] = len(
@@ -472,7 +488,9 @@ class DIYItineraryService:
                     compacted_context.omitted_citation_ids
                 )
             else:
-                topic_evidence_context = format_topic_evidence_context(topic_bundles)
+                topic_evidence_context = format_topic_evidence_context(
+                    inline_topic_bundles
+                )
                 citation_context = f"{pack.context_text}\n\n{topic_evidence_context}"
                 stage_metadata["enabled"] = False
 
@@ -528,10 +546,61 @@ class DIYItineraryService:
         answer.performance = timer.trace
         if internal_rag_warning and internal_rag_warning not in answer.warnings:
             answer.warnings.append(internal_rag_warning)
+        if partial_answer_callback is not None:
+            await partial_answer_callback(answer)
+        if topic_decision.deferred and topic_bundles:
+            with timer.stage("deferred_topic_sections") as stage_metadata:
+                answer, section_count = await self._append_deferred_topic_sections(
+                    answer=answer,
+                    topic_bundles=topic_bundles,
+                    pack=pack,
+                    callback=topic_section_callback,
+                )
+                stage_metadata["sections"] = section_count
         if self.answer_cache and answer_cache_key:
             with timer.stage("answer_cache_store"):
                 await self.answer_cache.set_answer(answer_cache_key, answer)
         return answer
+
+    async def _append_deferred_topic_sections(
+        self,
+        *,
+        answer: TravelAnswer,
+        topic_bundles: list[TopicEvidenceBundle],
+        pack: CitationPack,
+        callback: TopicSectionCallback | None,
+    ) -> tuple[TravelAnswer, int]:
+        current = answer
+        emitted = 0
+        semaphore = asyncio.Semaphore(self.topic_section_concurrency)
+
+        async def build_one(bundle: TopicEvidenceBundle) -> TravelTopicSection | None:
+            async with semaphore:
+                return build_progressive_topic_section(bundle)
+
+        built_sections = await asyncio.gather(
+            *(build_one(bundle) for bundle in topic_bundles)
+        )
+        for section in built_sections:
+            if section is None:
+                continue
+            candidate = current.model_copy(
+                update={"topic_sections": [*current.topic_sections, section]},
+                deep=True,
+            )
+            quality_result = self.topic_quality_guard.validate(candidate, pack)
+            guarded = self.citation_guard.validate_and_normalize(
+                quality_result.answer,
+                pack,
+            ).answer
+            if len(guarded.topic_sections) <= len(current.topic_sections):
+                continue
+            current = guarded
+            emitted_section = current.topic_sections[-1]
+            emitted += 1
+            if callback is not None:
+                await callback(emitted_section)
+        return current, emitted
 
     async def _read_pages(
         self,
@@ -632,6 +701,9 @@ class DIYItineraryService:
         pending_kind: str = "preference",
         pending_question: str | None = None,
     ) -> TravelAnswer:
+        answer.reply_pending_kind = pending_kind
+        answer.reply_pending_reason = pending_reason
+        answer.reply_pending_question = pending_question
         if self.session_store is None:
             return clear_unbacked_reply_state(answer)
         if not self.create_pending_sessions:

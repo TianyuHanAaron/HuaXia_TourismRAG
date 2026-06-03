@@ -11,6 +11,7 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelFormRequest,
     TravelQuestion,
+    TravelTopicSection,
 )
 from huaxia_tourismrag.schemas.jobs import TravelJob, TravelJobKind
 
@@ -69,6 +70,22 @@ class TravelJobStore(Protocol):
         feed: EngagementFeed,
     ) -> TravelJob:
         """Persist waiting-room engagement feed metadata."""
+
+    async def update_partial_answer(
+        self,
+        job_id: str,
+        tenant_id: str,
+        answer: TravelAnswer,
+    ) -> TravelJob:
+        """Persist a renderable core answer before the job fully completes."""
+
+    async def append_topic_section(
+        self,
+        job_id: str,
+        tenant_id: str,
+        section: TravelTopicSection,
+    ) -> TravelJob:
+        """Append one progressively generated topic section."""
 
 
 class InMemoryTravelJobStore:
@@ -159,6 +176,41 @@ class InMemoryTravelJobStore:
     ) -> TravelJob:
         job = await self.get(job_id, tenant_id)
         job.engagement_feed = feed
+        job.updated_at = datetime.now(UTC)
+        self._jobs[job.job_id] = job
+        return job
+
+    async def update_partial_answer(
+        self,
+        job_id: str,
+        tenant_id: str,
+        answer: TravelAnswer,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        job.partial_answer = answer
+        job.updated_at = datetime.now(UTC)
+        self._jobs[job.job_id] = job
+        return job
+
+    async def append_topic_section(
+        self,
+        job_id: str,
+        tenant_id: str,
+        section: TravelTopicSection,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        sections = [
+            existing
+            for existing in job.partial_topic_sections
+            if existing.category != section.category
+        ]
+        sections.append(section)
+        job.partial_topic_sections = sections
+        if job.partial_answer is not None:
+            job.partial_answer = job.partial_answer.model_copy(
+                update={"topic_sections": sections},
+                deep=True,
+            )
         job.updated_at = datetime.now(UTC)
         self._jobs[job.job_id] = job
         return job
@@ -257,6 +309,41 @@ class RedisTravelJobStore:
     ) -> TravelJob:
         job = await self.get(job_id, tenant_id)
         job.engagement_feed = feed
+        job.updated_at = datetime.now(UTC)
+        await self._save(job)
+        return job
+
+    async def update_partial_answer(
+        self,
+        job_id: str,
+        tenant_id: str,
+        answer: TravelAnswer,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        job.partial_answer = answer
+        job.updated_at = datetime.now(UTC)
+        await self._save(job)
+        return job
+
+    async def append_topic_section(
+        self,
+        job_id: str,
+        tenant_id: str,
+        section: TravelTopicSection,
+    ) -> TravelJob:
+        job = await self.get(job_id, tenant_id)
+        sections = [
+            existing
+            for existing in job.partial_topic_sections
+            if existing.category != section.category
+        ]
+        sections.append(section)
+        job.partial_topic_sections = sections
+        if job.partial_answer is not None:
+            job.partial_answer = job.partial_answer.model_copy(
+                update={"topic_sections": sections},
+                deep=True,
+            )
         job.updated_at = datetime.now(UTC)
         await self._save(job)
         return job

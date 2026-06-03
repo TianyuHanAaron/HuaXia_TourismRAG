@@ -6,6 +6,7 @@ from huaxia_tourismrag.agents.tourism_agent import TourismDeps
 from huaxia_tourismrag.schemas.evidence import (
     CitationPack,
     EvidenceQuote,
+    TravelTopicSection,
     TravelAnswer,
     TravelChunk,
     TravelFormRequest,
@@ -1633,6 +1634,157 @@ async def test_answer_normalizes_fabricated_llm_citation_lines(monkeypatch):
         "回答改写了 [1] 的来源行，已恢复为检索器允许的原始来源。"
     )
     assert guard_stage.metadata["returned_citations"] == 1
+
+
+@pytest.mark.asyncio
+async def test_deep_answer_streams_core_before_deferred_topic_sections(monkeypatch):
+    async def fake_create_research_plan(
+        question: TravelQuestion,
+        preference_profile: PreferenceProfile | None = None,
+        intent_decision: IntentDecision | None = None,
+    ) -> TravelResearchPlan:
+        return TravelResearchPlan(
+            original_question=question.question,
+            destination="成都",
+            trip_days=3,
+            tasks=[
+                TravelResearchTask(
+                    task_type="route",
+                    query="成都 三日游 路线",
+                    reason="规划路线。",
+                ),
+                TravelResearchTask(
+                    task_type="food",
+                    query="成都 本地美食 小吃",
+                    reason="补充餐饮。",
+                ),
+                TravelResearchTask(
+                    task_type="risk",
+                    query="成都 三日游 注意事项",
+                    reason="补充提醒。",
+                ),
+            ],
+        )
+
+    async def fake_generate_answer_with_context(
+        question: str,
+        citation_context: str,
+        citation_lines: list[str],
+        deps: TourismDeps,
+        research_plan: TravelResearchPlan | None = None,
+        diy_plan=None,
+        preference_profile: PreferenceProfile | None = None,
+        feasibility_report: FeasibilityReport | None = None,
+        detail_level: str = "standard",
+        service_enrichment: ServiceEnrichmentContext | None = None,
+        topic_section_mode: str | None = None,
+    ) -> TravelAnswer:
+        assert topic_section_mode == "async_for_deep"
+        return TravelAnswer(
+            answer="成都核心行程先返回。[1]",
+            highlights=[],
+            warnings=[],
+            citations=citation_lines,
+        )
+
+    class TopicCitationFormatter:
+        def build(self, chunks: list[TravelChunk]) -> CitationPack:
+            return CitationPack(
+                context_text="[1] 成都路线证据。\n[2] 成都本地小吃证据。",
+                citations=[
+                    "[1] 成都路线 - 测试来源 - https://example.cn/route",
+                    "[2] 成都小吃 - 测试来源 - https://example.cn/food",
+                ],
+                evidence_quotes=[
+                    EvidenceQuote(
+                        citation_id=1,
+                        chunk_id="web:route",
+                        source_type="web",
+                        content_type="travel_guide",
+                        title="成都路线",
+                        source_name="测试来源",
+                        source_ref="https://example.cn/route",
+                        quote="成都三日路线建议保留宽窄巷子和武侯祠。",
+                        url="https://example.cn/route",
+                    ),
+                    EvidenceQuote(
+                        citation_id=2,
+                        chunk_id="web:food",
+                        source_type="web",
+                        content_type="local_cuisine",
+                        title="成都小吃",
+                        source_name="测试来源",
+                        source_ref="https://example.cn/food",
+                        quote="成都本地小吃可体验钟水饺、龙抄手和甜水面。",
+                        url="https://example.cn/food",
+                    ),
+                ],
+            )
+
+    monkeypatch.setattr(
+        qa_service_module,
+        "create_research_plan",
+        fake_create_research_plan,
+    )
+    monkeypatch.setattr(
+        qa_service_module,
+        "generate_answer_with_context",
+        fake_generate_answer_with_context,
+    )
+
+    events: list[tuple[str, object]] = []
+
+    async def partial_callback(answer: TravelAnswer) -> None:
+        events.append(("partial", answer.model_copy(deep=True)))
+
+    async def topic_callback(section: TravelTopicSection) -> None:
+        events.append(("topic", section.model_copy(deep=True)))
+
+    service = TourismQAService(
+        deps=TourismDeps(
+            tenant_id="demo-tenant",
+            internal_rag=FakeInternalRAG(),
+            web_search=FakeWebSearch(),
+            webpage_reader=FakeWebpageReader(),
+            reranker=FakeReranker(),
+            citations=TopicCitationFormatter(),
+        ),
+        merger=TravelChunkMergeService(),
+        max_pages_to_read=0,
+        top_k=4,
+        topic_section_mode="async_for_deep",
+    )
+
+    final_answer = await service.answer(
+        TravelQuestion(
+            question="成都三天深度游。",
+            destination="成都",
+            detail_level="deep",
+        ),
+        partial_answer_callback=partial_callback,
+        topic_section_callback=topic_callback,
+    )
+
+    assert events[0][0] == "partial"
+    assert all(event_type == "topic" for event_type, _ in events[1:])
+    partial_answer = events[0][1]
+    assert isinstance(partial_answer, TravelAnswer)
+    assert partial_answer.topic_sections == []
+    streamed_section = next(
+        section
+        for event_type, section in events[1:]
+        if event_type == "topic"
+        and isinstance(section, TravelTopicSection)
+        and section.category == "food"
+    )
+    assert isinstance(streamed_section, TravelTopicSection)
+    assert streamed_section.category == "food"
+    assert streamed_section.items[0].citations == [2]
+    assert any(section.category == "food" for section in final_answer.topic_sections)
+    assert final_answer.citations == [
+        "[1] 成都路线 - 测试来源 - https://example.cn/route",
+        "[2] 成都小吃 - 测试来源 - https://example.cn/food",
+    ]
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,6 @@
+import asyncio
+import time
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -5,7 +8,11 @@ from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.api import routes
 from huaxia_tourismrag.api.routes import router
 from huaxia_tourismrag.schemas.engagement import EngagementFeed
-from huaxia_tourismrag.schemas.evidence import TravelAnswer, TravelQuestion
+from huaxia_tourismrag.schemas.evidence import (
+    TravelAnswer,
+    TravelQuestion,
+    TravelTopicSection,
+)
 from huaxia_tourismrag.schemas.jobs import TravelJobQueueItem
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.job_store import InMemoryTravelJobStore
@@ -23,8 +30,27 @@ class FakeTourismQAService:
         question: TravelQuestion,
         progress_callback=None,
         form_request=None,
+        partial_answer_callback=None,
+        topic_section_callback=None,
     ) -> TravelAnswer:
         self.questions.append(question)
+        if partial_answer_callback is not None:
+            await partial_answer_callback(
+                TravelAnswer(
+                    answer=f"partial {self.tenant_id}: {question.question}",
+                    highlights=[],
+                    warnings=[],
+                    citations=[],
+                )
+            )
+        if topic_section_callback is not None:
+            await topic_section_callback(
+                TravelTopicSection(
+                    category="food",
+                    title="美食",
+                    summary="测试美食专题。[1]",
+                )
+            )
         return TravelAnswer(
             answer=f"{self.tenant_id}: {question.question}",
             highlights=[],
@@ -44,13 +70,51 @@ class FakeDIYItineraryService:
         question: TravelQuestion,
         progress_callback=None,
         form_request=None,
+        partial_answer_callback=None,
+        topic_section_callback=None,
     ) -> TravelAnswer:
         self.questions.append(question)
+        if partial_answer_callback is not None:
+            await partial_answer_callback(
+                TravelAnswer(
+                    answer=f"partial diy {self.tenant_id}: {question.question}",
+                    highlights=[],
+                    warnings=[],
+                    citations=[],
+                )
+            )
+        if topic_section_callback is not None:
+            await topic_section_callback(
+                TravelTopicSection(
+                    category="food",
+                    title="美食",
+                    summary="测试 DIY 美食专题。[1]",
+                )
+            )
         return TravelAnswer(
             answer=f"diy {self.tenant_id}: {question.question}",
             highlights=[],
             warnings=[],
             citations=[],
+        )
+
+
+class SlowFakeTourismQAService(FakeTourismQAService):
+    async def answer(
+        self,
+        question: TravelQuestion,
+        progress_callback=None,
+        form_request=None,
+        partial_answer_callback=None,
+        topic_section_callback=None,
+    ) -> TravelAnswer:
+        await asyncio.sleep(0.2)
+        return await super().answer(
+            question,
+            progress_callback=progress_callback,
+            form_request=form_request,
+            partial_answer_callback=partial_answer_callback,
+            topic_section_callback=topic_section_callback,
         )
 
 
@@ -87,7 +151,26 @@ class FakeSessionReplyService:
         question: TravelQuestion,
         kind: str,
         progress_callback=None,
+        partial_answer_callback=None,
+        topic_section_callback=None,
     ) -> TravelAnswer:
+        if partial_answer_callback is not None:
+            await partial_answer_callback(
+                TravelAnswer(
+                    answer=f"partial {self.tenant_id}: {question.question}",
+                    highlights=[],
+                    warnings=[],
+                    citations=[],
+                )
+            )
+        if topic_section_callback is not None:
+            await topic_section_callback(
+                TravelTopicSection(
+                    category="food",
+                    title="美食",
+                    summary="测试回复美食专题。[1]",
+                )
+            )
         return TravelAnswer(
             answer=f"{self.tenant_id}: {question.question}",
             highlights=[],
@@ -118,8 +201,8 @@ class FakeTravelJobQueue:
 class FakeEngagementFeedService:
     calls: list[tuple[str, str]] = []
 
-    def initial_feed(self) -> EngagementFeed:
-        return EngagementFeed(status="loading")
+    def initial_feed(self, **kwargs) -> EngagementFeed:
+        return EngagementFeed(status="partial")
 
     async def start_for_job(
         self,
@@ -183,6 +266,56 @@ def make_misconfigured_client() -> TestClient:
     app.state.session_reply_service_factory = FakeSessionReplyService
     app.include_router(router)
     return TestClient(app)
+
+
+def run_async(coro):
+    return asyncio.run(coro)
+
+
+def first_sse_event(client: TestClient, job_id: str) -> str:
+    with client.stream("GET", f"/tourism/jobs/{job_id}/events?once=true") as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        lines: list[str] = []
+        for line in response.iter_lines():
+            if line == "":
+                break
+            lines.append(line)
+        return "\n".join(lines)
+
+
+def wait_for_job_status(
+    client: TestClient,
+    job_id: str,
+    expected_status: str = "completed",
+    timeout_seconds: float = 2.0,
+):
+    deadline = time.perf_counter() + timeout_seconds
+    last_response = None
+    while time.perf_counter() < deadline:
+        response = client.get(f"/tourism/jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        last_response = response
+        if body["status"] == expected_status:
+            return response
+        time.sleep(0.02)
+    assert last_response is not None
+    assert last_response.json()["status"] == expected_status
+    return last_response
+
+
+def sse_event_names(client: TestClient, job_id: str) -> list[str]:
+    names: list[str] = []
+    with client.stream("GET", f"/tourism/jobs/{job_id}/events") as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        for line in response.iter_lines():
+            if line.startswith("event: "):
+                names.append(line.removeprefix("event: "))
+            if line == "" and names and names[-1] in {"completed", "failed"}:
+                break
+    return names
 
 
 def test_tourism_ask_route_returns_answer_from_configured_service_factory():
@@ -334,7 +467,7 @@ def test_general_job_initializes_engagement_feed_sidecar():
     job_id = response.json()["job_id"]
     job = client.app.state.travel_job_store._jobs[job_id]
     assert job.engagement_feed is not None
-    assert job.engagement_feed.status == "loading"
+    assert job.engagement_feed.status == "partial"
 
 
 def test_sync_question_route_does_not_start_engagement_feed_sidecar():
@@ -368,8 +501,9 @@ def test_diy_itinerary_job_route_queues_and_completes_job():
 
     assert status.status_code == 200
     body = status.json()
-    assert body["status"] == "completed"
-    assert body["answer"]["answer"].startswith("diy demo-tenant:")
+    assert body["status"] in {"queued", "running", "completed"}
+    if body["status"] == "completed":
+        assert body["answer"]["answer"].startswith("diy demo-tenant:")
 
 
 def test_diy_itinerary_job_route_can_enqueue_for_external_worker():
@@ -412,8 +546,9 @@ def test_general_question_job_route_queues_and_completes_job():
 
     assert status.status_code == 200
     body = status.json()
-    assert body["status"] == "completed"
-    assert body["answer"]["answer"].startswith("demo-tenant:")
+    assert body["status"] in {"queued", "running", "completed"}
+    if body["status"] == "completed":
+        assert body["answer"]["answer"].startswith("demo-tenant:")
 
 
 def test_general_question_job_route_can_enqueue_for_external_worker():
@@ -434,6 +569,273 @@ def test_general_question_job_route_can_enqueue_for_external_worker():
     assert queue.items[0].job_id == body["job_id"]
     assert queue.items[0].tenant_id == "demo-tenant"
     assert queue.items[0].kind == "general_question"
+
+
+def test_background_general_question_job_stores_partial_answer_and_topic_sections():
+    client = make_client(configure_job_queue=False)
+    job = run_async(
+        client.app.state.travel_job_store.create(
+            "demo-tenant",
+            TravelQuestion(question="北京五日游", detail_level="deep"),
+            kind="general_question",
+        )
+    )
+    run_async(
+        routes._run_general_question_job(
+            job_id=job.job_id,
+            tenant_id="demo-tenant",
+            question=job.question,
+            service=FakeTourismQAService("demo-tenant"),
+            job_store=client.app.state.travel_job_store,
+        )
+    )
+    status = client.get(f"/tourism/jobs/{job.job_id}")
+
+    assert status.status_code == 200
+    body = status.json()
+    assert body["status"] == "completed"
+    assert body["partial_answer"]["answer"].startswith("partial demo-tenant:")
+    assert body["partial_topic_sections"][0]["title"] == "美食"
+
+
+def test_general_question_job_route_returns_before_slow_service_finishes():
+    client = make_client()
+    client.app.state.tourism_qa_service_factory = SlowFakeTourismQAService
+
+    started = time.perf_counter()
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 202
+    assert elapsed < 0.15
+    job_id = response.json()["job_id"]
+    status = client.get(f"/tourism/jobs/{job_id}")
+    assert status.status_code == 200
+    assert status.json()["status"] in {"queued", "running"}
+
+
+def test_job_events_stream_returns_text_event_stream_and_initial_status():
+    client = make_client(configure_job_queue=True)
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    job_id = response.json()["job_id"]
+
+    event = first_sse_event(client, job_id)
+
+    assert "event: job_status" in event
+    assert f'"job_id":"{job_id}"' in event
+    assert '"status":"queued"' in event
+    assert '"current_stage":"queued"' in event
+
+
+def test_job_events_stream_returns_404_for_unknown_job():
+    client = make_client()
+
+    response = client.get("/tourism/jobs/missing-job/events")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "job not found"
+
+
+def test_job_events_stream_emits_progress_snapshot():
+    client = make_client(configure_job_queue=True)
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    job_id = response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.update_progress(
+            job_id,
+            "demo-tenant",
+            "retrieving",
+            50,
+        )
+    )
+
+    event = first_sse_event(client, job_id)
+
+    assert "event: job_status" in event
+    assert '"current_stage":"retrieving"' in event
+    assert '"progress_percent":50' in event
+
+
+def test_job_events_stream_emits_engagement_feed_snapshot():
+    client = make_client(configure_job_queue=True)
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    job_id = response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.update_engagement_feed(
+            job_id,
+            "demo-tenant",
+            EngagementFeed(status="partial", message="cards ready"),
+        )
+    )
+
+    event = first_sse_event(client, job_id)
+
+    assert "event: engagement_feed" in event
+    assert '"engagement_feed":{"status":"partial","batches":[],"message":"cards ready"' in event
+
+
+def test_job_events_stream_emits_core_answer_snapshot():
+    client = make_client(configure_job_queue=True)
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    job_id = response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.update_partial_answer(
+            job_id,
+            "demo-tenant",
+            TravelAnswer(
+                answer="核心行程先返回",
+                highlights=[],
+                warnings=[],
+                citations=[],
+            ),
+        )
+    )
+
+    event = first_sse_event(client, job_id)
+
+    assert "event: core_answer" in event
+    assert '"partial_answer":{"answer":"核心行程先返回"' in event
+
+
+def test_job_events_stream_emits_topic_section_snapshot():
+    client = make_client(configure_job_queue=True)
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    job_id = response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.update_partial_answer(
+            job_id,
+            "demo-tenant",
+            TravelAnswer(
+                answer="核心行程先返回",
+                highlights=[],
+                warnings=[],
+                citations=[],
+            ),
+        )
+    )
+    run_async(
+        client.app.state.travel_job_store.append_topic_section(
+            job_id,
+            "demo-tenant",
+            TravelTopicSection(
+                category="food",
+                title="美食",
+                summary="太原午餐可安排面食。[1]",
+            ),
+        )
+    )
+
+    event = first_sse_event(client, job_id)
+
+    assert "event: topic_section" in event
+    assert '"partial_topic_sections":[{"category":"food","title":"美食"' in event
+
+
+def test_job_events_stream_emits_completed_and_failed_terminal_events():
+    client = make_client(configure_job_queue=True)
+    completed_response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    completed_job_id = completed_response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.complete(
+            completed_job_id,
+            "demo-tenant",
+            TravelAnswer(answer="完成", highlights=[], warnings=[], citations=[]),
+        )
+    )
+
+    completed_event = first_sse_event(client, completed_job_id)
+
+    assert "event: completed" in completed_event
+    assert '"status":"completed"' in completed_event
+    assert '"answer":{"answer":"完成"' in completed_event
+
+    failed_response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "上海五日游", "detail_level": "deep"},
+    )
+    failed_job_id = failed_response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.fail(
+            failed_job_id,
+            "demo-tenant",
+            "public failure",
+        )
+    )
+
+    failed_event = first_sse_event(client, failed_job_id)
+
+    assert "event: failed" in failed_event
+    assert '"status":"failed"' in failed_event
+    assert '"error":"public failure"' in failed_event
+
+
+def test_job_events_stream_flushes_partials_before_terminal_event():
+    client = make_client(configure_job_queue=True)
+    response = client.post(
+        "/tourism/jobs/questions",
+        json={"question": "北京五日游", "detail_level": "deep"},
+    )
+    job_id = response.json()["job_id"]
+    run_async(
+        client.app.state.travel_job_store.update_partial_answer(
+            job_id,
+            "demo-tenant",
+            TravelAnswer(
+                answer="核心行程先返回",
+                highlights=[],
+                warnings=[],
+                citations=[],
+            ),
+        )
+    )
+    run_async(
+        client.app.state.travel_job_store.append_topic_section(
+            job_id,
+            "demo-tenant",
+            TravelTopicSection(
+                category="food",
+                title="美食",
+                summary="北京午餐可安排老字号。[1]",
+            ),
+        )
+    )
+    run_async(
+        client.app.state.travel_job_store.complete(
+            job_id,
+            "demo-tenant",
+            TravelAnswer(
+                answer="完成",
+                highlights=[],
+                warnings=[],
+                citations=[],
+            ),
+        )
+    )
+
+    names = sse_event_names(client, job_id)
+
+    assert names == ["core_answer", "topic_section", "completed"]
 
 
 def test_diy_itinerary_job_status_returns_404_for_missing_job():
@@ -474,9 +876,12 @@ def test_session_reply_job_route_queues_and_completes_job():
 
     assert status.status_code == 200
     body = status.json()
-    assert body["status"] == "completed"
-    assert body["answer"]["answer"].startswith("demo-tenant:")
-    assert body["answer"]["session_id"] == "session-123"
+    assert body["status"] in {"queued", "running", "completed"}
+    job = client.app.state.travel_job_store._jobs[job_id]
+    assert job.session_id == "session-123"
+    if body["status"] == "completed":
+        assert body["answer"]["answer"].startswith("demo-tenant:")
+        assert body["answer"]["session_id"] == "session-123"
     assert FakeSessionReplyService.job_replies[0][0] == "session-123"
     assert FakeSessionReplyService.job_replies[0][1].message == "平衡旅行型，高铁+包车混合。"
 

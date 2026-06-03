@@ -12,7 +12,7 @@ import type { EngagementFeedStatus } from './engagementFeedStatus';
  */
 export interface EngagementFeed {
   status?: EngagementFeedStatus;
-  /** @maxItems 3 */
+  /** @maxItems 4 */
   batches?: EngagementBatch[];
   message?: string | null;
   updated_at?: string;

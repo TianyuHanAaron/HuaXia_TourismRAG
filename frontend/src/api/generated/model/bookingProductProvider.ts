@@ -9,8 +9,6 @@ export type BookingProductProvider = typeof BookingProductProvider[keyof typeof 
 
 
 export const BookingProductProvider = {
-  baidu_maps: 'baidu_maps',
-  tuniu: 'tuniu',
   firecrawl: 'firecrawl',
   tavily: 'tavily',
 } as const;

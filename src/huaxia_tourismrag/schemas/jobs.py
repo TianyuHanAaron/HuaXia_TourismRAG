@@ -10,6 +10,7 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
     TravelFormRequest,
     TravelQuestion,
+    TravelTopicSection,
 )
 from huaxia_tourismrag.schemas.performance import PerformanceTrace
 
@@ -28,6 +29,8 @@ class TravelJob(BaseModel):
     question: TravelQuestion
     form_request: TravelFormRequest | None = None
     session_id: str | None = None
+    partial_answer: TravelAnswer | None = None
+    partial_topic_sections: list[TravelTopicSection] = Field(default_factory=list)
     answer: TravelAnswer | None = None
     error: str | None = Field(default=None, max_length=1000)
     current_stage: str | None = Field(default="queued", max_length=80)
@@ -51,6 +54,8 @@ class TravelJobStatusResponse(BaseModel):
     job_id: str
     status: TravelJobStatus
     answer: TravelAnswer | None = None
+    partial_answer: TravelAnswer | None = None
+    partial_topic_sections: list[TravelTopicSection] = Field(default_factory=list)
     error: str | None = None
     current_stage: str | None = None
     progress_percent: int | None = None
@@ -65,6 +70,8 @@ class TravelJobStatusResponse(BaseModel):
             job_id=job.job_id,
             status=job.status,
             answer=job.answer,
+            partial_answer=job.partial_answer,
+            partial_topic_sections=job.partial_topic_sections,
             error=job.error,
             current_stage=job.current_stage,
             progress_percent=job.progress_percent,

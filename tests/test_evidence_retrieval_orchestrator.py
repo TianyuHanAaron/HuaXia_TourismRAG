@@ -1,3 +1,5 @@
+import asyncio
+import time
 from datetime import datetime, timezone
 
 import pytest
@@ -34,6 +36,12 @@ class FakeInternalRAG:
         }
 
 
+class SlowFakeInternalRAG(FakeInternalRAG):
+    async def retrieve_many(self, queries, tenant_id, limit):
+        await asyncio.sleep(0.05)
+        return await super().retrieve_many(queries, tenant_id, limit)
+
+
 class FakeWebSearch:
     def __init__(self) -> None:
         self.queries: list[str] = []
@@ -48,6 +56,12 @@ class FakeWebSearch:
                 source_name="fake",
             )
         ]
+
+
+class SlowFakeWebSearch(FakeWebSearch):
+    async def search_chinese_tourism(self, query, max_results, options=None):
+        await asyncio.sleep(0.05)
+        return await super().search_chinese_tourism(query, max_results, options)
 
 
 class FailingProviderWebSearch:
@@ -130,6 +144,38 @@ async def test_orchestrator_batches_internal_rag_and_respects_page_budget():
     assert len(result.internal_chunks) == 2
     assert len(result.web_chunks) == 1
     assert result.internal_rag_warning is None
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_overlaps_internal_rag_and_web_search():
+    tasks = [
+        TravelResearchTask(task_type="route", query="北京路线安排", reason="route"),
+    ]
+    orchestrator = EvidenceRetrievalOrchestrator(
+        task_concurrency=1,
+        web_search_concurrency=1,
+        page_read_concurrency=1,
+    )
+
+    started_at = time.perf_counter()
+    result = await orchestrator.retrieve(
+        tasks=tasks,
+        tenant_id="tenant-a",
+        budget=RetrievalBudget(
+            max_tasks=1,
+            max_pages_to_read=1,
+            max_search_results_per_task=1,
+            internal_rag_limit=1,
+        ),
+        internal_rag=SlowFakeInternalRAG(),
+        web_search=SlowFakeWebSearch(),
+        webpage_reader=FakeReader(),
+    )
+    elapsed = time.perf_counter() - started_at
+
+    assert len(result.internal_chunks) == 1
+    assert len(result.web_chunks) == 1
+    assert elapsed < 0.09
 
 
 @pytest.mark.asyncio

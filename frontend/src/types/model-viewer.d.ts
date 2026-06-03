@@ -11,6 +11,12 @@ declare module 'react/jsx-runtime' {
         'interaction-prompt'?: string;
         'auto-rotate'?: boolean;
         'rotation-per-second'?: string;
+        'camera-orbit'?: string;
+        'camera-target'?: string;
+        'field-of-view'?: string;
+        'min-camera-orbit'?: string;
+        'max-camera-orbit'?: string;
+        'disable-zoom'?: boolean;
         exposure?: string;
         loading?: string;
         reveal?: string;

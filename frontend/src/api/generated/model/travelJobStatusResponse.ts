@@ -8,6 +8,7 @@ import type { EngagementFeed } from './engagementFeed';
 import type { PerformanceTrace } from './performanceTrace';
 import type { TravelAnswer } from './travelAnswer';
 import type { TravelJobStatusResponseStatus } from './travelJobStatusResponseStatus';
+import type { TravelTopicSection } from './travelTopicSection';
 
 /**
  * Public status response for a long-running job.
@@ -16,6 +17,8 @@ export interface TravelJobStatusResponse {
   job_id: string;
   status: TravelJobStatusResponseStatus;
   answer?: TravelAnswer | null;
+  partial_answer?: TravelAnswer | null;
+  partial_topic_sections?: TravelTopicSection[];
   error?: string | null;
   current_stage?: string | null;
   progress_percent?: number | null;

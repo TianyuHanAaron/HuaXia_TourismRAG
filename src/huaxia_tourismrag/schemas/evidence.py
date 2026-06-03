@@ -128,6 +128,8 @@ class TravelQuestion(BaseModel):
         exclude=True,
     )
 
+    checkpoint_reply_count: int = Field(default=0, ge=0, le=20, exclude=True)
+
     @model_validator(mode="after")
     def validate_date_range(self) -> "TravelQuestion":
         """Ensure travel dates are in chronological order."""
@@ -656,3 +658,17 @@ class TravelAnswer(BaseModel):
     session_id: str | None = None
 
     needs_reply: bool = False
+
+    reply_pending_kind: Literal[
+        "preference",
+        "feasibility",
+        "detail_level",
+    ] | None = Field(default=None, exclude=True)
+
+    reply_pending_reason: str | None = Field(default=None, max_length=500, exclude=True)
+
+    reply_pending_question: str | None = Field(
+        default=None,
+        max_length=1000,
+        exclude=True,
+    )

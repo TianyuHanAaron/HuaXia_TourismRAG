@@ -390,6 +390,57 @@
         }
       }
     },
+    "/tourism/jobs/{job_id}/events": {
+      "get": {
+        "tags": [
+          "tourism-rag"
+        ],
+        "summary": "Stream Travel Job Events",
+        "description": "Stream travel job progress snapshots through Server-Sent Events.",
+        "operationId": "stream_travel_job_events_tourism_jobs__job_id__events_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "once",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Once"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tourism/sessions/{session_id}/reply": {
       "post": {
         "tags": [
@@ -823,8 +874,6 @@
           "provider": {
             "type": "string",
             "enum": [
-              "baidu_maps",
-              "tuniu",
               "firecrawl",
               "tavily"
             ],
@@ -881,8 +930,6 @@
           "provider": {
             "type": "string",
             "enum": [
-              "baidu_maps",
-              "tuniu",
               "firecrawl",
               "tavily"
             ],
@@ -1019,7 +1066,7 @@
           "title"
         ],
         "title": "BookingProduct",
-        "description": "One commercial travel product candidate returned by Tuniu."
+        "description": "One commercial travel product candidate returned by a typed provider."
       },
       "DailyPlan": {
         "properties": {
@@ -1185,7 +1232,7 @@
               "$ref": "#/components/schemas/EngagementBatch"
             },
             "type": "array",
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Batches"
           },
           "message": {
@@ -1215,8 +1262,6 @@
           "provider": {
             "type": "string",
             "enum": [
-              "baidu_maps",
-              "tuniu",
               "firecrawl",
               "tavily"
             ],
@@ -1412,8 +1457,6 @@
           "provider": {
             "type": "string",
             "enum": [
-              "baidu_maps",
-              "tuniu",
               "firecrawl",
               "tavily"
             ],
@@ -1731,8 +1774,6 @@
           "provider": {
             "type": "string",
             "enum": [
-              "baidu_maps",
-              "tuniu",
               "firecrawl",
               "tavily"
             ],
@@ -2471,6 +2512,23 @@
               }
             ]
           },
+          "partial_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "partial_topic_sections": {
+            "items": {
+              "$ref": "#/components/schemas/TravelTopicSection"
+            },
+            "type": "array",
+            "title": "Partial Topic Sections"
+          },
           "error": {
             "anyOf": [
               {
@@ -2688,6 +2746,13 @@
               }
             ],
             "title": "Continuation Quick Reply Action Id"
+          },
+          "checkpoint_reply_count": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Checkpoint Reply Count",
+            "default": 0
           }
         },
         "type": "object",
@@ -2834,8 +2899,6 @@
           "provider": {
             "type": "string",
             "enum": [
-              "baidu_maps",
-              "tuniu",
               "firecrawl",
               "tavily"
             ],
@@ -2909,7 +2972,7 @@
           "recommendation"
         ],
         "title": "WeatherImpact",
-        "description": "Weather impact for a city/day from a provider such as Baidu Maps."
+        "description": "Weather impact for a city/day from a typed service provider."
       }
     }
   }

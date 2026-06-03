@@ -57,6 +57,7 @@ class RemoteHttpEmbedder:
         timeout_seconds: float = 120.0,
         max_retries: int = 1,
         retry_delay_seconds: float = 0.5,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
         self.api_url = api_url.rstrip("/")
         self.api_key = api_key
@@ -64,6 +65,7 @@ class RemoteHttpEmbedder:
         self.timeout_seconds = timeout_seconds
         self.max_retries = max(1, max_retries)
         self.retry_delay_seconds = max(0.0, retry_delay_seconds)
+        self.client = client
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -139,6 +141,31 @@ class RemoteHttpEmbedder:
         )
         endpoints = self._endpoint_candidates()
         last_error: httpx.HTTPError | None = None
+        if self.client is not None:
+            for endpoint in endpoints:
+                for payload in payloads:
+                    for attempt in range(self.max_retries):
+                        try:
+                            response = await self.client.post(
+                                endpoint,
+                                headers=headers,
+                                json=payload,
+                            )
+                            if response.status_code in {400, 404, 405, 422}:
+                                break
+                            response.raise_for_status()
+                            return response.json()
+                        except httpx.HTTPError as exc:
+                            last_error = exc
+                            if attempt < self.max_retries - 1:
+                                await asyncio.sleep(self.retry_delay_seconds)
+                                continue
+                            break
+
+            if last_error:
+                raise last_error
+            raise ValueError("Embedding endpoint did not return a supported response.")
+
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             for endpoint in endpoints:
                 for payload in payloads:
@@ -211,6 +238,7 @@ class QwenCloudEmbedder:
         timeout_seconds: float = 120.0,
         max_retries: int = 1,
         retry_delay_seconds: float = 0.5,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -219,6 +247,7 @@ class QwenCloudEmbedder:
         self.timeout_seconds = timeout_seconds
         self.max_retries = max(1, max_retries)
         self.retry_delay_seconds = max(0.0, retry_delay_seconds)
+        self.client = client
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -290,6 +319,27 @@ class QwenCloudEmbedder:
             "input": texts,
         }
         last_error: httpx.HTTPError | None = None
+        if self.client is not None:
+            for attempt in range(self.max_retries):
+                try:
+                    response = await self.client.post(
+                        endpoint,
+                        headers=headers,
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.HTTPError as exc:
+                    last_error = exc
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(self.retry_delay_seconds)
+                        continue
+                    break
+
+            if last_error:
+                raise last_error
+            raise ValueError("Qwen Cloud embedding endpoint did not return a response.")
+
         async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             for attempt in range(self.max_retries):
                 try:

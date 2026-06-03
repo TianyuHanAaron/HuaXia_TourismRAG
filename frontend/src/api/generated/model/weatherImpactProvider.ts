@@ -9,8 +9,6 @@ export type WeatherImpactProvider = typeof WeatherImpactProvider[keyof typeof We
 
 
 export const WeatherImpactProvider = {
-  baidu_maps: 'baidu_maps',
-  tuniu: 'tuniu',
   firecrawl: 'firecrawl',
   tavily: 'tavily',
 } as const;

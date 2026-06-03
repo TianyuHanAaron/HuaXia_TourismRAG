@@ -9,8 +9,6 @@ export type BookingActionProvider = typeof BookingActionProvider[keyof typeof Bo
 
 
 export const BookingActionProvider = {
-  baidu_maps: 'baidu_maps',
-  tuniu: 'tuniu',
   firecrawl: 'firecrawl',
   tavily: 'tavily',
 } as const;

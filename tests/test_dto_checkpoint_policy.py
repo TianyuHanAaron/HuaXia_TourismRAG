@@ -2,8 +2,10 @@ from datetime import date
 
 from huaxia_tourismrag.schemas.evidence import TravelQuestion
 from huaxia_tourismrag.services.travel_checkpoints import (
+    MAX_CHECKPOINT_REPLY_TURNS,
     build_checkpoint_context,
     evaluate_checkpoint_policy,
+    should_ask_detail_level,
 )
 
 
@@ -94,3 +96,36 @@ def test_answered_feasibility_checkpoint_is_not_asked_again() -> None:
     assert decision.synthesized_feasibility_report is not None
     assert decision.synthesized_feasibility_report.is_feasible is True
     assert "answered_feasibility_checkpoint" in decision.reasons
+
+
+def test_checkpoint_reply_limit_disables_all_remaining_checkpoints() -> None:
+    question = TravelQuestion(
+        question="用户已经完成多轮确认，后续应直接生成方案。",
+        checkpoint_reply_count=MAX_CHECKPOINT_REPLY_TURNS,
+    )
+
+    context = build_checkpoint_context(question, request_mode="general")
+    decision = evaluate_checkpoint_policy(context)
+
+    assert decision.run_intent_checkpoint is False
+    assert decision.run_preference_checkpoint is False
+    assert decision.run_feasibility_checkpoint is False
+    assert decision.synthesized_intent == "conventional_itinerary"
+    assert decision.synthesized_preference_profile is not None
+    assert decision.synthesized_feasibility_report is not None
+    assert "checkpoint_reply_limit_reached" in decision.reasons
+
+
+def test_checkpoint_reply_limit_skips_detail_level_prompt() -> None:
+    decision = should_ask_detail_level(
+        TravelQuestion(
+            question="三国主题路线，多个城市，想要深度规划。",
+            travelers=5,
+            checkpoint_reply_count=MAX_CHECKPOINT_REPLY_TURNS,
+        ),
+        request_mode="diy",
+    )
+
+    assert decision.should_ask is False
+    assert decision.profile is not None
+    assert decision.profile.detail_level == "standard"

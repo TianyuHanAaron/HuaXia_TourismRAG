@@ -1,11 +1,18 @@
 import '@google/model-viewer';
 import LanguageIcon from '@mui/icons-material/Language';
 import { Box, Button, Container, IconButton, Link, Stack, Typography } from '@mui/material';
-import { useGetTravelJobStatusTourismJobsJobIdGet } from './api/generated/huaxia';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  getGetTravelJobStatusTourismJobsJobIdGetQueryOptions,
+  useGetTravelJobStatusTourismJobsJobIdGet,
+} from './api/generated/huaxia';
+import type { TravelJobStatusResponse } from './api/generated/model';
+import { createJobEventSource } from './api/jobEvents';
 import { assetCredits, assetUrl, chooseSessionBackground, getAssetById } from './utils/assets';
 import { AnswerView } from './features/travel/AnswerView';
 import { CheckpointPanel } from './features/travel/CheckpointPanel';
 import { EngagementWaitingRoom } from './features/engagement/EngagementWaitingRoom';
+import { hasRotatingEngagementTopics } from './features/engagement/engagementReadiness';
 import { JobProgressPanel } from './features/travel/JobProgressPanel';
 import { SalesHandoffDialog } from './features/handoff/SalesHandoffDialog';
 import { TripComposer } from './features/travel/TripComposer';
@@ -24,19 +31,90 @@ export default function App() {
   const setActiveSessionId = useUIStore((state) => state.setActiveSessionId);
   const setVoicePanelOpen = useUIStore((state) => state.setVoicePanelOpen);
   const [originalRequest, setOriginalRequest] = useState('');
+  const [streamedJob, setStreamedJob] = useState<TravelJobStatusResponse | undefined>();
+  const [sseFailedJobId, setSseFailedJobId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const background = useMemo(() => chooseSessionBackground(), []);
   const avatarImage = getAssetById('xiaxia_avatar_3d');
   const avatarModel = getAssetById('xiaxia_avatar_model_glb');
+  const supportsEventSource = typeof window !== 'undefined' && Boolean(window.EventSource);
   const jobQuery = useGetTravelJobStatusTourismJobsJobIdGet(activeJobId ?? '', {
     query: {
-      enabled: Boolean(activeJobId),
+      enabled: Boolean(activeJobId && (!supportsEventSource || sseFailedJobId === activeJobId)),
       refetchInterval: (query) => {
         const status = query.state.data?.status;
-        return status === 'completed' || status === 'failed' ? false : 2000;
+        const hasEngagementCards = hasRotatingEngagementTopics(
+          query.state.data?.engagement_feed,
+        );
+        if (status === 'completed' || status === 'failed') {
+          return false;
+        }
+        if (!hasEngagementCards) {
+          return 1000;
+        }
+        return 2000;
       },
     },
   });
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+    if (!supportsEventSource) {
+      return;
+    }
+
+    let closed = false;
+    const source = createJobEventSource(activeJobId);
+    const queryOptions = getGetTravelJobStatusTourismJobsJobIdGetQueryOptions(activeJobId);
+
+    const handleJobEvent = (event: MessageEvent<string>) => {
+      const job = JSON.parse(event.data) as TravelJobStatusResponse;
+      setStreamedJob(job);
+      queryClient.setQueryData(queryOptions.queryKey, job);
+      if (job.partial_answer) {
+        setLatestAnswer(job.partial_answer);
+        setActiveSessionId(job.partial_answer.session_id ?? null);
+      }
+      if (job.status === 'completed' && job.answer) {
+        setLatestAnswer(job.answer);
+        setActiveSessionId(job.answer.session_id ?? null);
+        setActiveJobId(null);
+        source.close();
+      }
+      if (job.status === 'failed') {
+        source.close();
+      }
+    };
+
+    source.addEventListener('job_status', handleJobEvent);
+    source.addEventListener('core_answer', handleJobEvent);
+    source.addEventListener('topic_section', handleJobEvent);
+    source.addEventListener('engagement_feed', handleJobEvent);
+    source.addEventListener('completed', handleJobEvent);
+    source.addEventListener('failed', handleJobEvent);
+    source.onerror = () => {
+      if (closed) {
+        return;
+      }
+      source.close();
+      setSseFailedJobId(activeJobId);
+    };
+
+    return () => {
+      closed = true;
+      source.close();
+    };
+  }, [
+    activeJobId,
+    queryClient,
+    setActiveJobId,
+    setActiveSessionId,
+    setLatestAnswer,
+    supportsEventSource,
+  ]);
 
   useEffect(() => {
     const job = jobQuery.data;
@@ -47,10 +125,15 @@ export default function App() {
       setLatestAnswer(job.answer);
       setActiveSessionId(job.answer.session_id ?? null);
       setActiveJobId(null);
+      return;
+    }
+    if (job.partial_answer) {
+      setLatestAnswer(job.partial_answer);
+      setActiveSessionId(job.partial_answer.session_id ?? null);
     }
   }, [jobQuery.data, setActiveJobId, setActiveSessionId, setLatestAnswer]);
 
-  const currentJob = jobQuery.data;
+  const currentJob = streamedJob?.job_id === activeJobId ? streamedJob : jobQuery.data;
   const waitingActive = Boolean(activeJobId && currentJob?.status !== 'completed');
 
   return (
@@ -66,7 +149,15 @@ export default function App() {
           <HuaxiaSurface className="hero-panel animated-presence">
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: 'center' }}>
               <Box sx={{ flex: 1 }}>
-                <Typography variant="h2" sx={{ fontSize: { xs: 32, md: 52 }, mb: 1 }}>
+                <Typography
+                  variant="h2"
+                  sx={{
+                    fontSize: { xs: 34, md: 48, lg: 54 },
+                    lineHeight: 1.06,
+                    mb: 1.25,
+                    maxWidth: 920,
+                  }}
+                >
                   {language === 'zh-CN' ? '华夏旅行社专属 AI 旅行顾问' : 'HuaXia Travel Agency AI Advisor'}
                 </Typography>
                 <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 820, lineHeight: 1.65 }}>
@@ -97,19 +188,22 @@ export default function App() {
                     src={assetUrl(avatarModel.path)}
                     poster={avatarImage ? assetUrl(avatarImage.path) : undefined}
                     alt="Xiaxia avatar"
-                    camera-controls
                     interaction-prompt="none"
-                    auto-rotate
-                    rotation-per-second="24deg"
+                    camera-orbit="0deg 78deg 2.75m"
+                    min-camera-orbit="0deg 78deg 2.75m"
+                    max-camera-orbit="0deg 78deg 2.75m"
+                    camera-target="0m 0.72m 0m"
+                    field-of-view="32deg"
+                    disable-zoom
                     exposure="0.95"
-                    style={{ width: '220px', height: '260px' }}
+                    style={{ width: '330px', height: '350px', maxWidth: '34vw' }}
                   />
                 ) : (
                   <Box
                     component="img"
                     alt="Xiaxia avatar"
                     src={avatarImage ? assetUrl(avatarImage.path) : undefined}
-                    sx={{ width: 180, borderRadius: 2 }}
+                    sx={{ width: { xs: 190, md: 260 }, borderRadius: 2 }}
                   />
                 )}
               </IconButton>

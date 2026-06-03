@@ -189,3 +189,59 @@ async def test_remote_http_embedder_supports_async_openai_style_batch(monkeypatc
 
     assert vectors == [[1.0, 2.0], [3.0, 4.0]]
     assert requests[0][0] == "https://embedding.example/v1/embeddings"
+
+
+@pytest.mark.asyncio
+async def test_remote_http_embedder_uses_injected_async_client():
+    requests: list[tuple[str, object]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((str(request.url), request))
+        return httpx.Response(
+            200,
+            json={"data": [{"embedding": [1, 2]}]},
+            request=request,
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    embedder = RemoteHttpEmbedder(
+        api_url="https://embedding.example",
+        api_key=None,
+        dimensions=2,
+        client=client,
+    )
+
+    vectors = await embedder.async_embed_documents(["北京"])
+
+    await client.aclose()
+    assert vectors == [[1.0, 2.0]]
+    assert requests == [("https://embedding.example/v1/embeddings", requests[0][1])]
+
+
+@pytest.mark.asyncio
+async def test_qwen_cloud_embedder_uses_injected_async_client():
+    requests: list[tuple[str, dict]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((str(request.url), dict(request.headers)))
+        return httpx.Response(
+            200,
+            json={"data": [{"embedding": [0.1, 0.2]}]},
+            request=request,
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    embedder = QwenCloudEmbedder(
+        base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        api_key="dashscope-key",
+        model="text-embedding-v4",
+        dimensions=2,
+        client=client,
+    )
+
+    vectors = await embedder.async_embed_documents(["成都"])
+
+    await client.aclose()
+    assert vectors == [[0.1, 0.2]]
+    assert requests[0][0] == "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/embeddings"
+    assert requests[0][1]["authorization"] == "Bearer dashscope-key"

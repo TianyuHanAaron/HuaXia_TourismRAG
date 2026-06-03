@@ -5,8 +5,8 @@ from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl
 
 
-MCPProvider = Literal["baidu_maps", "tuniu", "firecrawl", "tavily"]
-TravelServiceProvider = Literal["baidu_maps", "tuniu", "firecrawl", "tavily"]
+MCPProvider = Literal["firecrawl", "tavily"]
+TravelServiceProvider = Literal["firecrawl", "tavily"]
 TransportMode = Literal[
     "walking",
     "driving",
@@ -68,7 +68,7 @@ class RouteFeasibilityReport(BaseModel):
 
 
 class WeatherImpact(BaseModel):
-    """Weather impact for a city/day from a provider such as Baidu Maps."""
+    """Weather impact for a city/day from a typed service provider."""
 
     provider: TravelServiceProvider
 
@@ -86,7 +86,7 @@ class WeatherImpact(BaseModel):
 
 
 class BookingProduct(BaseModel):
-    """One commercial travel product candidate returned by Tuniu."""
+    """One commercial travel product candidate returned by a typed provider."""
 
     provider: TravelServiceProvider
 

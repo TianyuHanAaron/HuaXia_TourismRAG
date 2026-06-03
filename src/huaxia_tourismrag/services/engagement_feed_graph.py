@@ -20,6 +20,10 @@ from huaxia_tourismrag.schemas.engagement import (
     EngagementLanguage,
 )
 from huaxia_tourismrag.schemas.evidence import TravelFormRequest, TravelQuestion
+from huaxia_tourismrag.services.engagement_entity_filter import (
+    clean_engagement_entities,
+    is_destination_like_engagement_entity,
+)
 from huaxia_tourismrag.services.job_store import TravelJobStore
 
 
@@ -28,33 +32,44 @@ DEFAULT_BATCH_SPECS = (
         batch_index=0,
         card_types=[
             "attraction_knowledge",
-            "city_folk_custom",
-            "local_flavor",
-            "traveler_reminder",
             "attraction_knowledge",
-            "city_folk_custom",
+            "attraction_knowledge",
+            "attraction_knowledge",
+            "attraction_knowledge",
+            "attraction_knowledge",
         ],
     ),
     EngagementBatchSpec(
         batch_index=1,
         card_types=[
-            "attraction_knowledge",
             "city_folk_custom",
-            "local_flavor",
-            "traveler_reminder",
-            "attraction_knowledge",
-            "local_flavor",
+            "city_folk_custom",
+            "city_folk_custom",
+            "city_folk_custom",
+            "city_folk_custom",
+            "city_folk_custom",
         ],
     ),
     EngagementBatchSpec(
         batch_index=2,
         card_types=[
-            "attraction_knowledge",
-            "city_folk_custom",
             "local_flavor",
+            "local_flavor",
+            "local_flavor",
+            "local_flavor",
+            "local_flavor",
+            "local_flavor",
+        ],
+    ),
+    EngagementBatchSpec(
+        batch_index=3,
+        card_types=[
             "traveler_reminder",
-            "city_folk_custom",
-            "local_flavor",
+            "traveler_reminder",
+            "traveler_reminder",
+            "traveler_reminder",
+            "traveler_reminder",
+            "traveler_reminder",
         ],
     ),
 )
@@ -78,8 +93,8 @@ class EngagementFeedState(BaseModel):
     language: EngagementLanguage = "zh-CN"
     seed_entities: list[str] = Field(default_factory=list, max_length=16)
     selected_entities: list[str] = Field(default_factory=list, max_length=12)
-    batch_specs: list[EngagementBatchSpec] = Field(default_factory=list, max_length=3)
-    generated_batches: list[EngagementBatch] = Field(default_factory=list, max_length=3)
+    batch_specs: list[EngagementBatchSpec] = Field(default_factory=list, max_length=4)
+    generated_batches: list[EngagementBatch] = Field(default_factory=list, max_length=4)
     warnings: list[str] = Field(default_factory=list, max_length=8)
 
 
@@ -121,12 +136,10 @@ def _build_graph():
             form_request=ctx.deps.form_request,
             language=ctx.state.language,
         )
-        ctx.state.selected_entities = _unique_nonempty(
+        ctx.state.selected_entities = clean_engagement_entities(_unique_nonempty(
             [entity.name for entity in entity_pack.entities],
             limit=12,
-        )
-        if not ctx.state.selected_entities:
-            ctx.state.selected_entities = ["目的地"]
+        ), limit=12)
         return ctx.inputs
 
     @builder.step(node_id="plan_batches")
@@ -141,7 +154,10 @@ def _build_graph():
             batch = await asyncio.wait_for(
                 ctx.deps.agent.generate_batch(
                     spec=spec,
-                    entities=ctx.state.selected_entities,
+                    entities=_entities_for_batch(
+                        ctx.state.selected_entities,
+                        spec.batch_index,
+                    ),
                     language=ctx.state.language,
                 ),
                 timeout=ctx.deps.first_batch_timeout_seconds,
@@ -166,7 +182,10 @@ def _build_graph():
                 batch = await asyncio.wait_for(
                     ctx.deps.agent.generate_batch(
                         spec=spec,
-                        entities=ctx.state.selected_entities,
+                        entities=_entities_for_batch(
+                            ctx.state.selected_entities,
+                            spec.batch_index,
+                        ),
                         language=ctx.state.language,
                     ),
                     timeout=ctx.deps.full_feed_timeout_seconds,
@@ -247,6 +266,8 @@ def validate_engagement_batch(
     seen_titles: set[str] = set()
     seen_body_fingerprints: set[str] = set()
     for index, card in enumerate(batch.cards):
+        if not is_destination_like_engagement_entity(card.entity):
+            continue
         combined = f"{card.title}\n{card.body}"
         if any(term in combined for term in REALTIME_CLAIM_TERMS):
             continue
@@ -263,6 +284,15 @@ def validate_engagement_batch(
     return EngagementBatch(batch_index=batch.batch_index, cards=cards[:6])
 
 
+def _entities_for_batch(entities: list[str], batch_index: int) -> list[str]:
+    """Rotate entity emphasis so later waiting-room batches feel fresh."""
+
+    if not entities:
+        return entities
+    offset = (batch_index * 2) % len(entities)
+    return [*entities[offset:], *entities[:offset]]
+
+
 def _compact_text(value: str) -> str:
     return "".join(value.strip().lower().split())
 
@@ -270,7 +300,7 @@ def _compact_text(value: str) -> str:
 async def _persist_feed(ctx, *, status: str) -> EngagementFeed:
     feed = EngagementFeed(
         status=status,
-        batches=ctx.state.generated_batches[:3],
+        batches=ctx.state.generated_batches[:4],
         message=None if ctx.state.generated_batches else "目的地小百科暂时没有生成出来。",
     )
     await ctx.deps.job_store.update_engagement_feed(
@@ -292,17 +322,11 @@ def _structured_entity_seeds(
     seeds.extend(question.interests)
 
     if form_request is not None:
-        for value in (
-            form_request.origin_city,
-            form_request.destination,
-            form_request.return_city,
-        ):
-            if value:
-                seeds.append(value)
+        if form_request.destination:
+            seeds.append(form_request.destination)
         seeds.extend(form_request.required_stops)
-        seeds.extend(form_request.attraction_preferences)
         seeds.extend(form_request.must_have)
-    return _unique_nonempty(seeds, limit=16)
+    return clean_engagement_entities(_unique_nonempty(seeds, limit=16), limit=16)
 
 
 def _unique_nonempty(values: list[str], *, limit: int) -> list[str]:

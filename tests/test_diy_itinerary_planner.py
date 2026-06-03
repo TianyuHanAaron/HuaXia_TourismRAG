@@ -150,8 +150,9 @@ async def test_diy_itinerary_planner_uses_qwen_cloud_runner(monkeypatch):
         output_type,
         instructions,
         model_override=None,
+        role="final",
     ):
-        calls.append((prompt, output_type, instructions, model_override))
+        calls.append((prompt, output_type, instructions, model_override, role))
         return DIYItineraryPlan(
             original_question="三国历史巡礼：北京-涿州-许昌-成都-北京。",
             theme="三国历史巡礼",
@@ -179,7 +180,7 @@ async def test_diy_itinerary_planner_uses_qwen_cloud_runner(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "huaxia_tourismrag.agents.diy_itinerary_planner.is_qwen_cloud_provider",
+        "huaxia_tourismrag.agents.diy_itinerary_planner.is_external_structured_provider",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -203,6 +204,7 @@ async def test_diy_itinerary_planner_uses_qwen_cloud_runner(monkeypatch):
     assert calls[0][1] is DIYItineraryPlan
     assert calls[0][2] == DIY_ITINERARY_PLANNER_INSTRUCTIONS
     assert calls[0][3] == "qwen3.6-plus"
+    assert calls[0][4] == "planner"
 
 
 def test_diy_itinerary_planner_agent_is_defined():

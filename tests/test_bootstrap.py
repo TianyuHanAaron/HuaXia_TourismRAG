@@ -2,10 +2,8 @@ import pytest
 
 from huaxia_tourismrag import bootstrap
 from huaxia_tourismrag.core.config import Settings
-from huaxia_tourismrag.integrations.baidu_maps_mcp import BaiduMapsMCPAdapter
 from huaxia_tourismrag.integrations.firecrawl_mcp import FirecrawlMCPAdapter
 from huaxia_tourismrag.integrations.tavily_mcp import TavilyMCPAdapter
-from huaxia_tourismrag.integrations.tuniu_mcp import TuniuMCPAdapter
 from huaxia_tourismrag.rag.embeddings import QwenCloudEmbedder, RemoteHttpEmbedder
 from huaxia_tourismrag.services.answer_cache import AnswerCache
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
@@ -128,12 +126,8 @@ def test_model_defaults_match_documented_local_testing_stack():
 def test_mcp_provider_flags_default_to_disabled():
     settings = Settings(_env_file=None)
 
-    assert settings.baidu_maps_mcp_enabled is False
-    assert settings.tuniu_mcp_enabled is False
     assert settings.firecrawl_mcp_enabled is False
     assert settings.tavily_mcp_enabled is False
-    assert settings.baidu_maps_mcp_transport == "stdio"
-    assert settings.tuniu_mcp_transport == "stdio"
     assert settings.firecrawl_mcp_transport == "http"
     assert settings.tavily_mcp_transport == "http"
 
@@ -261,25 +255,9 @@ def test_build_service_enrichment_keeps_providers_disabled_by_default():
     service = bootstrap.build_service_enrichment(Settings(_env_file=None))
 
     assert isinstance(service, TravelServiceEnrichmentService)
-    assert service.maps is None
-    assert service.tuniu is None
     assert service.fresh_web is None
     assert service.provider_max_calls["tavily"] == 4
     assert service.provider_cooldown is not None
-
-
-def test_build_service_enrichment_requires_baidu_transport_details():
-    settings = Settings(BAIDU_MAPS_MCP_ENABLED=True)
-
-    with pytest.raises(RuntimeError, match="BAIDU_MAPS_MCP_COMMAND"):
-        bootstrap.build_service_enrichment(settings)
-
-
-def test_build_service_enrichment_requires_tuniu_transport_details():
-    settings = Settings(TUNIU_MCP_ENABLED=True)
-
-    with pytest.raises(RuntimeError, match="TUNIU_MCP_COMMAND"):
-        bootstrap.build_service_enrichment(settings)
 
 
 def test_build_service_enrichment_requires_firecrawl_key():
@@ -302,22 +280,6 @@ def test_build_service_enrichment_requires_tavily_key():
 
     with pytest.raises(RuntimeError, match="TAVILY_API_KEY"):
         bootstrap.build_service_enrichment(settings)
-
-
-def test_build_service_enrichment_wires_baidu_http_adapter():
-    settings = Settings(
-        BAIDU_MAPS_MCP_ENABLED=True,
-        BAIDU_MAPS_MCP_TRANSPORT="http",
-        BAIDU_MAPS_MCP_URL="https://mcp.baidu.example/rpc",
-        BAIDU_MAPS_API_KEY="baidu-key",
-        _env_file=None,
-    )
-
-    service = bootstrap.build_service_enrichment(settings)
-
-    assert isinstance(service.maps, BaiduMapsMCPAdapter)
-    assert service.maps.client.provider == "baidu_maps"
-    assert service.maps.client.transport == "http"
 
 
 def test_build_service_enrichment_wires_firecrawl_http_adapter():
@@ -375,22 +337,6 @@ def test_resolve_mcp_url_handles_literal_braced_api_key():
         "https://mcp.tavily.com/mcp/?tavilyApiKey={TAVILY_API_KEY}",
         "tavily-key",
     ) == "https://mcp.tavily.com/mcp/?tavilyApiKey=tavily-key"
-
-
-def test_build_service_enrichment_wires_tuniu_http_adapter():
-    settings = Settings(
-        _env_file=None,
-        TUNIU_MCP_ENABLED=True,
-        TUNIU_MCP_TRANSPORT="http",
-        TUNIU_MCP_URL="https://mcp.tuniu.example/rpc",
-        TUNIU_API_KEY="tuniu-key",
-    )
-
-    service = bootstrap.build_service_enrichment(settings)
-
-    assert isinstance(service.tuniu, TuniuMCPAdapter)
-    assert service.tuniu.client.provider == "tuniu"
-    assert service.tuniu.client.transport == "http"
 
 
 def test_build_tourism_qa_service_wires_dependencies(monkeypatch):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 from typing import TypeVar
 
 from openai import AsyncOpenAI
@@ -13,6 +14,13 @@ from huaxia_tourismrag.core.config import Settings, get_settings
 
 
 OutputT = TypeVar("OutputT", bound=BaseModel)
+StructuredRunnerRole = Literal[
+    "checkpoint",
+    "planner",
+    "final",
+    "topic_section",
+    "engagement",
+]
 
 
 class QwenCloudStructuredRunner:
@@ -165,7 +173,6 @@ class QwenCloudStructuredRunner:
         except (ValidationError, ValueError):
             return None
 
-
 def _extract_json_text(content: object) -> str:
     if not isinstance(content, str):
         raise ValueError("Qwen Cloud response content must be a valid JSON string.")
@@ -204,6 +211,7 @@ async def run_qwen_structured(
     instructions: str,
     settings: Settings | None = None,
     model_override: str | None = None,
+    role: StructuredRunnerRole = "final",
 ) -> OutputT:
     """Build the configured Qwen Cloud runner and validate one DTO response."""
 
@@ -211,13 +219,15 @@ async def run_qwen_structured(
     ensure_agent_model_ready(settings)
     if not settings.dashscope_api_key:
         raise RuntimeError("DASHSCOPE_API_KEY is required for Qwen Cloud generation")
-    return await QwenCloudStructuredRunner(
+    runner = QwenCloudStructuredRunner(
         api_key=settings.dashscope_api_key,
         base_url=settings.qwen_cloud_base_url,
         model=model_override or settings.tourism_agent_model,
         timeout_seconds=settings.qdrant_timeout_seconds,
-    ).run(
+    )
+    result = await runner.run(
         prompt=prompt,
         output_type=output_type,
         instructions=instructions,
     )
+    return result

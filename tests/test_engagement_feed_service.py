@@ -44,6 +44,29 @@ class FailingEngagementAgent:
         raise TimeoutError("engagement model timed out")
 
 
+class CityOnlyEngagementAgent:
+    async def extract_entities(self, *args, **kwargs):
+        raise AssertionError("structured seeds should avoid extractor")
+
+    async def generate_batch(self, *, spec, entities, language):
+        if spec.batch_index != 1:
+            raise TimeoutError("only city folk batch completed")
+        return EngagementBatch(
+            batch_index=spec.batch_index,
+            cards=[
+                EngagementCard(
+                    card_id=f"city-only-{index}",
+                    card_type=card_type,
+                    entity="云南",
+                    title=f"云南城市民俗 {index}",
+                    body=LONG_BODY,
+                    confidence="culture_note",
+                )
+                for index, card_type in enumerate(spec.card_types)
+            ],
+        )
+
+
 @pytest.mark.asyncio
 async def test_engagement_service_sets_loading_then_feed():
     store = InMemoryTravelJobStore()
@@ -77,7 +100,7 @@ async def test_engagement_service_sets_loading_then_feed():
 
 
 @pytest.mark.asyncio
-async def test_engagement_service_falls_back_to_preview_cards_when_generation_fails():
+async def test_engagement_service_keeps_loading_indicator_path_when_generation_fails():
     store = InMemoryTravelJobStore()
     question = TravelQuestion(
         question="川西十二天雪山藏寨高原湖泊深度游",
@@ -105,12 +128,57 @@ async def test_engagement_service_falls_back_to_preview_cards_when_generation_fa
 
     saved = await store.get(job.job_id, "demo")
     assert saved.engagement_feed is not None
-    assert saved.engagement_feed.status == "partial"
-    assert saved.engagement_feed.batches
-    assert len(saved.engagement_feed.batches[0].cards) == 6
-    assert "四姑娘山" in {
-        card.entity for card in saved.engagement_feed.batches[0].cards
+    assert saved.engagement_feed.status == "failed"
+    assert saved.engagement_feed.batches == []
+
+
+@pytest.mark.asyncio
+async def test_engagement_service_does_not_backfill_missing_topics_with_preview_cards():
+    store = InMemoryTravelJobStore()
+    question = TravelQuestion(
+        question="云南省10天深度游，想看自然山水和民族文化。",
+        destination="云南省",
+        interests=["history_culture", "nature", "food"],
+    )
+    job = await store.create("demo", question, kind="general_question")
+    service = EngagementFeedService(
+        settings=Settings(
+            _env_file=None,
+            ENABLE_ENGAGEMENT_FEED=True,
+            ENGAGEMENT_FIRST_BATCH_TIMEOUT_SECONDS=0.01,
+            ENGAGEMENT_FULL_TIMEOUT_SECONDS=0.02,
+        ),
+        agent=CityOnlyEngagementAgent(),
+    )
+
+    await service.start_for_job(
+        job_id=job.job_id,
+        tenant_id="demo",
+        question=question,
+        form_request=None,
+        job_store=store,
+    )
+
+    saved = await store.get(job.job_id, "demo")
+    assert saved.engagement_feed is not None
+    assert saved.engagement_feed.status == "ready"
+    assert len(saved.engagement_feed.batches) == 1
+    assert [batch.cards[0].card_type for batch in saved.engagement_feed.batches] == [
+        "city_folk_custom",
+    ]
+    assert all(
+        not card.card_id.startswith("preview-")
+        for batch in saved.engagement_feed.batches
+        for card in batch.cards
+    )
+    entities = {
+        card.entity
+        for batch in saved.engagement_feed.batches
+        for card in batch.cards
     }
+    assert "history_culture" not in entities
+    assert "nature" not in entities
+    assert "food" not in entities
 
 
 def test_preview_feed_uses_free_text_route_entities_when_structured_fields_are_empty():
@@ -152,8 +220,73 @@ def test_preview_feed_uses_real_internal_rows_not_generic_placeholder_copy():
     assert "上海" not in {card.entity for card in first_batch}
     body_text = "\n".join(card.body for card in first_batch)
     assert "小百科入口" not in body_text
-    assert {"云冈石窟景区", "五台山风景名胜区", "峙峪遗址"} & set(body_text.split("、"))
+    assert any(
+        name in body_text
+        for name in ("云冈石窟景区", "五台山风景名胜区", "峙峪遗址")
+    )
     assert "山西" in body_text
+
+
+def test_preview_feed_filters_preference_codes_and_normalizes_destination_names():
+    question = TravelQuestion(
+        question="快速表单旅行需求",
+        destination="山西省",
+        interests=["history_culture", "nature", "food"],
+    )
+
+    feed = build_preview_engagement_feed(question, None)
+
+    assert feed.batches
+    entities = {
+        card.entity
+        for batch in feed.batches
+        for card in batch.cards
+    }
+    assert "山西" in entities
+    assert "山西省" not in entities
+    assert "history_culture" not in entities
+    assert "nature" not in entities
+    assert "food" not in entities
+    body_text = "\n".join(
+        card.body
+        for batch in feed.batches
+        for card in batch.cards
+    )
+    assert "路线角色" not in body_text
+    assert "history_culture" not in body_text
+
+
+def test_initial_feed_stays_loading_until_real_cards_are_persisted():
+    service = EngagementFeedService(
+        settings=Settings(_env_file=None, ENABLE_ENGAGEMENT_FEED=True),
+        agent=FailingEngagementAgent(),
+    )
+    question = TravelQuestion(
+        question="上海出发，山西历史人文十日深度游。",
+        destination="山西",
+    )
+
+    feed = service.initial_feed(question, None)
+
+    assert feed.status == "loading"
+    assert feed.batches == []
+
+
+def test_preview_feed_excludes_origin_city_from_free_text_route():
+    question = TravelQuestion(
+        question=(
+            "我们两个人从上海出发，计划在新疆玩10天，时间定在9月下旬，"
+            "总预算控制在2万2千元以内。我们想深度体验当地历史文化，"
+            "希望包括草原、湖泊、森林和当地牧民生活"
+        )
+    )
+
+    feed = build_preview_engagement_feed(question, None)
+
+    assert feed.batches
+    entities = {card.entity for card in feed.batches[0].cards}
+    assert "新疆" in entities
+    assert "上海" not in entities
 
 
 @pytest.mark.asyncio

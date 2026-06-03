@@ -5,6 +5,7 @@ from huaxia_tourismrag.schemas.evidence import QuickReplyOption
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import InMemoryTravelSessionStore
+from huaxia_tourismrag.services.travel_checkpoints import MAX_CHECKPOINT_REPLY_TURNS
 
 
 class FakeQAService:
@@ -100,6 +101,58 @@ async def test_session_reply_service_keeps_session_open_if_more_reply_needed():
 
 
 @pytest.mark.asyncio
+async def test_session_reply_service_updates_pending_checkpoint_state():
+    store = InMemoryTravelSessionStore()
+    session = await store.create(
+        endpoint="questions",
+        tenant_id="tenant-a",
+        original_question=TravelQuestion(question="新疆10天怎么玩？"),
+        pending_reason="需要偏好。",
+        pending_kind="preference",
+        pending_question="想偏自然还是人文？",
+    )
+    next_quick_reply = QuickReplyOption(
+        label="方案 A",
+        message="放弃过远支线，保留核心环线。",
+        action_id="feasibility_accept_adjustment",
+    )
+    qa_service = FakeQAService(
+        TravelAnswer(
+            answer="need feasibility",
+            highlights=[],
+            warnings=[],
+            citations=[],
+            quick_replies=[next_quick_reply],
+            needs_reply=True,
+            reply_pending_kind="feasibility",
+            reply_pending_reason="可行性需要确认。",
+            reply_pending_question="是否接受压缩长距离支线？",
+        )
+    )
+    service = SessionReplyService(
+        tenant_id="tenant-a",
+        session_store=store,
+        tourism_qa_service_factory=lambda tenant_id: qa_service,
+        diy_itinerary_service_factory=lambda tenant_id: FakeQAService(
+            TravelAnswer(answer="wrong", highlights=[], warnings=[], citations=[])
+        ),
+    )
+
+    answer = await service.reply(
+        session_id=session.session_id,
+        request=SessionReplyRequest(message="偏自然。"),
+    )
+
+    assert answer.needs_reply is True
+    assert answer.session_id == session.session_id
+    updated = await store.get(session.session_id, tenant_id="tenant-a")
+    assert updated.pending_kind == "feasibility"
+    assert updated.pending_reason == "可行性需要确认。"
+    assert updated.pending_question == "是否接受压缩长距离支线？"
+    assert updated.pending_quick_replies == [next_quick_reply]
+
+
+@pytest.mark.asyncio
 async def test_session_reply_service_maps_detail_level_reply_to_question_dto():
     FakeQAService.questions = []
     store = InMemoryTravelSessionStore()
@@ -188,3 +241,87 @@ async def test_session_reply_service_resolves_typed_preference_option_reply():
     assert "上一轮夏夏问题" in question.question
     assert "严格聚焦于历史遗迹" in question.question
     assert "用户选择：B" in question.question
+
+
+@pytest.mark.asyncio
+async def test_session_reply_service_passes_checkpoint_reply_count_to_dto():
+    FakeQAService.questions = []
+    store = InMemoryTravelSessionStore()
+    session = await store.create(
+        endpoint="questions",
+        tenant_id="tenant-a",
+        original_question=TravelQuestion(question="新疆10天历史文化和自然深度游。"),
+        pending_reason="需要确认可行性。",
+        pending_kind="feasibility",
+    )
+    for index in range(MAX_CHECKPOINT_REPLY_TURNS - 1):
+        await store.append_reply(
+            session_id=session.session_id,
+            tenant_id="tenant-a",
+            message=f"上一轮回复 {index + 1}",
+        )
+    qa_service = FakeQAService(
+        TravelAnswer(answer="done", highlights=[], warnings=[], citations=[])
+    )
+    service = SessionReplyService(
+        tenant_id="tenant-a",
+        session_store=store,
+        tourism_qa_service_factory=lambda tenant_id: qa_service,
+        diy_itinerary_service_factory=lambda tenant_id: FakeQAService(
+            TravelAnswer(answer="wrong", highlights=[], warnings=[], citations=[])
+        ),
+    )
+
+    await service.reply(
+        session_id=session.session_id,
+        request=SessionReplyRequest(message="按舒适方案继续。"),
+    )
+
+    assert qa_service.questions[0].checkpoint_reply_count == MAX_CHECKPOINT_REPLY_TURNS
+
+
+@pytest.mark.asyncio
+async def test_session_reply_service_closes_reply_state_after_checkpoint_limit():
+    store = InMemoryTravelSessionStore()
+    session = await store.create(
+        endpoint="questions",
+        tenant_id="tenant-a",
+        original_question=TravelQuestion(question="新疆10天历史文化和自然深度游。"),
+        pending_reason="需要确认可行性。",
+        pending_kind="feasibility",
+    )
+    for index in range(MAX_CHECKPOINT_REPLY_TURNS - 1):
+        await store.append_reply(
+            session_id=session.session_id,
+            tenant_id="tenant-a",
+            message=f"上一轮回复 {index + 1}",
+        )
+    qa_service = FakeQAService(
+        TravelAnswer(
+            answer="still asking",
+            highlights=[],
+            warnings=[],
+            citations=[],
+            needs_reply=True,
+        )
+    )
+    service = SessionReplyService(
+        tenant_id="tenant-a",
+        session_store=store,
+        tourism_qa_service_factory=lambda tenant_id: qa_service,
+        diy_itinerary_service_factory=lambda tenant_id: FakeQAService(
+            TravelAnswer(answer="wrong", highlights=[], warnings=[], citations=[])
+        ),
+    )
+
+    answer = await service.reply(
+        session_id=session.session_id,
+        request=SessionReplyRequest(message="按舒适方案继续。"),
+    )
+
+    assert answer.needs_reply is False
+    assert answer.session_id is None
+    assert answer.quick_replies == []
+    assert "最多三轮" in " ".join(answer.warnings)
+    updated = await store.get(session.session_id, tenant_id="tenant-a")
+    assert updated.completed is True

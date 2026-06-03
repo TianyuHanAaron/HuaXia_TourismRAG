@@ -31,65 +31,56 @@ async def test_mcp_tool_call_request_is_typed():
 
     response = await client.call_tool(
         MCPToolCallRequest(
-            provider="baidu_maps",
-            tool_name="route_planning",
-            arguments={"origin": "北京", "destination": "涿州"},
+            provider="firecrawl",
+            tool_name="firecrawl_search",
+            arguments={"query": "北京旅游"},
         )
     )
 
-    assert response.provider == "baidu_maps"
+    assert response.provider == "firecrawl"
     assert response.payload == {"ok": True}
-    assert client.requests[0].tool_name == "route_planning"
+    assert client.requests[0].tool_name == "firecrawl_search"
 
 
 def test_mcp_error_contains_provider_and_tool():
     error = MCPClientError(
-        provider="tuniu",
-        tool_name="search_hotel",
+        provider="tavily",
+        tool_name="tavily_search",
         message="timeout",
     )
 
-    assert "tuniu.search_hotel" in str(error)
+    assert "tavily.tavily_search" in str(error)
 
 
 @pytest.mark.asyncio
 async def test_in_memory_mcp_client_routes_registered_tools():
     client = InMemoryMCPClient(
-        provider="baidu_maps",
+        provider="firecrawl",
         tools={
-            "route_planning": lambda args: {
-                "routes": [
-                    {
-                        "duration_minutes": 30,
-                        "origin": args["origin"],
-                    }
-                ]
-            },
+            "firecrawl_search": lambda args: {"query": args["query"], "ok": True},
         },
     )
 
     response = await client.call_tool(
         MCPToolCallRequest(
-            provider="baidu_maps",
-            tool_name="route_planning",
-            arguments={"origin": "北京", "destination": "涿州"},
+            provider="firecrawl",
+            tool_name="firecrawl_search",
+            arguments={"query": "北京旅游"},
         )
     )
 
-    assert response.payload == {
-        "routes": [{"duration_minutes": 30, "origin": "北京"}]
-    }
+    assert response.payload == {"query": "北京旅游", "ok": True}
 
 
 @pytest.mark.asyncio
 async def test_in_memory_mcp_client_rejects_unknown_tool():
-    client = InMemoryMCPClient(provider="tuniu", tools={})
+    client = InMemoryMCPClient(provider="tavily", tools={})
 
     with pytest.raises(MCPClientError, match="tool not registered"):
         await client.call_tool(
             MCPToolCallRequest(
-                provider="tuniu",
-                tool_name="search_hotels",
+                provider="tavily",
+                tool_name="tavily_search",
                 arguments={},
             )
         )
@@ -103,7 +94,7 @@ async def test_external_mcp_client_calls_http_json_rpc_endpoint():
         assert request.headers["mcp-protocol-version"] == "2025-06-18"
         payload = request.read()
         assert b"tools/call" in payload
-        assert b"route_planning" in payload
+        assert b"firecrawl_search" in payload
         return httpx.Response(
             200,
             json={
@@ -115,7 +106,7 @@ async def test_external_mcp_client_calls_http_json_rpc_endpoint():
 
     http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     client = ExternalMCPClient(
-        provider="baidu_maps",
+        provider="firecrawl",
         transport="http",
         url="https://mcp.example/rpc",
         api_key="secret",
@@ -124,9 +115,9 @@ async def test_external_mcp_client_calls_http_json_rpc_endpoint():
 
     response = await client.call_tool(
         MCPToolCallRequest(
-            provider="baidu_maps",
-            tool_name="route_planning",
-            arguments={"origin": "北京", "destination": "涿州"},
+            provider="firecrawl",
+            tool_name="firecrawl_search",
+            arguments={"query": "北京旅游"},
         )
     )
 
@@ -177,7 +168,7 @@ async def test_external_mcp_client_raises_on_json_rpc_error():
 
     http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     client = ExternalMCPClient(
-        provider="tuniu",
+        provider="tavily",
         transport="http",
         url="https://mcp.example/rpc",
         http_client=http_client,
@@ -186,8 +177,8 @@ async def test_external_mcp_client_raises_on_json_rpc_error():
     with pytest.raises(MCPClientError, match="bad call"):
         await client.call_tool(
             MCPToolCallRequest(
-                provider="tuniu",
-                tool_name="search_hotels",
+                provider="tavily",
+                tool_name="tavily_search",
                 arguments={},
             )
         )

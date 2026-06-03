@@ -19,7 +19,6 @@ QWEN_CLOUD_PROVIDER_NAMES = {
     "dashscope",
 }
 
-
 class AgentModelConfigurationError(RuntimeError):
     """Raised when the configured PydanticAI model cannot run locally."""
 
@@ -71,8 +70,17 @@ def is_qwen_cloud_provider(settings: Settings | None = None) -> bool:
     provider = settings.tourism_agent_provider.strip().lower().replace("-", "_")
     if provider in QWEN_CLOUD_PROVIDER_NAMES:
         return True
+    if provider != "pydantic_ai":
+        return False
     model = settings.tourism_agent_model.strip().lower()
     return model.startswith("qwen") and ":" not in model
+
+
+def is_external_structured_provider(settings: Settings | None = None) -> bool:
+    """Return whether agent DTO calls should bypass PydanticAI's provider path."""
+
+    settings = settings or get_settings()
+    return is_qwen_cloud_provider(settings)
 
 
 def _export_if_present(name: str, value: str | None) -> None:

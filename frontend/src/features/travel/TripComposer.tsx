@@ -10,6 +10,7 @@ import {
   CircularProgress,
   Divider,
   Fade,
+  LinearProgress,
   MenuItem,
   Stack,
   TextField,
@@ -17,9 +18,11 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 
 import {
+  getGetTravelJobStatusTourismJobsJobIdGetQueryOptions,
   useCreateDiyItineraryJobTourismJobsDiyPost,
   useCreateFormJobTourismFormsJobsPost,
   useCreateGeneralQuestionJobTourismJobsQuestionsPost,
@@ -28,14 +31,19 @@ import type { TravelFormRequest, TravelQuestion } from '../../api/generated/mode
 import { HuaxiaActionButton } from '../../components/HuaxiaActionButton';
 import { HuaxiaSectionHeader } from '../../components/HuaxiaSectionHeader';
 import { HuaxiaSurface } from '../../components/HuaxiaSurface';
+import {
+  calculateInclusiveTripDays,
+  chinaRegionOptions,
+  dedupeRegionLabels,
+  destinationTextFromSelections,
+  type ChinaRegionOption,
+} from '../../data/chinaRegions';
 import { splitListText, travelFormSchema } from '../../schemas/travelForm';
 import { useUIStore } from '../../state/uiStore';
 
 type Props = {
   onRequestTextChange: (text: string) => void;
 };
-
-const cityOptions = ['北京', '上海', '广州', '深圳', '成都', '重庆', '杭州', '西安', '南京', '洛阳', '桂林', '乌鲁木齐'];
 
 const attractionOptions = [
   ['history_culture', '历史人文'],
@@ -58,12 +66,15 @@ export function TripComposer({ onRequestTextChange }: Props) {
   const setDetailLevel = useUIStore((state) => state.setDetailLevel);
   const setActiveJobId = useUIStore((state) => state.setActiveJobId);
   const setLatestAnswer = useUIStore((state) => state.setLatestAnswer);
+  const setEngagementBatchIndex = useUIStore((state) => state.setEngagementBatchIndex);
   const setVoicePanelOpen = useUIStore((state) => state.setVoicePanelOpen);
+  const queryClient = useQueryClient();
 
   const [inputMode, setInputMode] = useState<'form' | 'text'>('form');
-  const [originCity, setOriginCity] = useState('上海');
-  const [destination, setDestination] = useState('山西');
-  const [returnCity, setReturnCity] = useState('上海');
+  const [originCity, setOriginCity] = useState('上海市');
+  const [destinations, setDestinations] = useState<string[]>([]);
+  const [returnCity, setReturnCity] = useState('上海市');
+  const [returnCitySpecified, setReturnCitySpecified] = useState(false);
   const [requiredStops, setRequiredStops] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -75,15 +86,22 @@ export function TripComposer({ onRequestTextChange }: Props) {
   const [travelMode, setTravelMode] = useState<TravelFormRequest['travel_mode_preference']>('mixed');
   const [pace, setPace] = useState<TravelFormRequest['pace']>('balanced');
   const [routeStrictness, setRouteStrictness] = useState<TravelFormRequest['route_strictness']>('flexible');
-  const [attractions, setAttractions] = useState<string[]>(['history_culture']);
+  const [attractions, setAttractions] = useState<string[]>(['history_culture', 'nature', 'food']);
   const [extraNotes, setExtraNotes] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const destination = useMemo(() => destinationTextFromSelections(destinations), [destinations]);
+
+  const displayedReturnCity = returnCitySpecified ? returnCity : originCity;
+  const calculatedDurationDays = calculateInclusiveTripDays(startDate, endDate);
+  const displayedDurationDays = calculatedDurationDays ?? durationDays;
 
   const formJob = useCreateFormJobTourismFormsJobsPost({
     mutation: {
       onSuccess: (job) => {
         setActiveJobId(job.job_id);
+        setEngagementBatchIndex(0);
         setLatestAnswer(null);
+        void queryClient.prefetchQuery(getGetTravelJobStatusTourismJobsJobIdGetQueryOptions(job.job_id));
       },
     },
   });
@@ -91,7 +109,9 @@ export function TripComposer({ onRequestTextChange }: Props) {
     mutation: {
       onSuccess: (job) => {
         setActiveJobId(job.job_id);
+        setEngagementBatchIndex(0);
         setLatestAnswer(null);
+        void queryClient.prefetchQuery(getGetTravelJobStatusTourismJobsJobIdGetQueryOptions(job.job_id));
       },
     },
   });
@@ -99,7 +119,9 @@ export function TripComposer({ onRequestTextChange }: Props) {
     mutation: {
       onSuccess: (job) => {
         setActiveJobId(job.job_id);
+        setEngagementBatchIndex(0);
         setLatestAnswer(null);
+        void queryClient.prefetchQuery(getGetTravelJobStatusTourismJobsJobIdGetQueryOptions(job.job_id));
       },
     },
   });
@@ -109,11 +131,11 @@ export function TripComposer({ onRequestTextChange }: Props) {
       request_mode: mode,
       origin_city: originCity || undefined,
       destination,
-      return_city: returnCity || undefined,
+      return_city: displayedReturnCity || undefined,
       required_stops: splitListText(requiredStops),
       start_date: startDate || undefined,
       end_date: endDate || undefined,
-      duration_days: durationDays,
+      duration_days: displayedDurationDays,
       traveler_composition: { adults, elders, children },
       budget_level: budgetLevel,
       travel_mode_preference: travelMode,
@@ -176,27 +198,51 @@ export function TripComposer({ onRequestTextChange }: Props) {
           </ToggleButtonGroup>
         </Stack>
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-          <Chip
-            label={language === 'zh-CN' ? '成熟旅行方案' : 'Classic plan'}
-            color={mode === 'normal' ? 'primary' : 'default'}
-            onClick={() => setMode('normal')}
-          />
-          <Chip
-            label={language === 'zh-CN' ? '专属路线共创' : 'Custom route'}
-            color={mode === 'diy' ? 'primary' : 'default'}
-            onClick={() => setMode('diy')}
-          />
-          <Chip
-            label={language === 'zh-CN' ? '先看大方向' : 'Brief'}
-            color={detailLevel === 'concise' ? 'secondary' : 'default'}
-            onClick={() => setDetailLevel('concise')}
-          />
-          <Chip
-            label={language === 'zh-CN' ? '深度旅行社版' : 'Agency-grade'}
-            color={detailLevel === 'deep' ? 'secondary' : 'default'}
-            onClick={() => setDetailLevel('deep')}
-          />
+        <Stack spacing={1.25} sx={{ alignItems: 'center' }}>
+          <Stack
+            direction="row"
+            spacing={1.2}
+            sx={{ flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}
+          >
+            <Button
+              className="planner-choice-button"
+              variant={mode === 'normal' ? 'contained' : 'outlined'}
+              color="primary"
+              onClick={() => setMode('normal')}
+            >
+              {language === 'zh-CN' ? '成熟旅行方案' : 'Classic plan'}
+            </Button>
+            <Button
+              className="planner-choice-button"
+              variant={mode === 'diy' ? 'contained' : 'outlined'}
+              color="primary"
+              onClick={() => setMode('diy')}
+            >
+              {language === 'zh-CN' ? '专属路线共创' : 'Custom route'}
+            </Button>
+          </Stack>
+          <Stack
+            direction="row"
+            spacing={1.2}
+            sx={{ flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}
+          >
+            <Button
+              className="planner-choice-button"
+              variant={detailLevel === 'concise' ? 'contained' : 'outlined'}
+              color="secondary"
+              onClick={() => setDetailLevel('concise')}
+            >
+              {language === 'zh-CN' ? '先看大方向' : 'Brief'}
+            </Button>
+            <Button
+              className="planner-choice-button"
+              variant={detailLevel === 'deep' ? 'contained' : 'outlined'}
+              color="secondary"
+              onClick={() => setDetailLevel('deep')}
+            >
+              {language === 'zh-CN' ? '专业旅行社版' : 'Agency-grade'}
+            </Button>
+          </Stack>
         </Stack>
 
         <Divider />
@@ -205,9 +251,20 @@ export function TripComposer({ onRequestTextChange }: Props) {
           <Fade in timeout={260}>
             <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-              <CityInput label={language === 'zh-CN' ? '出发城市' : 'Origin'} value={originCity} onChange={setOriginCity} />
-              <CityInput label={language === 'zh-CN' ? '旅行目的地' : 'Destinations'} value={destination} onChange={setDestination} />
-              <CityInput label={language === 'zh-CN' ? '返回城市' : 'Return city'} value={returnCity} onChange={setReturnCity} />
+              <RegionInput label={language === 'zh-CN' ? '出发城市' : 'Origin'} value={originCity} onChange={setOriginCity} />
+              <RegionMultiInput
+                label={language === 'zh-CN' ? '旅游目的地' : 'Travel destinations'}
+                value={destinations}
+                onChange={setDestinations}
+              />
+              <RegionInput
+                label={language === 'zh-CN' ? '返回城市' : 'Return city'}
+                value={displayedReturnCity}
+                onChange={(value) => {
+                  setReturnCitySpecified(true);
+                  setReturnCity(value);
+                }}
+              />
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField
@@ -229,7 +286,7 @@ export function TripComposer({ onRequestTextChange }: Props) {
               <TextField
                 label={language === 'zh-CN' ? '天数' : 'Days'}
                 type="number"
-                value={durationDays}
+                value={displayedDurationDays}
                 onChange={(event) => setDurationDays(Number(event.target.value))}
                 fullWidth
               />
@@ -300,6 +357,13 @@ export function TripComposer({ onRequestTextChange }: Props) {
               onChange={(event) => setExtraNotes(event.target.value)}
             />
             {formError ? <Alert severity="warning">{formError}</Alert> : null}
+            {pending ? (
+              <LinearProgress
+                color="secondary"
+                sx={{ height: 8, borderRadius: 99 }}
+                aria-label={language === 'zh-CN' ? '正在提交旅行需求' : 'Submitting trip request'}
+              />
+            ) : null}
             <Button
               variant="contained"
               size="large"
@@ -329,6 +393,13 @@ export function TripComposer({ onRequestTextChange }: Props) {
               }
             />
             {formError ? <Alert severity="warning">{formError}</Alert> : null}
+            {pending ? (
+              <LinearProgress
+                color="secondary"
+                sx={{ height: 8, borderRadius: 99 }}
+                aria-label={language === 'zh-CN' ? '正在提交旅行需求' : 'Submitting trip request'}
+              />
+            ) : null}
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.2}>
               <HuaxiaActionButton variant="contained" startIcon={<SendIcon />} onClick={submitText} disabled={pending}>
                 {language === 'zh-CN' ? '发送给夏夏' : 'Ask Xiaxia'}
@@ -345,17 +416,114 @@ export function TripComposer({ onRequestTextChange }: Props) {
   );
 }
 
-function CityInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function RegionInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const selectedOption = regionOptionFromValue(value);
   return (
     <Autocomplete
+      className="region-select"
       freeSolo
-      value={value}
-      options={[value, ...cityOptions].filter(Boolean).filter((item, index, arr) => arr.indexOf(item) === index)}
-      onChange={(_, nextValue) => onChange(nextValue ?? '')}
+      fullWidth
+      value={selectedOption}
+      inputValue={value}
+      options={chinaRegionOptions}
+      groupBy={regionGroupLabel}
+      getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
+      isOptionEqualToValue={(option, nextValue) => regionLabel(option) === regionLabel(nextValue)}
+      onChange={(_, nextValue) => onChange(regionLabel(nextValue))}
       onInputChange={(_, nextValue) => onChange(nextValue)}
-      renderInput={(params) => <TextField {...params} label={label} fullWidth />}
+      renderInput={(params) => {
+        const inputSlotProps = params.slotProps.input;
+        return (
+          <TextField
+            {...params}
+            label={label}
+            fullWidth
+            slotProps={{
+              ...params.slotProps,
+              input: {
+                ...inputSlotProps,
+                endAdornment: (
+                  <Box component="span" className="region-end-adornment">
+                    <Box component="span" className="region-inline-chip">
+                      省市
+                    </Box>
+                    {inputSlotProps.endAdornment}
+                  </Box>
+                ),
+              },
+            }}
+          />
+        );
+      }}
     />
   );
+}
+
+function RegionMultiInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  return (
+    <Autocomplete
+      className="region-select region-select-multiple"
+      multiple
+      freeSolo
+      fullWidth
+      value={value.map((item) => regionOptionFromValue(item) ?? item)}
+      options={chinaRegionOptions}
+      groupBy={regionGroupLabel}
+      getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
+      isOptionEqualToValue={(option, nextValue) => regionLabel(option) === regionLabel(nextValue)}
+      onChange={(_, nextValue) => onChange(dedupeRegionLabels(nextValue.map(regionLabel)))}
+      renderInput={(params) => {
+        const inputSlotProps = params.slotProps.input;
+        return (
+          <TextField
+            {...params}
+            label={label}
+            fullWidth
+            slotProps={{
+              ...params.slotProps,
+              input: {
+                ...inputSlotProps,
+                endAdornment: (
+                  <Box component="span" className="region-end-adornment">
+                    <Box component="span" className="region-inline-chip">
+                      多选
+                    </Box>
+                    {inputSlotProps.endAdornment}
+                  </Box>
+                ),
+              },
+            }}
+          />
+        );
+      }}
+    />
+  );
+}
+
+function regionOptionFromValue(value: string): ChinaRegionOption | null {
+  return chinaRegionOptions.find((option) => option.label === value) ?? null;
+}
+
+function regionLabel(value: string | ChinaRegionOption | null): string {
+  if (!value) {
+    return '';
+  }
+  return typeof value === 'string' ? value : value.label;
+}
+
+function regionGroupLabel(value: string | ChinaRegionOption): string {
+  if (typeof value === 'string') {
+    return '自定义';
+  }
+  return value.type === 'province' ? '省级行政区' : value.province;
 }
 
 function buildRequestText(data: TravelFormRequest): string {

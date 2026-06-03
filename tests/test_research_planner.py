@@ -187,8 +187,9 @@ async def test_research_planner_uses_qwen_cloud_runner(monkeypatch):
         output_type,
         instructions,
         model_override=None,
+        role="final",
     ):
-        calls.append((prompt, output_type, instructions, model_override))
+        calls.append((prompt, output_type, instructions, model_override, role))
         return TravelResearchPlan(
             original_question="成都重庆美食路线怎么安排？",
             destination="成都、重庆",
@@ -212,7 +213,7 @@ async def test_research_planner_uses_qwen_cloud_runner(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "huaxia_tourismrag.agents.research_planner.is_qwen_cloud_provider",
+        "huaxia_tourismrag.agents.research_planner.is_external_structured_provider",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -234,3 +235,4 @@ async def test_research_planner_uses_qwen_cloud_runner(monkeypatch):
     assert calls[0][1] is TravelResearchPlan
     assert calls[0][2] == RESEARCH_PLANNER_INSTRUCTIONS
     assert calls[0][3] == "qwen3.6-plus"
+    assert calls[0][4] == "planner"

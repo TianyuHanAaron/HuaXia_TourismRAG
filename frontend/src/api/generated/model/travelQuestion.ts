@@ -30,4 +30,9 @@ export interface TravelQuestion {
   language?: TravelQuestionLanguage;
   continuation_pending_kind?: TravelQuestionContinuationPendingKind;
   continuation_quick_reply_action_id?: TravelQuestionContinuationQuickReplyActionId;
+  /**
+     * @minimum 0
+     * @maximum 20
+     */
+  checkpoint_reply_count?: number;
 }

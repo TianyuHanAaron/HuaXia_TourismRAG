@@ -19,6 +19,9 @@ from huaxia_tourismrag.schemas.travel_checkpoints import (
 )
 
 
+MAX_CHECKPOINT_REPLY_TURNS = 3
+
+
 def resolved_detail_level(question: TravelQuestion) -> DetailLevel:
     """Return a concrete detail level for final answer generation."""
 
@@ -48,6 +51,7 @@ def build_checkpoint_context(
         interest_count=len(question.interests),
         continuation_pending_kind=question.continuation_pending_kind,
         continuation_quick_reply_action_id=question.continuation_quick_reply_action_id,
+        checkpoint_reply_count=question.checkpoint_reply_count,
     )
     if form_request is None:
         return context
@@ -82,6 +86,27 @@ def evaluate_checkpoint_policy(context: CheckpointContext) -> CheckpointPolicyDe
     """Evaluate deterministic fast paths from DTO facts only."""
 
     decision = CheckpointPolicyDecision()
+
+    if context.checkpoint_reply_count >= MAX_CHECKPOINT_REPLY_TURNS:
+        decision.run_intent_checkpoint = False
+        decision.run_preference_checkpoint = False
+        decision.run_feasibility_checkpoint = False
+        decision.synthesized_intent = (
+            "diy_itinerary"
+            if context.request_mode == "diy"
+            else "conventional_itinerary"
+        )
+        decision.synthesized_preference_profile = PreferenceProfile(
+            pace="balanced",
+            attraction_mix="balanced",
+            food_preference="local",
+            accommodation_preference="convenient",
+            detail_level=context.detail_level or "standard",
+            assumed_defaults=["已完成多轮确认，后续按当前信息直接生成方案。"],
+        )
+        decision.synthesized_feasibility_report = synthesize_feasibility_report()
+        decision.reasons.append("checkpoint_reply_limit_reached")
+        return decision
 
     if context.request_mode == "diy":
         decision.run_intent_checkpoint = False
@@ -280,6 +305,15 @@ def should_ask_detail_level(
     request_mode: RequestMode,
 ) -> ClarificationDecision:
     """Ask for response depth only from typed request mode/context."""
+
+    if question.checkpoint_reply_count >= MAX_CHECKPOINT_REPLY_TURNS:
+        return ClarificationDecision(
+            should_ask=False,
+            question=None,
+            reason="已完成多轮确认，默认使用标准可执行版继续生成。",
+            profile=PreferenceProfile(detail_level=question.detail_level or "standard"),
+            assumed_defaults=["默认使用标准可执行版。"],
+        )
 
     if question.detail_level:
         return ClarificationDecision(

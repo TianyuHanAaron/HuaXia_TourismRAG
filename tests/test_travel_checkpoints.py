@@ -320,8 +320,9 @@ async def test_intent_checkpoint_uses_qwen_cloud_runner(monkeypatch):
         output_type,
         instructions,
         model_override=None,
+        role="final",
     ):
-        calls.append((prompt, output_type, instructions, model_override))
+        calls.append((prompt, output_type, instructions, model_override, role))
         return IntentDecision(
             request_mode="general",
             intent="diy_itinerary",
@@ -331,7 +332,7 @@ async def test_intent_checkpoint_uses_qwen_cloud_runner(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "huaxia_tourismrag.agents.travel_checkpoints.is_qwen_cloud_provider",
+        "huaxia_tourismrag.agents.travel_checkpoints.is_external_structured_provider",
         lambda: True,
     )
     monkeypatch.setattr(
@@ -356,6 +357,7 @@ async def test_intent_checkpoint_uses_qwen_cloud_runner(monkeypatch):
     assert calls[0][1] is IntentDecision
     assert calls[0][2] == INTENT_CHECKPOINT_INSTRUCTIONS
     assert calls[0][3] == "qwen3.6-flash"
+    assert calls[0][4] == "checkpoint"
 
 
 def test_build_intent_redirect_answer_uses_same_response_shape():

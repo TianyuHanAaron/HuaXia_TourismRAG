@@ -50,6 +50,7 @@ export * from './serviceProviderUnavailable';
 export * from './serviceProviderUnavailableProvider';
 export * from './sessionReplyRequest';
 export * from './sessionReplyRequestQuickReplyActionId';
+export * from './streamTravelJobEventsTourismJobsJobIdEventsGetParams';
 export * from './topicRecommendation';
 export * from './topicRecommendationKind';
 export * from './tourismCapabilitiesResponse';
