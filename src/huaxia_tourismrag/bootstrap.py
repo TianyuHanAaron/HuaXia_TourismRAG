@@ -12,7 +12,14 @@ from fastapi.staticfiles import StaticFiles
 from qdrant_client import AsyncQdrantClient
 from redis.asyncio import Redis
 
-from huaxia_tourismrag.api.routes import router
+from huaxia_tourismrag.api.routes import (
+    analytics_router,
+    router,
+    rollout_router,
+    support_router,
+    trip_router,
+    user_router,
+)
 from huaxia_tourismrag.agents.engagement_feed_agent import EngagementFeedAgent
 from huaxia_tourismrag.agents.tourism_agent import TourismDeps
 from huaxia_tourismrag.core.config import get_settings
@@ -37,6 +44,7 @@ from huaxia_tourismrag.services.evidence_retrieval_orchestrator import (
 )
 from huaxia_tourismrag.services.job_queue import RedisTravelJobQueue
 from huaxia_tourismrag.services.job_store import RedisTravelJobStore
+from huaxia_tourismrag.services.market_store import InMemoryMarketStore
 from huaxia_tourismrag.services.planning_cache import PlanningCache
 from huaxia_tourismrag.services.provider_budget import ProviderCooldown
 from huaxia_tourismrag.services.qa_service import TourismQAService
@@ -48,6 +56,7 @@ from huaxia_tourismrag.services.session_store import (
     RedisTravelSessionStore,
     TravelSessionStore,
 )
+from huaxia_tourismrag.services.trip_store import RedisTripStore
 from huaxia_tourismrag.tools.citation_formatter import CitationFormatter
 from huaxia_tourismrag.tools.internal_rag import InternalRAGTool
 from huaxia_tourismrag.tools.reranker import BgeRerankerTool
@@ -62,7 +71,16 @@ from huaxia_tourismrag.schemas.service_enrichment import MCPProvider
 
 
 logger = logging.getLogger(__name__)
-FRONTEND_RESERVED_PATHS = {"tourism", "docs", "redoc", "openapi.json"}
+FRONTEND_RESERVED_PATHS = {
+    "tourism",
+    "trips",
+    "users",
+    "analytics",
+    "docs",
+    "redoc",
+    "openapi.json",
+    "rollout",
+}
 
 
 def build_search_provider() -> WebSearchProvider:
@@ -510,6 +528,20 @@ def build_travel_job_store(
     return RedisTravelJobStore(redis=redis, ttl_seconds=settings.job_ttl_seconds)
 
 
+def build_trip_store(redis: Redis | None = None) -> RedisTripStore:
+    """Build the Redis-backed long-lived trip command-center store."""
+
+    settings = get_settings()
+    redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
+    return RedisTripStore(redis=redis)
+
+
+def build_market_store() -> InMemoryMarketStore:
+    """Build the V2 market MVP preference/subscription/analytics store."""
+
+    return InMemoryMarketStore()
+
+
 def build_travel_job_queue(
     settings: Settings | None = None,
     redis: Redis | None = None,
@@ -589,6 +621,8 @@ def create_app() -> FastAPI:
     answer_cache = build_answer_cache(redis=session_store.redis)
     evidence_pack_cache = build_evidence_pack_cache(redis=session_store.redis)
     job_store = build_travel_job_store(redis=session_store.redis)
+    trip_store = build_trip_store(redis=session_store.redis)
+    market_store = build_market_store()
     job_queue = build_travel_job_queue(redis=session_store.redis)
     sales_handoff_store = RedisSalesHandoffStore(
         redis=session_store.redis,
@@ -597,6 +631,8 @@ def create_app() -> FastAPI:
     app.state.travel_session_store = session_store
     app.state.retrieval_cache = retrieval_cache
     app.state.travel_job_store = job_store
+    app.state.trip_store = trip_store
+    app.state.market_store = market_store
     app.state.travel_job_queue = job_queue
     app.state.sales_handoff_store = sales_handoff_store
     app.state.engagement_feed_service = EngagementFeedService(
@@ -644,5 +680,10 @@ def create_app() -> FastAPI:
         ),
     )
     app.include_router(router)
+    app.include_router(trip_router)
+    app.include_router(user_router)
+    app.include_router(analytics_router)
+    app.include_router(support_router)
+    app.include_router(rollout_router)
     configure_react_frontend(app, settings)
     return app

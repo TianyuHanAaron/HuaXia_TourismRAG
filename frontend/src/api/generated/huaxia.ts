@@ -24,19 +24,81 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AnalyticsBatchRequest,
+  AnalyticsBatchResponse,
+  AnalyticsEventListResponse,
+  AnalyticsEventRequest,
+  AnalyticsEventResponse,
+  AnalyticsFunnelResponse,
   BodyTranscribeVoiceUploadTourismVoiceTranscriptionsPost,
+  CalendarEventPreviewResponse,
+  CalendarExportRequest,
+  CalendarExportResponse,
+  CurrentUser,
+  EntitlementCheckRequest,
+  EntitlementCheckResponse,
+  GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams,
+  GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams,
+  GetTripSummaryTripsTripIdSummaryGetParams,
+  GetTripTaskCommandTripsTripIdTaskCommandGetParams,
+  GuestSessionResponse,
+  GuestUpgradeRequest,
+  GuestUpgradeResponse,
   HTTPValidationError,
   HealthCheckTourismHealthGet200,
+  KPITreeResponse,
+  MobileBetaFeatureConfigResponse,
+  OfflineTripSnapshotResponse,
+  OnboardingStateResponse,
+  OnboardingUpdateRequest,
+  PaywallConfigResponse,
+  PrivacyDataExportResponse,
+  PrivacyDeletionRequest,
+  PrivacyDeletionRequestResponse,
+  PrivacySettingsPatchRequest,
+  PrivacySettingsResponse,
+  RolloutFlagPatchRequest,
+  RolloutFlagResponse,
+  RolloutReadinessResponse,
+  RouteBundleListResponse,
+  SafetyCardResponse,
   SalesHandoffRequest,
   SalesHandoffResponse,
   SessionReplyRequest,
   StreamTravelJobEventsTourismJobsJobIdEventsGetParams,
+  StreamTripEventsTripsTripIdEventsGetParams,
+  SubscriptionRefreshResponse,
+  SubscriptionState,
+  SupportAuditEventListResponse,
+  SupportJobRecoveryBundleResponse,
+  SupportJobRecoveryRequest,
+  SupportJobRecoveryResponse,
+  SupportUserRecoverySummaryResponse,
   TourismCapabilitiesResponse,
   TravelAnswer,
   TravelFormRequest,
   TravelJobCreateResponse,
   TravelJobStatusResponse,
   TravelQuestion,
+  TripBookingCreateRequest,
+  TripBookingPatchRequest,
+  TripDayReorderRequest,
+  TripDocumentCreateRequest,
+  TripDocumentPatchRequest,
+  TripDraftReviewResponse,
+  TripListResponse,
+  TripMilestoneCreateRequest,
+  TripMilestonePatchRequest,
+  TripPatchRequest,
+  TripProviderActionLaunchRequest,
+  TripReminderCandidateResponse,
+  TripResponse,
+  TripSummaryResponse,
+  TripTaskCommandResponse,
+  TripTaskCreateRequest,
+  TripTaskPatchRequest,
+  UserPreferencePatchRequest,
+  UserPreferenceProfile,
   VoiceTranscriptionResponse
 } from './model';
 
@@ -1150,3 +1212,4658 @@ export const useTranscribeVoiceUploadTourismVoiceTranscriptionsPost = <TError = 
       > => {
       return useMutation(getTranscribeVoiceUploadTourismVoiceTranscriptionsPostMutationOptions(options), queryClient);
     }
+
+/**
+ * Create an editable trip draft from a completed planning job.
+ * @summary Create Trip From Job
+ */
+export const createTripFromJobTripsFromJobJobIdPost = (
+    jobId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/from-job/${jobId}`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getCreateTripFromJobTripsFromJobJobIdPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripFromJobTripsFromJobJobIdPost>>, TError,{jobId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createTripFromJobTripsFromJobJobIdPost>>, TError,{jobId: string}, TContext> => {
+
+const mutationKey = ['createTripFromJobTripsFromJobJobIdPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTripFromJobTripsFromJobJobIdPost>>, {jobId: string}> = (props) => {
+          const {jobId} = props ?? {};
+
+          return  createTripFromJobTripsFromJobJobIdPost(jobId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTripFromJobTripsFromJobJobIdPostMutationResult = NonNullable<Awaited<ReturnType<typeof createTripFromJobTripsFromJobJobIdPost>>>
+
+    export type CreateTripFromJobTripsFromJobJobIdPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Create Trip From Job
+ */
+export const useCreateTripFromJobTripsFromJobJobIdPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripFromJobTripsFromJobJobIdPost>>, TError,{jobId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createTripFromJobTripsFromJobJobIdPost>>,
+        TError,
+        {jobId: string},
+        TContext
+      > => {
+      return useMutation(getCreateTripFromJobTripsFromJobJobIdPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Create or return a removable sample trip for mobile onboarding.
+ * @summary Create Sample Trip
+ */
+export const createSampleTripTripsSamplesPost = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/samples`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getCreateSampleTripTripsSamplesPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSampleTripTripsSamplesPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createSampleTripTripsSamplesPost>>, TError,void, TContext> => {
+
+const mutationKey = ['createSampleTripTripsSamplesPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSampleTripTripsSamplesPost>>, void> = () => {
+
+
+          return  createSampleTripTripsSamplesPost()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSampleTripTripsSamplesPostMutationResult = NonNullable<Awaited<ReturnType<typeof createSampleTripTripsSamplesPost>>>
+
+    export type CreateSampleTripTripsSamplesPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Create Sample Trip
+ */
+export const useCreateSampleTripTripsSamplesPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSampleTripTripsSamplesPost>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createSampleTripTripsSamplesPost>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateSampleTripTripsSamplesPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return a review-focused draft before executable tasks are approved.
+ * @summary Get Trip Draft Review
+ */
+export const getTripDraftReviewTripsTripIdDraftReviewGet = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripDraftReviewResponse>(
+      {url: `/trips/${tripId}/draft-review`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripDraftReviewTripsTripIdDraftReviewGetQueryKey = (tripId: string,) => {
+    return [
+    `/trips/${tripId}/draft-review`
+    ] as const;
+    }
+
+
+export const getGetTripDraftReviewTripsTripIdDraftReviewGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError = HTTPValidationError>(tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripDraftReviewTripsTripIdDraftReviewGetQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>> = ({ signal }) => getTripDraftReviewTripsTripIdDraftReviewGet(tripId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripDraftReviewTripsTripIdDraftReviewGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>>
+export type GetTripDraftReviewTripsTripIdDraftReviewGetQueryError = HTTPValidationError
+
+
+export function useGetTripDraftReviewTripsTripIdDraftReviewGet<TData = Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError = HTTPValidationError>(
+ tripId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripDraftReviewTripsTripIdDraftReviewGet<TData = Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripDraftReviewTripsTripIdDraftReviewGet<TData = Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Draft Review
+ */
+
+export function useGetTripDraftReviewTripsTripIdDraftReviewGet<TData = Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripDraftReviewTripsTripIdDraftReviewGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripDraftReviewTripsTripIdDraftReviewGetQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Add a milestone while a trip is still in draft review.
+ * @summary Add Trip Draft Milestone
+ */
+export const addTripDraftMilestoneTripsTripIdDraftMilestonesPost = (
+    tripId: string,
+    tripMilestoneCreateRequest: TripMilestoneCreateRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/draft/milestones`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: tripMilestoneCreateRequest, signal
+    },
+      );
+    }
+
+
+
+export const getAddTripDraftMilestoneTripsTripIdDraftMilestonesPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addTripDraftMilestoneTripsTripIdDraftMilestonesPost>>, TError,{tripId: string;data: TripMilestoneCreateRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof addTripDraftMilestoneTripsTripIdDraftMilestonesPost>>, TError,{tripId: string;data: TripMilestoneCreateRequest}, TContext> => {
+
+const mutationKey = ['addTripDraftMilestoneTripsTripIdDraftMilestonesPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addTripDraftMilestoneTripsTripIdDraftMilestonesPost>>, {tripId: string;data: TripMilestoneCreateRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  addTripDraftMilestoneTripsTripIdDraftMilestonesPost(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddTripDraftMilestoneTripsTripIdDraftMilestonesPostMutationResult = NonNullable<Awaited<ReturnType<typeof addTripDraftMilestoneTripsTripIdDraftMilestonesPost>>>
+    export type AddTripDraftMilestoneTripsTripIdDraftMilestonesPostMutationBody = TripMilestoneCreateRequest
+    export type AddTripDraftMilestoneTripsTripIdDraftMilestonesPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Add Trip Draft Milestone
+ */
+export const useAddTripDraftMilestoneTripsTripIdDraftMilestonesPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addTripDraftMilestoneTripsTripIdDraftMilestonesPost>>, TError,{tripId: string;data: TripMilestoneCreateRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addTripDraftMilestoneTripsTripIdDraftMilestonesPost>>,
+        TError,
+        {tripId: string;data: TripMilestoneCreateRequest},
+        TContext
+      > => {
+      return useMutation(getAddTripDraftMilestoneTripsTripIdDraftMilestonesPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Patch one milestone while a trip is still in draft review.
+ * @summary Patch Trip Draft Milestone
+ */
+export const patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch = (
+    tripId: string,
+    milestoneId: string,
+    tripMilestonePatchRequest: TripMilestonePatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/draft/milestones/${milestoneId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: tripMilestonePatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch>>, TError,{tripId: string;milestoneId: string;data: TripMilestonePatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch>>, TError,{tripId: string;milestoneId: string;data: TripMilestonePatchRequest}, TContext> => {
+
+const mutationKey = ['patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch>>, {tripId: string;milestoneId: string;data: TripMilestonePatchRequest}> = (props) => {
+          const {tripId,milestoneId,data} = props ?? {};
+
+          return  patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch(tripId,milestoneId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch>>>
+    export type PatchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatchMutationBody = TripMilestonePatchRequest
+    export type PatchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch Trip Draft Milestone
+ */
+export const usePatchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch>>, TError,{tripId: string;milestoneId: string;data: TripMilestonePatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatch>>,
+        TError,
+        {tripId: string;milestoneId: string;data: TripMilestonePatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Delete one milestone while a trip is still in draft review.
+ * @summary Delete Trip Draft Milestone
+ */
+export const deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete = (
+    tripId: string,
+    milestoneId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/draft/milestones/${milestoneId}`, method: 'DELETE', signal
+    },
+      );
+    }
+
+
+
+export const getDeleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDeleteMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete>>, TError,{tripId: string;milestoneId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete>>, TError,{tripId: string;milestoneId: string}, TContext> => {
+
+const mutationKey = ['deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete>>, {tripId: string;milestoneId: string}> = (props) => {
+          const {tripId,milestoneId} = props ?? {};
+
+          return  deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete(tripId,milestoneId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete>>>
+
+    export type DeleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDeleteMutationError = HTTPValidationError
+
+    /**
+ * @summary Delete Trip Draft Milestone
+ */
+export const useDeleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete>>, TError,{tripId: string;milestoneId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDelete>>,
+        TError,
+        {tripId: string;milestoneId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTripDraftMilestoneTripsTripIdDraftMilestonesMilestoneIdDeleteMutationOptions(options), queryClient);
+    }
+
+/**
+ * Reorder day groups while a trip is still in draft review.
+ * @summary Reorder Trip Draft Days
+ */
+export const reorderTripDraftDaysTripsTripIdDraftReorderDaysPost = (
+    tripId: string,
+    tripDayReorderRequest: TripDayReorderRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/draft/reorder-days`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: tripDayReorderRequest, signal
+    },
+      );
+    }
+
+
+
+export const getReorderTripDraftDaysTripsTripIdDraftReorderDaysPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderTripDraftDaysTripsTripIdDraftReorderDaysPost>>, TError,{tripId: string;data: TripDayReorderRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof reorderTripDraftDaysTripsTripIdDraftReorderDaysPost>>, TError,{tripId: string;data: TripDayReorderRequest}, TContext> => {
+
+const mutationKey = ['reorderTripDraftDaysTripsTripIdDraftReorderDaysPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderTripDraftDaysTripsTripIdDraftReorderDaysPost>>, {tripId: string;data: TripDayReorderRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  reorderTripDraftDaysTripsTripIdDraftReorderDaysPost(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderTripDraftDaysTripsTripIdDraftReorderDaysPostMutationResult = NonNullable<Awaited<ReturnType<typeof reorderTripDraftDaysTripsTripIdDraftReorderDaysPost>>>
+    export type ReorderTripDraftDaysTripsTripIdDraftReorderDaysPostMutationBody = TripDayReorderRequest
+    export type ReorderTripDraftDaysTripsTripIdDraftReorderDaysPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Reorder Trip Draft Days
+ */
+export const useReorderTripDraftDaysTripsTripIdDraftReorderDaysPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderTripDraftDaysTripsTripIdDraftReorderDaysPost>>, TError,{tripId: string;data: TripDayReorderRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reorderTripDraftDaysTripsTripIdDraftReorderDaysPost>>,
+        TError,
+        {tripId: string;data: TripDayReorderRequest},
+        TContext
+      > => {
+      return useMutation(getReorderTripDraftDaysTripsTripIdDraftReorderDaysPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return compact active-trip summary for mobile home.
+ * @summary Get Trip Summary
+ */
+export const getTripSummaryTripsTripIdSummaryGet = (
+    tripId: string,
+    params?: GetTripSummaryTripsTripIdSummaryGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripSummaryResponse>(
+      {url: `/trips/${tripId}/summary`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripSummaryTripsTripIdSummaryGetQueryKey = (tripId: string,
+    params?: GetTripSummaryTripsTripIdSummaryGetParams,) => {
+    return [
+    `/trips/${tripId}/summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTripSummaryTripsTripIdSummaryGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError = HTTPValidationError>(tripId: string,
+    params?: GetTripSummaryTripsTripIdSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripSummaryTripsTripIdSummaryGetQueryKey(tripId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>> = ({ signal }) => getTripSummaryTripsTripIdSummaryGet(tripId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripSummaryTripsTripIdSummaryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>>
+export type GetTripSummaryTripsTripIdSummaryGetQueryError = HTTPValidationError
+
+
+export function useGetTripSummaryTripsTripIdSummaryGet<TData = Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params: undefined |  GetTripSummaryTripsTripIdSummaryGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripSummaryTripsTripIdSummaryGet<TData = Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripSummaryTripsTripIdSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripSummaryTripsTripIdSummaryGet<TData = Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripSummaryTripsTripIdSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Summary
+ */
+
+export function useGetTripSummaryTripsTripIdSummaryGet<TData = Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripSummaryTripsTripIdSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSummaryTripsTripIdSummaryGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripSummaryTripsTripIdSummaryGetQueryOptions(tripId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return action-first task groups for mobile command screens.
+ * @summary Get Trip Task Command
+ */
+export const getTripTaskCommandTripsTripIdTaskCommandGet = (
+    tripId: string,
+    params?: GetTripTaskCommandTripsTripIdTaskCommandGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripTaskCommandResponse>(
+      {url: `/trips/${tripId}/task-command`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripTaskCommandTripsTripIdTaskCommandGetQueryKey = (tripId: string,
+    params?: GetTripTaskCommandTripsTripIdTaskCommandGetParams,) => {
+    return [
+    `/trips/${tripId}/task-command`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTripTaskCommandTripsTripIdTaskCommandGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError = HTTPValidationError>(tripId: string,
+    params?: GetTripTaskCommandTripsTripIdTaskCommandGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripTaskCommandTripsTripIdTaskCommandGetQueryKey(tripId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>> = ({ signal }) => getTripTaskCommandTripsTripIdTaskCommandGet(tripId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripTaskCommandTripsTripIdTaskCommandGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>>
+export type GetTripTaskCommandTripsTripIdTaskCommandGetQueryError = HTTPValidationError
+
+
+export function useGetTripTaskCommandTripsTripIdTaskCommandGet<TData = Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params: undefined |  GetTripTaskCommandTripsTripIdTaskCommandGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripTaskCommandTripsTripIdTaskCommandGet<TData = Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripTaskCommandTripsTripIdTaskCommandGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripTaskCommandTripsTripIdTaskCommandGet<TData = Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripTaskCommandTripsTripIdTaskCommandGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Task Command
+ */
+
+export function useGetTripTaskCommandTripsTripIdTaskCommandGet<TData = Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripTaskCommandTripsTripIdTaskCommandGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTaskCommandTripsTripIdTaskCommandGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripTaskCommandTripsTripIdTaskCommandGetQueryOptions(tripId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return mobile-local notification candidates for executable tasks.
+ * @summary Get Trip Reminder Candidates
+ */
+export const getTripReminderCandidatesTripsTripIdReminderCandidatesGet = (
+    tripId: string,
+    params?: GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripReminderCandidateResponse>(
+      {url: `/trips/${tripId}/reminder-candidates`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripReminderCandidatesTripsTripIdReminderCandidatesGetQueryKey = (tripId: string,
+    params?: GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams,) => {
+    return [
+    `/trips/${tripId}/reminder-candidates`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTripReminderCandidatesTripsTripIdReminderCandidatesGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError = HTTPValidationError>(tripId: string,
+    params?: GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripReminderCandidatesTripsTripIdReminderCandidatesGetQueryKey(tripId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>> = ({ signal }) => getTripReminderCandidatesTripsTripIdReminderCandidatesGet(tripId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripReminderCandidatesTripsTripIdReminderCandidatesGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>>
+export type GetTripReminderCandidatesTripsTripIdReminderCandidatesGetQueryError = HTTPValidationError
+
+
+export function useGetTripReminderCandidatesTripsTripIdReminderCandidatesGet<TData = Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params: undefined |  GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripReminderCandidatesTripsTripIdReminderCandidatesGet<TData = Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripReminderCandidatesTripsTripIdReminderCandidatesGet<TData = Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Reminder Candidates
+ */
+
+export function useGetTripReminderCandidatesTripsTripIdReminderCandidatesGet<TData = Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: GetTripReminderCandidatesTripsTripIdReminderCandidatesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripReminderCandidatesTripsTripIdReminderCandidatesGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripReminderCandidatesTripsTripIdReminderCandidatesGetQueryOptions(tripId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return prepared route handoff bundles.
+ * @summary Get Trip Route Bundles
+ */
+export const getTripRouteBundlesTripsTripIdRouteBundlesGet = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<RouteBundleListResponse>(
+      {url: `/trips/${tripId}/route-bundles`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripRouteBundlesTripsTripIdRouteBundlesGetQueryKey = (tripId: string,) => {
+    return [
+    `/trips/${tripId}/route-bundles`
+    ] as const;
+    }
+
+
+export const getGetTripRouteBundlesTripsTripIdRouteBundlesGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError = HTTPValidationError>(tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripRouteBundlesTripsTripIdRouteBundlesGetQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>> = ({ signal }) => getTripRouteBundlesTripsTripIdRouteBundlesGet(tripId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripRouteBundlesTripsTripIdRouteBundlesGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>>
+export type GetTripRouteBundlesTripsTripIdRouteBundlesGetQueryError = HTTPValidationError
+
+
+export function useGetTripRouteBundlesTripsTripIdRouteBundlesGet<TData = Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError = HTTPValidationError>(
+ tripId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripRouteBundlesTripsTripIdRouteBundlesGet<TData = Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripRouteBundlesTripsTripIdRouteBundlesGet<TData = Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Route Bundles
+ */
+
+export function useGetTripRouteBundlesTripsTripIdRouteBundlesGet<TData = Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripRouteBundlesTripsTripIdRouteBundlesGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripRouteBundlesTripsTripIdRouteBundlesGetQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return calendar event previews for explicit user export.
+ * @summary Get Trip Calendar Events
+ */
+export const getTripCalendarEventsTripsTripIdCalendarEventsGet = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<CalendarEventPreviewResponse>(
+      {url: `/trips/${tripId}/calendar-events`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripCalendarEventsTripsTripIdCalendarEventsGetQueryKey = (tripId: string,) => {
+    return [
+    `/trips/${tripId}/calendar-events`
+    ] as const;
+    }
+
+
+export const getGetTripCalendarEventsTripsTripIdCalendarEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError = HTTPValidationError>(tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripCalendarEventsTripsTripIdCalendarEventsGetQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>> = ({ signal }) => getTripCalendarEventsTripsTripIdCalendarEventsGet(tripId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripCalendarEventsTripsTripIdCalendarEventsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>>
+export type GetTripCalendarEventsTripsTripIdCalendarEventsGetQueryError = HTTPValidationError
+
+
+export function useGetTripCalendarEventsTripsTripIdCalendarEventsGet<TData = Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError = HTTPValidationError>(
+ tripId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripCalendarEventsTripsTripIdCalendarEventsGet<TData = Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripCalendarEventsTripsTripIdCalendarEventsGet<TData = Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Calendar Events
+ */
+
+export function useGetTripCalendarEventsTripsTripIdCalendarEventsGet<TData = Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripCalendarEventsTripsTripIdCalendarEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripCalendarEventsTripsTripIdCalendarEventsGetQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Confirm selected calendar events and return device-calendar/.ics payload.
+ * @summary Export Trip Calendar Events
+ */
+export const exportTripCalendarEventsTripsTripIdCalendarExportPost = (
+    tripId: string,
+    calendarExportRequest: CalendarExportRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<CalendarExportResponse>(
+      {url: `/trips/${tripId}/calendar-export`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: calendarExportRequest, signal
+    },
+      );
+    }
+
+
+
+export const getExportTripCalendarEventsTripsTripIdCalendarExportPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exportTripCalendarEventsTripsTripIdCalendarExportPost>>, TError,{tripId: string;data: CalendarExportRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof exportTripCalendarEventsTripsTripIdCalendarExportPost>>, TError,{tripId: string;data: CalendarExportRequest}, TContext> => {
+
+const mutationKey = ['exportTripCalendarEventsTripsTripIdCalendarExportPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof exportTripCalendarEventsTripsTripIdCalendarExportPost>>, {tripId: string;data: CalendarExportRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  exportTripCalendarEventsTripsTripIdCalendarExportPost(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExportTripCalendarEventsTripsTripIdCalendarExportPostMutationResult = NonNullable<Awaited<ReturnType<typeof exportTripCalendarEventsTripsTripIdCalendarExportPost>>>
+    export type ExportTripCalendarEventsTripsTripIdCalendarExportPostMutationBody = CalendarExportRequest
+    export type ExportTripCalendarEventsTripsTripIdCalendarExportPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Export Trip Calendar Events
+ */
+export const useExportTripCalendarEventsTripsTripIdCalendarExportPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exportTripCalendarEventsTripsTripIdCalendarExportPost>>, TError,{tripId: string;data: CalendarExportRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof exportTripCalendarEventsTripsTripIdCalendarExportPost>>,
+        TError,
+        {tripId: string;data: CalendarExportRequest},
+        TContext
+      > => {
+      return useMutation(getExportTripCalendarEventsTripsTripIdCalendarExportPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return conservative offline-ready safety guidance.
+ * @summary Get Trip Safety Card
+ */
+export const getTripSafetyCardTripsTripIdSafetyCardGet = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SafetyCardResponse>(
+      {url: `/trips/${tripId}/safety-card`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripSafetyCardTripsTripIdSafetyCardGetQueryKey = (tripId: string,) => {
+    return [
+    `/trips/${tripId}/safety-card`
+    ] as const;
+    }
+
+
+export const getGetTripSafetyCardTripsTripIdSafetyCardGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError = HTTPValidationError>(tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripSafetyCardTripsTripIdSafetyCardGetQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>> = ({ signal }) => getTripSafetyCardTripsTripIdSafetyCardGet(tripId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripSafetyCardTripsTripIdSafetyCardGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>>
+export type GetTripSafetyCardTripsTripIdSafetyCardGetQueryError = HTTPValidationError
+
+
+export function useGetTripSafetyCardTripsTripIdSafetyCardGet<TData = Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError = HTTPValidationError>(
+ tripId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripSafetyCardTripsTripIdSafetyCardGet<TData = Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripSafetyCardTripsTripIdSafetyCardGet<TData = Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Safety Card
+ */
+
+export function useGetTripSafetyCardTripsTripIdSafetyCardGet<TData = Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripSafetyCardTripsTripIdSafetyCardGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripSafetyCardTripsTripIdSafetyCardGetQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return compact active-trip state for mobile offline cache.
+ * @summary Get Trip Offline Snapshot
+ */
+export const getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<OfflineTripSnapshotResponse>(
+      {url: `/trips/${tripId}/offline-snapshot`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGetQueryKey = (tripId: string,) => {
+    return [
+    `/trips/${tripId}/offline-snapshot`
+    ] as const;
+    }
+
+
+export const getGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError = HTTPValidationError>(tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGetQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>> = ({ signal }) => getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet(tripId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripOfflineSnapshotTripsTripIdOfflineSnapshotGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>>
+export type GetTripOfflineSnapshotTripsTripIdOfflineSnapshotGetQueryError = HTTPValidationError
+
+
+export function useGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGet<TData = Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError = HTTPValidationError>(
+ tripId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGet<TData = Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGet<TData = Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip Offline Snapshot
+ */
+
+export function useGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGet<TData = Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripOfflineSnapshotTripsTripIdOfflineSnapshotGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripOfflineSnapshotTripsTripIdOfflineSnapshotGetQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Attach document metadata to a trip without ingesting file contents.
+ * @summary Create Trip Document
+ */
+export const createTripDocumentTripsTripIdDocumentsPost = (
+    tripId: string,
+    tripDocumentCreateRequest: TripDocumentCreateRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/documents`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: tripDocumentCreateRequest, signal
+    },
+      );
+    }
+
+
+
+export const getCreateTripDocumentTripsTripIdDocumentsPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripDocumentTripsTripIdDocumentsPost>>, TError,{tripId: string;data: TripDocumentCreateRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createTripDocumentTripsTripIdDocumentsPost>>, TError,{tripId: string;data: TripDocumentCreateRequest}, TContext> => {
+
+const mutationKey = ['createTripDocumentTripsTripIdDocumentsPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTripDocumentTripsTripIdDocumentsPost>>, {tripId: string;data: TripDocumentCreateRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  createTripDocumentTripsTripIdDocumentsPost(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTripDocumentTripsTripIdDocumentsPostMutationResult = NonNullable<Awaited<ReturnType<typeof createTripDocumentTripsTripIdDocumentsPost>>>
+    export type CreateTripDocumentTripsTripIdDocumentsPostMutationBody = TripDocumentCreateRequest
+    export type CreateTripDocumentTripsTripIdDocumentsPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Create Trip Document
+ */
+export const useCreateTripDocumentTripsTripIdDocumentsPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripDocumentTripsTripIdDocumentsPost>>, TError,{tripId: string;data: TripDocumentCreateRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createTripDocumentTripsTripIdDocumentsPost>>,
+        TError,
+        {tripId: string;data: TripDocumentCreateRequest},
+        TContext
+      > => {
+      return useMutation(getCreateTripDocumentTripsTripIdDocumentsPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Patch document metadata without ingesting file contents.
+ * @summary Patch Trip Document Metadata
+ */
+export const patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch = (
+    tripId: string,
+    documentId: string,
+    tripDocumentPatchRequest: TripDocumentPatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/documents/${documentId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: tripDocumentPatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch>>, TError,{tripId: string;documentId: string;data: TripDocumentPatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch>>, TError,{tripId: string;documentId: string;data: TripDocumentPatchRequest}, TContext> => {
+
+const mutationKey = ['patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch>>, {tripId: string;documentId: string;data: TripDocumentPatchRequest}> = (props) => {
+          const {tripId,documentId,data} = props ?? {};
+
+          return  patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch(tripId,documentId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch>>>
+    export type PatchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatchMutationBody = TripDocumentPatchRequest
+    export type PatchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch Trip Document Metadata
+ */
+export const usePatchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch>>, TError,{tripId: string;documentId: string;data: TripDocumentPatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatch>>,
+        TError,
+        {tripId: string;documentId: string;data: TripDocumentPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchTripDocumentMetadataTripsTripIdDocumentsDocumentIdPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Remove document metadata from a trip.
+ * @summary Delete Trip Document Metadata
+ */
+export const deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete = (
+    tripId: string,
+    documentId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/documents/${documentId}`, method: 'DELETE', signal
+    },
+      );
+    }
+
+
+
+export const getDeleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDeleteMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete>>, TError,{tripId: string;documentId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete>>, TError,{tripId: string;documentId: string}, TContext> => {
+
+const mutationKey = ['deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete>>, {tripId: string;documentId: string}> = (props) => {
+          const {tripId,documentId} = props ?? {};
+
+          return  deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete(tripId,documentId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete>>>
+
+    export type DeleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDeleteMutationError = HTTPValidationError
+
+    /**
+ * @summary Delete Trip Document Metadata
+ */
+export const useDeleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete>>, TError,{tripId: string;documentId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDelete>>,
+        TError,
+        {tripId: string;documentId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTripDocumentMetadataTripsTripIdDocumentsDocumentIdDeleteMutationOptions(options), queryClient);
+    }
+
+/**
+ * Attach booking metadata to a trip.
+ * @summary Create Trip Booking
+ */
+export const createTripBookingTripsTripIdBookingsPost = (
+    tripId: string,
+    tripBookingCreateRequest: TripBookingCreateRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/bookings`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: tripBookingCreateRequest, signal
+    },
+      );
+    }
+
+
+
+export const getCreateTripBookingTripsTripIdBookingsPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripBookingTripsTripIdBookingsPost>>, TError,{tripId: string;data: TripBookingCreateRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createTripBookingTripsTripIdBookingsPost>>, TError,{tripId: string;data: TripBookingCreateRequest}, TContext> => {
+
+const mutationKey = ['createTripBookingTripsTripIdBookingsPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTripBookingTripsTripIdBookingsPost>>, {tripId: string;data: TripBookingCreateRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  createTripBookingTripsTripIdBookingsPost(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTripBookingTripsTripIdBookingsPostMutationResult = NonNullable<Awaited<ReturnType<typeof createTripBookingTripsTripIdBookingsPost>>>
+    export type CreateTripBookingTripsTripIdBookingsPostMutationBody = TripBookingCreateRequest
+    export type CreateTripBookingTripsTripIdBookingsPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Create Trip Booking
+ */
+export const useCreateTripBookingTripsTripIdBookingsPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripBookingTripsTripIdBookingsPost>>, TError,{tripId: string;data: TripBookingCreateRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createTripBookingTripsTripIdBookingsPost>>,
+        TError,
+        {tripId: string;data: TripBookingCreateRequest},
+        TContext
+      > => {
+      return useMutation(getCreateTripBookingTripsTripIdBookingsPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Patch booking metadata attached to a trip.
+ * @summary Patch Trip Booking Metadata
+ */
+export const patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch = (
+    tripId: string,
+    bookingId: string,
+    tripBookingPatchRequest: TripBookingPatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/bookings/${bookingId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: tripBookingPatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchTripBookingMetadataTripsTripIdBookingsBookingIdPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch>>, TError,{tripId: string;bookingId: string;data: TripBookingPatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch>>, TError,{tripId: string;bookingId: string;data: TripBookingPatchRequest}, TContext> => {
+
+const mutationKey = ['patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch>>, {tripId: string;bookingId: string;data: TripBookingPatchRequest}> = (props) => {
+          const {tripId,bookingId,data} = props ?? {};
+
+          return  patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch(tripId,bookingId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchTripBookingMetadataTripsTripIdBookingsBookingIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch>>>
+    export type PatchTripBookingMetadataTripsTripIdBookingsBookingIdPatchMutationBody = TripBookingPatchRequest
+    export type PatchTripBookingMetadataTripsTripIdBookingsBookingIdPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch Trip Booking Metadata
+ */
+export const usePatchTripBookingMetadataTripsTripIdBookingsBookingIdPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch>>, TError,{tripId: string;bookingId: string;data: TripBookingPatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchTripBookingMetadataTripsTripIdBookingsBookingIdPatch>>,
+        TError,
+        {tripId: string;bookingId: string;data: TripBookingPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchTripBookingMetadataTripsTripIdBookingsBookingIdPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Remove booking metadata from a trip.
+ * @summary Delete Trip Booking Metadata
+ */
+export const deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete = (
+    tripId: string,
+    bookingId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/bookings/${bookingId}`, method: 'DELETE', signal
+    },
+      );
+    }
+
+
+
+export const getDeleteTripBookingMetadataTripsTripIdBookingsBookingIdDeleteMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete>>, TError,{tripId: string;bookingId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete>>, TError,{tripId: string;bookingId: string}, TContext> => {
+
+const mutationKey = ['deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete>>, {tripId: string;bookingId: string}> = (props) => {
+          const {tripId,bookingId} = props ?? {};
+
+          return  deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete(tripId,bookingId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTripBookingMetadataTripsTripIdBookingsBookingIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete>>>
+
+    export type DeleteTripBookingMetadataTripsTripIdBookingsBookingIdDeleteMutationError = HTTPValidationError
+
+    /**
+ * @summary Delete Trip Booking Metadata
+ */
+export const useDeleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete>>, TError,{tripId: string;bookingId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTripBookingMetadataTripsTripIdBookingsBookingIdDelete>>,
+        TError,
+        {tripId: string;bookingId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTripBookingMetadataTripsTripIdBookingsBookingIdDeleteMutationOptions(options), queryClient);
+    }
+
+/**
+ * List tenant-scoped non-archived trips.
+ * @summary List Trips
+ */
+export const listTripsTripsGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripListResponse>(
+      {url: `/trips`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getListTripsTripsGetQueryKey = () => {
+    return [
+    `/trips`
+    ] as const;
+    }
+
+
+export const getListTripsTripsGetQueryOptions = <TData = Awaited<ReturnType<typeof listTripsTripsGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTripsTripsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTripsTripsGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTripsTripsGet>>> = ({ signal }) => listTripsTripsGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTripsTripsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListTripsTripsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listTripsTripsGet>>>
+export type ListTripsTripsGetQueryError = HTTPValidationError
+
+
+export function useListTripsTripsGet<TData = Awaited<ReturnType<typeof listTripsTripsGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTripsTripsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTripsTripsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listTripsTripsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTripsTripsGet<TData = Awaited<ReturnType<typeof listTripsTripsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTripsTripsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listTripsTripsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listTripsTripsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListTripsTripsGet<TData = Awaited<ReturnType<typeof listTripsTripsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTripsTripsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Trips
+ */
+
+export function useListTripsTripsGet<TData = Awaited<ReturnType<typeof listTripsTripsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listTripsTripsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListTripsTripsGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return one tenant-scoped trip.
+ * @summary Get Trip
+ */
+export const getTripTripsTripIdGet = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetTripTripsTripIdGetQueryKey = (tripId: string,) => {
+    return [
+    `/trips/${tripId}`
+    ] as const;
+    }
+
+
+export const getGetTripTripsTripIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError = HTTPValidationError>(tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripTripsTripIdGetQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripTripsTripIdGet>>> = ({ signal }) => getTripTripsTripIdGet(tripId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTripTripsTripIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTripTripsTripIdGet>>>
+export type GetTripTripsTripIdGetQueryError = HTTPValidationError
+
+
+export function useGetTripTripsTripIdGet<TData = Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError = HTTPValidationError>(
+ tripId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripTripsTripIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripTripsTripIdGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripTripsTripIdGet<TData = Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTripTripsTripIdGet>>,
+          TError,
+          Awaited<ReturnType<typeof getTripTripsTripIdGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTripTripsTripIdGet<TData = Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Trip
+ */
+
+export function useGetTripTripsTripIdGet<TData = Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError = HTTPValidationError>(
+ tripId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTripTripsTripIdGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTripTripsTripIdGetQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Patch editable trip draft fields.
+ * @summary Patch Trip
+ */
+export const patchTripTripsTripIdPatch = (
+    tripId: string,
+    tripPatchRequest: TripPatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: tripPatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchTripTripsTripIdPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripTripsTripIdPatch>>, TError,{tripId: string;data: TripPatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchTripTripsTripIdPatch>>, TError,{tripId: string;data: TripPatchRequest}, TContext> => {
+
+const mutationKey = ['patchTripTripsTripIdPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchTripTripsTripIdPatch>>, {tripId: string;data: TripPatchRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  patchTripTripsTripIdPatch(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchTripTripsTripIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchTripTripsTripIdPatch>>>
+    export type PatchTripTripsTripIdPatchMutationBody = TripPatchRequest
+    export type PatchTripTripsTripIdPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch Trip
+ */
+export const usePatchTripTripsTripIdPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripTripsTripIdPatch>>, TError,{tripId: string;data: TripPatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchTripTripsTripIdPatch>>,
+        TError,
+        {tripId: string;data: TripPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchTripTripsTripIdPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Approve a draft and generate initial lifecycle workflow tasks.
+ * @summary Approve Trip Draft
+ */
+export const approveTripDraftTripsTripIdApprovePost = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/approve`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getApproveTripDraftTripsTripIdApprovePostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveTripDraftTripsTripIdApprovePost>>, TError,{tripId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof approveTripDraftTripsTripIdApprovePost>>, TError,{tripId: string}, TContext> => {
+
+const mutationKey = ['approveTripDraftTripsTripIdApprovePost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveTripDraftTripsTripIdApprovePost>>, {tripId: string}> = (props) => {
+          const {tripId} = props ?? {};
+
+          return  approveTripDraftTripsTripIdApprovePost(tripId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveTripDraftTripsTripIdApprovePostMutationResult = NonNullable<Awaited<ReturnType<typeof approveTripDraftTripsTripIdApprovePost>>>
+
+    export type ApproveTripDraftTripsTripIdApprovePostMutationError = HTTPValidationError
+
+    /**
+ * @summary Approve Trip Draft
+ */
+export const useApproveTripDraftTripsTripIdApprovePost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveTripDraftTripsTripIdApprovePost>>, TError,{tripId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof approveTripDraftTripsTripIdApprovePost>>,
+        TError,
+        {tripId: string},
+        TContext
+      > => {
+      return useMutation(getApproveTripDraftTripsTripIdApprovePostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Archive a trip so it no longer appears in the active trip list.
+ * @summary Archive Trip
+ */
+export const archiveTripTripsTripIdArchivePost = (
+    tripId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/archive`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getArchiveTripTripsTripIdArchivePostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveTripTripsTripIdArchivePost>>, TError,{tripId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof archiveTripTripsTripIdArchivePost>>, TError,{tripId: string}, TContext> => {
+
+const mutationKey = ['archiveTripTripsTripIdArchivePost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveTripTripsTripIdArchivePost>>, {tripId: string}> = (props) => {
+          const {tripId} = props ?? {};
+
+          return  archiveTripTripsTripIdArchivePost(tripId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveTripTripsTripIdArchivePostMutationResult = NonNullable<Awaited<ReturnType<typeof archiveTripTripsTripIdArchivePost>>>
+
+    export type ArchiveTripTripsTripIdArchivePostMutationError = HTTPValidationError
+
+    /**
+ * @summary Archive Trip
+ */
+export const useArchiveTripTripsTripIdArchivePost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveTripTripsTripIdArchivePost>>, TError,{tripId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof archiveTripTripsTripIdArchivePost>>,
+        TError,
+        {tripId: string},
+        TContext
+      > => {
+      return useMutation(getArchiveTripTripsTripIdArchivePostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Add a user-created task to a trip.
+ * @summary Create Trip Task
+ */
+export const createTripTaskTripsTripIdTasksPost = (
+    tripId: string,
+    tripTaskCreateRequest: TripTaskCreateRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/tasks`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: tripTaskCreateRequest, signal
+    },
+      );
+    }
+
+
+
+export const getCreateTripTaskTripsTripIdTasksPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripTaskTripsTripIdTasksPost>>, TError,{tripId: string;data: TripTaskCreateRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createTripTaskTripsTripIdTasksPost>>, TError,{tripId: string;data: TripTaskCreateRequest}, TContext> => {
+
+const mutationKey = ['createTripTaskTripsTripIdTasksPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTripTaskTripsTripIdTasksPost>>, {tripId: string;data: TripTaskCreateRequest}> = (props) => {
+          const {tripId,data} = props ?? {};
+
+          return  createTripTaskTripsTripIdTasksPost(tripId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTripTaskTripsTripIdTasksPostMutationResult = NonNullable<Awaited<ReturnType<typeof createTripTaskTripsTripIdTasksPost>>>
+    export type CreateTripTaskTripsTripIdTasksPostMutationBody = TripTaskCreateRequest
+    export type CreateTripTaskTripsTripIdTasksPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Create Trip Task
+ */
+export const useCreateTripTaskTripsTripIdTasksPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTripTaskTripsTripIdTasksPost>>, TError,{tripId: string;data: TripTaskCreateRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createTripTaskTripsTripIdTasksPost>>,
+        TError,
+        {tripId: string;data: TripTaskCreateRequest},
+        TContext
+      > => {
+      return useMutation(getCreateTripTaskTripsTripIdTasksPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Patch a trip task.
+ * @summary Patch Trip Task
+ */
+export const patchTripTaskTripsTripIdTasksTaskIdPatch = (
+    tripId: string,
+    taskId: string,
+    tripTaskPatchRequest: TripTaskPatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/tasks/${taskId}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: tripTaskPatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchTripTaskTripsTripIdTasksTaskIdPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripTaskTripsTripIdTasksTaskIdPatch>>, TError,{tripId: string;taskId: string;data: TripTaskPatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchTripTaskTripsTripIdTasksTaskIdPatch>>, TError,{tripId: string;taskId: string;data: TripTaskPatchRequest}, TContext> => {
+
+const mutationKey = ['patchTripTaskTripsTripIdTasksTaskIdPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchTripTaskTripsTripIdTasksTaskIdPatch>>, {tripId: string;taskId: string;data: TripTaskPatchRequest}> = (props) => {
+          const {tripId,taskId,data} = props ?? {};
+
+          return  patchTripTaskTripsTripIdTasksTaskIdPatch(tripId,taskId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchTripTaskTripsTripIdTasksTaskIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchTripTaskTripsTripIdTasksTaskIdPatch>>>
+    export type PatchTripTaskTripsTripIdTasksTaskIdPatchMutationBody = TripTaskPatchRequest
+    export type PatchTripTaskTripsTripIdTasksTaskIdPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch Trip Task
+ */
+export const usePatchTripTaskTripsTripIdTasksTaskIdPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchTripTaskTripsTripIdTasksTaskIdPatch>>, TError,{tripId: string;taskId: string;data: TripTaskPatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchTripTaskTripsTripIdTasksTaskIdPatch>>,
+        TError,
+        {tripId: string;taskId: string;data: TripTaskPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchTripTaskTripsTripIdTasksTaskIdPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Record a provider action launch.
+ * @summary Launch Trip Provider Action
+ */
+export const launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost = (
+    tripId: string,
+    actionId: string,
+    tripProviderActionLaunchRequestNull?: TripProviderActionLaunchRequest | null,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<TripResponse>(
+      {url: `/trips/${tripId}/provider-actions/${actionId}/launch`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: tripProviderActionLaunchRequestNull, signal
+    },
+      );
+    }
+
+
+
+export const getLaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost>>, TError,{tripId: string;actionId: string;data?: TripProviderActionLaunchRequest | null}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost>>, TError,{tripId: string;actionId: string;data?: TripProviderActionLaunchRequest | null}, TContext> => {
+
+const mutationKey = ['launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost>>, {tripId: string;actionId: string;data?: TripProviderActionLaunchRequest | null}> = (props) => {
+          const {tripId,actionId,data} = props ?? {};
+
+          return  launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost(tripId,actionId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPostMutationResult = NonNullable<Awaited<ReturnType<typeof launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost>>>
+    export type LaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPostMutationBody = TripProviderActionLaunchRequest | null | undefined
+    export type LaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Launch Trip Provider Action
+ */
+export const useLaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost>>, TError,{tripId: string;actionId: string;data?: TripProviderActionLaunchRequest | null}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof launchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost>>,
+        TError,
+        {tripId: string;actionId: string;data?: TripProviderActionLaunchRequest | null},
+        TContext
+      > => {
+      return useMutation(getLaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Stream trip snapshots for command-center clients.
+ *
+ * V1 is a snapshot stream; later workflow events can reuse this boundary.
+ * @summary Stream Trip Events
+ */
+export const streamTripEventsTripsTripIdEventsGet = (
+    tripId: string,
+    params?: StreamTripEventsTripsTripIdEventsGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<unknown>(
+      {url: `/trips/${tripId}/events`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getStreamTripEventsTripsTripIdEventsGetQueryKey = (tripId: string,
+    params?: StreamTripEventsTripsTripIdEventsGetParams,) => {
+    return [
+    `/trips/${tripId}/events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getStreamTripEventsTripsTripIdEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError = HTTPValidationError>(tripId: string,
+    params?: StreamTripEventsTripsTripIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamTripEventsTripsTripIdEventsGetQueryKey(tripId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>> = ({ signal }) => streamTripEventsTripsTripIdEventsGet(tripId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type StreamTripEventsTripsTripIdEventsGetQueryResult = NonNullable<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>>
+export type StreamTripEventsTripsTripIdEventsGetQueryError = HTTPValidationError
+
+
+export function useStreamTripEventsTripsTripIdEventsGet<TData = Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params: undefined |  StreamTripEventsTripsTripIdEventsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamTripEventsTripsTripIdEventsGet<TData = Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: StreamTripEventsTripsTripIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamTripEventsTripsTripIdEventsGet<TData = Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: StreamTripEventsTripsTripIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream Trip Events
+ */
+
+export function useStreamTripEventsTripsTripIdEventsGet<TData = Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError = HTTPValidationError>(
+ tripId: string,
+    params?: StreamTripEventsTripsTripIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTripEventsTripsTripIdEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getStreamTripEventsTripsTripIdEventsGetQueryOptions(tripId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return the current user identity resolved for this request.
+ * @summary Get Current User Profile
+ */
+export const getCurrentUserProfileUsersMeGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<CurrentUser>(
+      {url: `/users/me`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetCurrentUserProfileUsersMeGetQueryKey = () => {
+    return [
+    `/users/me`
+    ] as const;
+    }
+
+
+export const getGetCurrentUserProfileUsersMeGetQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentUserProfileUsersMeGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>> = ({ signal }) => getCurrentUserProfileUsersMeGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCurrentUserProfileUsersMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>>
+export type GetCurrentUserProfileUsersMeGetQueryError = HTTPValidationError
+
+
+export function useGetCurrentUserProfileUsersMeGet<TData = Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCurrentUserProfileUsersMeGet<TData = Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCurrentUserProfileUsersMeGet<TData = Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Current User Profile
+ */
+
+export function useGetCurrentUserProfileUsersMeGet<TData = Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCurrentUserProfileUsersMeGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCurrentUserProfileUsersMeGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Create an anonymous mobile session for first-run onboarding.
+ * @summary Create Guest Session
+ */
+export const createGuestSessionUsersMeGuestSessionPost = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<GuestSessionResponse>(
+      {url: `/users/me/guest-session`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getCreateGuestSessionUsersMeGuestSessionPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionUsersMeGuestSessionPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionUsersMeGuestSessionPost>>, TError,void, TContext> => {
+
+const mutationKey = ['createGuestSessionUsersMeGuestSessionPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuestSessionUsersMeGuestSessionPost>>, void> = () => {
+
+
+          return  createGuestSessionUsersMeGuestSessionPost()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGuestSessionUsersMeGuestSessionPostMutationResult = NonNullable<Awaited<ReturnType<typeof createGuestSessionUsersMeGuestSessionPost>>>
+
+    export type CreateGuestSessionUsersMeGuestSessionPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Create Guest Session
+ */
+export const useCreateGuestSessionUsersMeGuestSessionPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionUsersMeGuestSessionPost>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createGuestSessionUsersMeGuestSessionPost>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateGuestSessionUsersMeGuestSessionPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Transfer guest-owned trips to the current registered account.
+ * @summary Upgrade Guest Trips To Account
+ */
+export const upgradeGuestTripsToAccountUsersMeGuestUpgradePost = (
+    guestUpgradeRequest: GuestUpgradeRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<GuestUpgradeResponse>(
+      {url: `/users/me/guest-upgrade`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: guestUpgradeRequest, signal
+    },
+      );
+    }
+
+
+
+export const getUpgradeGuestTripsToAccountUsersMeGuestUpgradePostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upgradeGuestTripsToAccountUsersMeGuestUpgradePost>>, TError,{data: GuestUpgradeRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof upgradeGuestTripsToAccountUsersMeGuestUpgradePost>>, TError,{data: GuestUpgradeRequest}, TContext> => {
+
+const mutationKey = ['upgradeGuestTripsToAccountUsersMeGuestUpgradePost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upgradeGuestTripsToAccountUsersMeGuestUpgradePost>>, {data: GuestUpgradeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  upgradeGuestTripsToAccountUsersMeGuestUpgradePost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpgradeGuestTripsToAccountUsersMeGuestUpgradePostMutationResult = NonNullable<Awaited<ReturnType<typeof upgradeGuestTripsToAccountUsersMeGuestUpgradePost>>>
+    export type UpgradeGuestTripsToAccountUsersMeGuestUpgradePostMutationBody = GuestUpgradeRequest
+    export type UpgradeGuestTripsToAccountUsersMeGuestUpgradePostMutationError = HTTPValidationError
+
+    /**
+ * @summary Upgrade Guest Trips To Account
+ */
+export const useUpgradeGuestTripsToAccountUsersMeGuestUpgradePost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upgradeGuestTripsToAccountUsersMeGuestUpgradePost>>, TError,{data: GuestUpgradeRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof upgradeGuestTripsToAccountUsersMeGuestUpgradePost>>,
+        TError,
+        {data: GuestUpgradeRequest},
+        TContext
+      > => {
+      return useMutation(getUpgradeGuestTripsToAccountUsersMeGuestUpgradePostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return first-run mobile onboarding state and next recommended screen.
+ * @summary Get Mobile Onboarding State
+ */
+export const getMobileOnboardingStateUsersMeOnboardingGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<OnboardingStateResponse>(
+      {url: `/users/me/onboarding`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetMobileOnboardingStateUsersMeOnboardingGetQueryKey = () => {
+    return [
+    `/users/me/onboarding`
+    ] as const;
+    }
+
+
+export const getGetMobileOnboardingStateUsersMeOnboardingGetQueryOptions = <TData = Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMobileOnboardingStateUsersMeOnboardingGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>> = ({ signal }) => getMobileOnboardingStateUsersMeOnboardingGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMobileOnboardingStateUsersMeOnboardingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>>
+export type GetMobileOnboardingStateUsersMeOnboardingGetQueryError = HTTPValidationError
+
+
+export function useGetMobileOnboardingStateUsersMeOnboardingGet<TData = Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>,
+          TError,
+          Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMobileOnboardingStateUsersMeOnboardingGet<TData = Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>,
+          TError,
+          Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMobileOnboardingStateUsersMeOnboardingGet<TData = Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Mobile Onboarding State
+ */
+
+export function useGetMobileOnboardingStateUsersMeOnboardingGet<TData = Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMobileOnboardingStateUsersMeOnboardingGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMobileOnboardingStateUsersMeOnboardingGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Patch first-run mobile onboarding state.
+ * @summary Patch Mobile Onboarding State
+ */
+export const patchMobileOnboardingStateUsersMeOnboardingPatch = (
+    onboardingUpdateRequest: OnboardingUpdateRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<OnboardingStateResponse>(
+      {url: `/users/me/onboarding`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: onboardingUpdateRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchMobileOnboardingStateUsersMeOnboardingPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchMobileOnboardingStateUsersMeOnboardingPatch>>, TError,{data: OnboardingUpdateRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchMobileOnboardingStateUsersMeOnboardingPatch>>, TError,{data: OnboardingUpdateRequest}, TContext> => {
+
+const mutationKey = ['patchMobileOnboardingStateUsersMeOnboardingPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchMobileOnboardingStateUsersMeOnboardingPatch>>, {data: OnboardingUpdateRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  patchMobileOnboardingStateUsersMeOnboardingPatch(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchMobileOnboardingStateUsersMeOnboardingPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchMobileOnboardingStateUsersMeOnboardingPatch>>>
+    export type PatchMobileOnboardingStateUsersMeOnboardingPatchMutationBody = OnboardingUpdateRequest
+    export type PatchMobileOnboardingStateUsersMeOnboardingPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch Mobile Onboarding State
+ */
+export const usePatchMobileOnboardingStateUsersMeOnboardingPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchMobileOnboardingStateUsersMeOnboardingPatch>>, TError,{data: OnboardingUpdateRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchMobileOnboardingStateUsersMeOnboardingPatch>>,
+        TError,
+        {data: OnboardingUpdateRequest},
+        TContext
+      > => {
+      return useMutation(getPatchMobileOnboardingStateUsersMeOnboardingPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return current user's provider and execution preferences.
+ * @summary Get User Preferences
+ */
+export const getUserPreferencesUsersMePreferencesGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<UserPreferenceProfile>(
+      {url: `/users/me/preferences`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetUserPreferencesUsersMePreferencesGetQueryKey = () => {
+    return [
+    `/users/me/preferences`
+    ] as const;
+    }
+
+
+export const getGetUserPreferencesUsersMePreferencesGetQueryOptions = <TData = Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserPreferencesUsersMePreferencesGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>> = ({ signal }) => getUserPreferencesUsersMePreferencesGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserPreferencesUsersMePreferencesGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>>
+export type GetUserPreferencesUsersMePreferencesGetQueryError = HTTPValidationError
+
+
+export function useGetUserPreferencesUsersMePreferencesGet<TData = Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserPreferencesUsersMePreferencesGet<TData = Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserPreferencesUsersMePreferencesGet<TData = Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Preferences
+ */
+
+export function useGetUserPreferencesUsersMePreferencesGet<TData = Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPreferencesUsersMePreferencesGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUserPreferencesUsersMePreferencesGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Patch current user's provider and execution preferences.
+ * @summary Patch User Preferences
+ */
+export const patchUserPreferencesUsersMePreferencesPatch = (
+    userPreferencePatchRequest: UserPreferencePatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<UserPreferenceProfile>(
+      {url: `/users/me/preferences`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: userPreferencePatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchUserPreferencesUsersMePreferencesPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchUserPreferencesUsersMePreferencesPatch>>, TError,{data: UserPreferencePatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchUserPreferencesUsersMePreferencesPatch>>, TError,{data: UserPreferencePatchRequest}, TContext> => {
+
+const mutationKey = ['patchUserPreferencesUsersMePreferencesPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchUserPreferencesUsersMePreferencesPatch>>, {data: UserPreferencePatchRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  patchUserPreferencesUsersMePreferencesPatch(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchUserPreferencesUsersMePreferencesPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchUserPreferencesUsersMePreferencesPatch>>>
+    export type PatchUserPreferencesUsersMePreferencesPatchMutationBody = UserPreferencePatchRequest
+    export type PatchUserPreferencesUsersMePreferencesPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch User Preferences
+ */
+export const usePatchUserPreferencesUsersMePreferencesPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchUserPreferencesUsersMePreferencesPatch>>, TError,{data: UserPreferencePatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchUserPreferencesUsersMePreferencesPatch>>,
+        TError,
+        {data: UserPreferencePatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchUserPreferencesUsersMePreferencesPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return current user's subscription and entitlement snapshot.
+ * @summary Get User Subscription
+ */
+export const getUserSubscriptionUsersMeSubscriptionGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SubscriptionState>(
+      {url: `/users/me/subscription`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetUserSubscriptionUsersMeSubscriptionGetQueryKey = () => {
+    return [
+    `/users/me/subscription`
+    ] as const;
+    }
+
+
+export const getGetUserSubscriptionUsersMeSubscriptionGetQueryOptions = <TData = Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserSubscriptionUsersMeSubscriptionGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>> = ({ signal }) => getUserSubscriptionUsersMeSubscriptionGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserSubscriptionUsersMeSubscriptionGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>>
+export type GetUserSubscriptionUsersMeSubscriptionGetQueryError = HTTPValidationError
+
+
+export function useGetUserSubscriptionUsersMeSubscriptionGet<TData = Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserSubscriptionUsersMeSubscriptionGet<TData = Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserSubscriptionUsersMeSubscriptionGet<TData = Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Subscription
+ */
+
+export function useGetUserSubscriptionUsersMeSubscriptionGet<TData = Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserSubscriptionUsersMeSubscriptionGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUserSubscriptionUsersMeSubscriptionGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Refresh current user's subscription snapshot for mobile recovery.
+ * @summary Refresh User Subscription
+ */
+export const refreshUserSubscriptionUsersMeSubscriptionRefreshPost = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SubscriptionRefreshResponse>(
+      {url: `/users/me/subscription/refresh`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getRefreshUserSubscriptionUsersMeSubscriptionRefreshPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshUserSubscriptionUsersMeSubscriptionRefreshPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof refreshUserSubscriptionUsersMeSubscriptionRefreshPost>>, TError,void, TContext> => {
+
+const mutationKey = ['refreshUserSubscriptionUsersMeSubscriptionRefreshPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshUserSubscriptionUsersMeSubscriptionRefreshPost>>, void> = () => {
+
+
+          return  refreshUserSubscriptionUsersMeSubscriptionRefreshPost()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshUserSubscriptionUsersMeSubscriptionRefreshPostMutationResult = NonNullable<Awaited<ReturnType<typeof refreshUserSubscriptionUsersMeSubscriptionRefreshPost>>>
+
+    export type RefreshUserSubscriptionUsersMeSubscriptionRefreshPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Refresh User Subscription
+ */
+export const useRefreshUserSubscriptionUsersMeSubscriptionRefreshPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshUserSubscriptionUsersMeSubscriptionRefreshPost>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof refreshUserSubscriptionUsersMeSubscriptionRefreshPost>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRefreshUserSubscriptionUsersMeSubscriptionRefreshPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return consumer positioning and paywall configuration.
+ * @summary Get User Paywall Config
+ */
+export const getUserPaywallConfigUsersMePaywallGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<PaywallConfigResponse>(
+      {url: `/users/me/paywall`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetUserPaywallConfigUsersMePaywallGetQueryKey = () => {
+    return [
+    `/users/me/paywall`
+    ] as const;
+    }
+
+
+export const getGetUserPaywallConfigUsersMePaywallGetQueryOptions = <TData = Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserPaywallConfigUsersMePaywallGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>> = ({ signal }) => getUserPaywallConfigUsersMePaywallGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserPaywallConfigUsersMePaywallGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>>
+export type GetUserPaywallConfigUsersMePaywallGetQueryError = HTTPValidationError
+
+
+export function useGetUserPaywallConfigUsersMePaywallGet<TData = Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserPaywallConfigUsersMePaywallGet<TData = Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserPaywallConfigUsersMePaywallGet<TData = Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Paywall Config
+ */
+
+export function useGetUserPaywallConfigUsersMePaywallGet<TData = Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPaywallConfigUsersMePaywallGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUserPaywallConfigUsersMePaywallGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Check whether a V2 feature is available for the current plan.
+ * @summary Check User Entitlement
+ */
+export const checkUserEntitlementUsersMeEntitlementsCheckPost = (
+    entitlementCheckRequest: EntitlementCheckRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<EntitlementCheckResponse>(
+      {url: `/users/me/entitlements/check`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: entitlementCheckRequest, signal
+    },
+      );
+    }
+
+
+
+export const getCheckUserEntitlementUsersMeEntitlementsCheckPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkUserEntitlementUsersMeEntitlementsCheckPost>>, TError,{data: EntitlementCheckRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof checkUserEntitlementUsersMeEntitlementsCheckPost>>, TError,{data: EntitlementCheckRequest}, TContext> => {
+
+const mutationKey = ['checkUserEntitlementUsersMeEntitlementsCheckPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkUserEntitlementUsersMeEntitlementsCheckPost>>, {data: EntitlementCheckRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkUserEntitlementUsersMeEntitlementsCheckPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckUserEntitlementUsersMeEntitlementsCheckPostMutationResult = NonNullable<Awaited<ReturnType<typeof checkUserEntitlementUsersMeEntitlementsCheckPost>>>
+    export type CheckUserEntitlementUsersMeEntitlementsCheckPostMutationBody = EntitlementCheckRequest
+    export type CheckUserEntitlementUsersMeEntitlementsCheckPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Check User Entitlement
+ */
+export const useCheckUserEntitlementUsersMeEntitlementsCheckPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkUserEntitlementUsersMeEntitlementsCheckPost>>, TError,{data: EntitlementCheckRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof checkUserEntitlementUsersMeEntitlementsCheckPost>>,
+        TError,
+        {data: EntitlementCheckRequest},
+        TContext
+      > => {
+      return useMutation(getCheckUserEntitlementUsersMeEntitlementsCheckPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return user privacy, document, cache, and support-access settings.
+ * @summary Get User Privacy Settings
+ */
+export const getUserPrivacySettingsUsersMePrivacyGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<PrivacySettingsResponse>(
+      {url: `/users/me/privacy`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetUserPrivacySettingsUsersMePrivacyGetQueryKey = () => {
+    return [
+    `/users/me/privacy`
+    ] as const;
+    }
+
+
+export const getGetUserPrivacySettingsUsersMePrivacyGetQueryOptions = <TData = Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserPrivacySettingsUsersMePrivacyGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>> = ({ signal }) => getUserPrivacySettingsUsersMePrivacyGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUserPrivacySettingsUsersMePrivacyGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>>
+export type GetUserPrivacySettingsUsersMePrivacyGetQueryError = HTTPValidationError
+
+
+export function useGetUserPrivacySettingsUsersMePrivacyGet<TData = Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserPrivacySettingsUsersMePrivacyGet<TData = Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUserPrivacySettingsUsersMePrivacyGet<TData = Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get User Privacy Settings
+ */
+
+export function useGetUserPrivacySettingsUsersMePrivacyGet<TData = Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserPrivacySettingsUsersMePrivacyGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUserPrivacySettingsUsersMePrivacyGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Patch user privacy settings such as explicit support-access consent.
+ * @summary Patch User Privacy Settings
+ */
+export const patchUserPrivacySettingsUsersMePrivacyPatch = (
+    privacySettingsPatchRequest: PrivacySettingsPatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<PrivacySettingsResponse>(
+      {url: `/users/me/privacy`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: privacySettingsPatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchUserPrivacySettingsUsersMePrivacyPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchUserPrivacySettingsUsersMePrivacyPatch>>, TError,{data: PrivacySettingsPatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchUserPrivacySettingsUsersMePrivacyPatch>>, TError,{data: PrivacySettingsPatchRequest}, TContext> => {
+
+const mutationKey = ['patchUserPrivacySettingsUsersMePrivacyPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchUserPrivacySettingsUsersMePrivacyPatch>>, {data: PrivacySettingsPatchRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  patchUserPrivacySettingsUsersMePrivacyPatch(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchUserPrivacySettingsUsersMePrivacyPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchUserPrivacySettingsUsersMePrivacyPatch>>>
+    export type PatchUserPrivacySettingsUsersMePrivacyPatchMutationBody = PrivacySettingsPatchRequest
+    export type PatchUserPrivacySettingsUsersMePrivacyPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch User Privacy Settings
+ */
+export const usePatchUserPrivacySettingsUsersMePrivacyPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchUserPrivacySettingsUsersMePrivacyPatch>>, TError,{data: PrivacySettingsPatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchUserPrivacySettingsUsersMePrivacyPatch>>,
+        TError,
+        {data: PrivacySettingsPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchUserPrivacySettingsUsersMePrivacyPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return a privacy-safe user export without raw document contents.
+ * @summary Export User Data
+ */
+export const exportUserDataUsersMeDataExportGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<PrivacyDataExportResponse>(
+      {url: `/users/me/data-export`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getExportUserDataUsersMeDataExportGetQueryKey = () => {
+    return [
+    `/users/me/data-export`
+    ] as const;
+    }
+
+
+export const getExportUserDataUsersMeDataExportGetQueryOptions = <TData = Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportUserDataUsersMeDataExportGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>> = ({ signal }) => exportUserDataUsersMeDataExportGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ExportUserDataUsersMeDataExportGetQueryResult = NonNullable<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>>
+export type ExportUserDataUsersMeDataExportGetQueryError = HTTPValidationError
+
+
+export function useExportUserDataUsersMeDataExportGet<TData = Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportUserDataUsersMeDataExportGet<TData = Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportUserDataUsersMeDataExportGet<TData = Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Export User Data
+ */
+
+export function useExportUserDataUsersMeDataExportGet<TData = Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataUsersMeDataExportGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getExportUserDataUsersMeDataExportGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Acknowledge a user privacy deletion request for support processing.
+ * @summary Request User Data Deletion
+ */
+export const requestUserDataDeletionUsersMePrivacyDeleteRequestPost = (
+    privacyDeletionRequest: PrivacyDeletionRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<PrivacyDeletionRequestResponse>(
+      {url: `/users/me/privacy/delete-request`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: privacyDeletionRequest, signal
+    },
+      );
+    }
+
+
+
+export const getRequestUserDataDeletionUsersMePrivacyDeleteRequestPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUserDataDeletionUsersMePrivacyDeleteRequestPost>>, TError,{data: PrivacyDeletionRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof requestUserDataDeletionUsersMePrivacyDeleteRequestPost>>, TError,{data: PrivacyDeletionRequest}, TContext> => {
+
+const mutationKey = ['requestUserDataDeletionUsersMePrivacyDeleteRequestPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUserDataDeletionUsersMePrivacyDeleteRequestPost>>, {data: PrivacyDeletionRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestUserDataDeletionUsersMePrivacyDeleteRequestPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestUserDataDeletionUsersMePrivacyDeleteRequestPostMutationResult = NonNullable<Awaited<ReturnType<typeof requestUserDataDeletionUsersMePrivacyDeleteRequestPost>>>
+    export type RequestUserDataDeletionUsersMePrivacyDeleteRequestPostMutationBody = PrivacyDeletionRequest
+    export type RequestUserDataDeletionUsersMePrivacyDeleteRequestPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Request User Data Deletion
+ */
+export const useRequestUserDataDeletionUsersMePrivacyDeleteRequestPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUserDataDeletionUsersMePrivacyDeleteRequestPost>>, TError,{data: PrivacyDeletionRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof requestUserDataDeletionUsersMePrivacyDeleteRequestPost>>,
+        TError,
+        {data: PrivacyDeletionRequest},
+        TContext
+      > => {
+      return useMutation(getRequestUserDataDeletionUsersMePrivacyDeleteRequestPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Record a privacy-safe product analytics event.
+ * @summary Record Analytics Event
+ */
+export const recordAnalyticsEventAnalyticsEventsPost = (
+    analyticsEventRequest: AnalyticsEventRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<AnalyticsEventResponse>(
+      {url: `/analytics/events`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: analyticsEventRequest, signal
+    },
+      );
+    }
+
+
+
+export const getRecordAnalyticsEventAnalyticsEventsPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAnalyticsEventAnalyticsEventsPost>>, TError,{data: AnalyticsEventRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof recordAnalyticsEventAnalyticsEventsPost>>, TError,{data: AnalyticsEventRequest}, TContext> => {
+
+const mutationKey = ['recordAnalyticsEventAnalyticsEventsPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordAnalyticsEventAnalyticsEventsPost>>, {data: AnalyticsEventRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordAnalyticsEventAnalyticsEventsPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordAnalyticsEventAnalyticsEventsPostMutationResult = NonNullable<Awaited<ReturnType<typeof recordAnalyticsEventAnalyticsEventsPost>>>
+    export type RecordAnalyticsEventAnalyticsEventsPostMutationBody = AnalyticsEventRequest
+    export type RecordAnalyticsEventAnalyticsEventsPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Record Analytics Event
+ */
+export const useRecordAnalyticsEventAnalyticsEventsPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAnalyticsEventAnalyticsEventsPost>>, TError,{data: AnalyticsEventRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recordAnalyticsEventAnalyticsEventsPost>>,
+        TError,
+        {data: AnalyticsEventRequest},
+        TContext
+      > => {
+      return useMutation(getRecordAnalyticsEventAnalyticsEventsPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return current user's analytics events for support inspection.
+ * @summary List Analytics Events
+ */
+export const listAnalyticsEventsAnalyticsEventsGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<AnalyticsEventListResponse>(
+      {url: `/analytics/events`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getListAnalyticsEventsAnalyticsEventsGetQueryKey = () => {
+    return [
+    `/analytics/events`
+    ] as const;
+    }
+
+
+export const getListAnalyticsEventsAnalyticsEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAnalyticsEventsAnalyticsEventsGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>> = ({ signal }) => listAnalyticsEventsAnalyticsEventsGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAnalyticsEventsAnalyticsEventsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>>
+export type ListAnalyticsEventsAnalyticsEventsGetQueryError = HTTPValidationError
+
+
+export function useListAnalyticsEventsAnalyticsEventsGet<TData = Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAnalyticsEventsAnalyticsEventsGet<TData = Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAnalyticsEventsAnalyticsEventsGet<TData = Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Analytics Events
+ */
+
+export function useListAnalyticsEventsAnalyticsEventsGet<TData = Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAnalyticsEventsAnalyticsEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAnalyticsEventsAnalyticsEventsGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Flush offline-capable analytics events.
+ * @summary Record Analytics Event Batch
+ */
+export const recordAnalyticsEventBatchAnalyticsEventsBatchPost = (
+    analyticsBatchRequest: AnalyticsBatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<AnalyticsBatchResponse>(
+      {url: `/analytics/events/batch`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: analyticsBatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getRecordAnalyticsEventBatchAnalyticsEventsBatchPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAnalyticsEventBatchAnalyticsEventsBatchPost>>, TError,{data: AnalyticsBatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof recordAnalyticsEventBatchAnalyticsEventsBatchPost>>, TError,{data: AnalyticsBatchRequest}, TContext> => {
+
+const mutationKey = ['recordAnalyticsEventBatchAnalyticsEventsBatchPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordAnalyticsEventBatchAnalyticsEventsBatchPost>>, {data: AnalyticsBatchRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordAnalyticsEventBatchAnalyticsEventsBatchPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordAnalyticsEventBatchAnalyticsEventsBatchPostMutationResult = NonNullable<Awaited<ReturnType<typeof recordAnalyticsEventBatchAnalyticsEventsBatchPost>>>
+    export type RecordAnalyticsEventBatchAnalyticsEventsBatchPostMutationBody = AnalyticsBatchRequest
+    export type RecordAnalyticsEventBatchAnalyticsEventsBatchPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Record Analytics Event Batch
+ */
+export const useRecordAnalyticsEventBatchAnalyticsEventsBatchPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordAnalyticsEventBatchAnalyticsEventsBatchPost>>, TError,{data: AnalyticsBatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recordAnalyticsEventBatchAnalyticsEventsBatchPost>>,
+        TError,
+        {data: AnalyticsBatchRequest},
+        TContext
+      > => {
+      return useMutation(getRecordAnalyticsEventBatchAnalyticsEventsBatchPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return a privacy-safe V2 product funnel summary.
+ * @summary Get Analytics Funnel
+ */
+export const getAnalyticsFunnelAnalyticsFunnelGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<AnalyticsFunnelResponse>(
+      {url: `/analytics/funnel`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetAnalyticsFunnelAnalyticsFunnelGetQueryKey = () => {
+    return [
+    `/analytics/funnel`
+    ] as const;
+    }
+
+
+export const getGetAnalyticsFunnelAnalyticsFunnelGetQueryOptions = <TData = Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAnalyticsFunnelAnalyticsFunnelGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>> = ({ signal }) => getAnalyticsFunnelAnalyticsFunnelGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAnalyticsFunnelAnalyticsFunnelGetQueryResult = NonNullable<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>>
+export type GetAnalyticsFunnelAnalyticsFunnelGetQueryError = HTTPValidationError
+
+
+export function useGetAnalyticsFunnelAnalyticsFunnelGet<TData = Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>,
+          TError,
+          Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAnalyticsFunnelAnalyticsFunnelGet<TData = Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>,
+          TError,
+          Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAnalyticsFunnelAnalyticsFunnelGet<TData = Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Analytics Funnel
+ */
+
+export function useGetAnalyticsFunnelAnalyticsFunnelGet<TData = Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsFunnelAnalyticsFunnelGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAnalyticsFunnelAnalyticsFunnelGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return the V2 market success KPI tree.
+ * @summary Get Analytics Kpi Tree
+ */
+export const getAnalyticsKpiTreeAnalyticsKpiTreeGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<KPITreeResponse>(
+      {url: `/analytics/kpi-tree`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetAnalyticsKpiTreeAnalyticsKpiTreeGetQueryKey = () => {
+    return [
+    `/analytics/kpi-tree`
+    ] as const;
+    }
+
+
+export const getGetAnalyticsKpiTreeAnalyticsKpiTreeGetQueryOptions = <TData = Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAnalyticsKpiTreeAnalyticsKpiTreeGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>> = ({ signal }) => getAnalyticsKpiTreeAnalyticsKpiTreeGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAnalyticsKpiTreeAnalyticsKpiTreeGetQueryResult = NonNullable<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>>
+export type GetAnalyticsKpiTreeAnalyticsKpiTreeGetQueryError = HTTPValidationError
+
+
+export function useGetAnalyticsKpiTreeAnalyticsKpiTreeGet<TData = Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>,
+          TError,
+          Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAnalyticsKpiTreeAnalyticsKpiTreeGet<TData = Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>,
+          TError,
+          Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAnalyticsKpiTreeAnalyticsKpiTreeGet<TData = Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Analytics Kpi Tree
+ */
+
+export function useGetAnalyticsKpiTreeAnalyticsKpiTreeGet<TData = Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAnalyticsKpiTreeAnalyticsKpiTreeGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAnalyticsKpiTreeAnalyticsKpiTreeGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return a consent-gated recovery summary for support/admin users.
+ * @summary Get Support User Recovery Summary
+ */
+export const getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet = (
+    targetUserId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SupportUserRecoverySummaryResponse>(
+      {url: `/support/users/${targetUserId}/recovery-summary`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGetQueryKey = (targetUserId: string,) => {
+    return [
+    `/support/users/${targetUserId}/recovery-summary`
+    ] as const;
+    }
+
+
+export const getGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGetQueryOptions = <TData = Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError = HTTPValidationError>(targetUserId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGetQueryKey(targetUserId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>> = ({ signal }) => getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet(targetUserId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: targetUserId !== null && targetUserId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>>
+export type GetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGetQueryError = HTTPValidationError
+
+
+export function useGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet<TData = Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError = HTTPValidationError>(
+ targetUserId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>,
+          TError,
+          Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet<TData = Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError = HTTPValidationError>(
+ targetUserId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>,
+          TError,
+          Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet<TData = Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError = HTTPValidationError>(
+ targetUserId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Support User Recovery Summary
+ */
+
+export function useGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet<TData = Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError = HTTPValidationError>(
+ targetUserId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSupportUserRecoverySummarySupportUsersTargetUserIdRecoverySummaryGetQueryOptions(targetUserId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return failed-job metadata and recovery options for support/admin users.
+ * @summary Get Support Job Recovery Bundle
+ */
+export const getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet = (
+    jobId: string,
+    params: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SupportJobRecoveryBundleResponse>(
+      {url: `/support/jobs/${jobId}/recovery-bundle`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetQueryKey = (jobId: string,
+    params?: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams,) => {
+    return [
+    `/support/jobs/${jobId}/recovery-bundle`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetQueryOptions = <TData = Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError = HTTPValidationError>(jobId: string,
+    params: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetQueryKey(jobId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>> = ({ signal }) => getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet(jobId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: jobId !== null && jobId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>>
+export type GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetQueryError = HTTPValidationError
+
+
+export function useGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet<TData = Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>,
+          TError,
+          Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet<TData = Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>,
+          TError,
+          Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet<TData = Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Support Job Recovery Bundle
+ */
+
+export function useGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet<TData = Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError = HTTPValidationError>(
+ jobId: string,
+    params: GetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSupportJobRecoveryBundleSupportJobsJobIdRecoveryBundleGetQueryOptions(jobId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Create a retry job from a failed planning job.
+ * @summary Recover Failed Planning Job
+ */
+export const recoverFailedPlanningJobSupportJobsJobIdRecoverPost = (
+    jobId: string,
+    supportJobRecoveryRequest: SupportJobRecoveryRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SupportJobRecoveryResponse>(
+      {url: `/support/jobs/${jobId}/recover`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: supportJobRecoveryRequest, signal
+    },
+      );
+    }
+
+
+
+export const getRecoverFailedPlanningJobSupportJobsJobIdRecoverPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverFailedPlanningJobSupportJobsJobIdRecoverPost>>, TError,{jobId: string;data: SupportJobRecoveryRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof recoverFailedPlanningJobSupportJobsJobIdRecoverPost>>, TError,{jobId: string;data: SupportJobRecoveryRequest}, TContext> => {
+
+const mutationKey = ['recoverFailedPlanningJobSupportJobsJobIdRecoverPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverFailedPlanningJobSupportJobsJobIdRecoverPost>>, {jobId: string;data: SupportJobRecoveryRequest}> = (props) => {
+          const {jobId,data} = props ?? {};
+
+          return  recoverFailedPlanningJobSupportJobsJobIdRecoverPost(jobId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecoverFailedPlanningJobSupportJobsJobIdRecoverPostMutationResult = NonNullable<Awaited<ReturnType<typeof recoverFailedPlanningJobSupportJobsJobIdRecoverPost>>>
+    export type RecoverFailedPlanningJobSupportJobsJobIdRecoverPostMutationBody = SupportJobRecoveryRequest
+    export type RecoverFailedPlanningJobSupportJobsJobIdRecoverPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Recover Failed Planning Job
+ */
+export const useRecoverFailedPlanningJobSupportJobsJobIdRecoverPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverFailedPlanningJobSupportJobsJobIdRecoverPost>>, TError,{jobId: string;data: SupportJobRecoveryRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recoverFailedPlanningJobSupportJobsJobIdRecoverPost>>,
+        TError,
+        {jobId: string;data: SupportJobRecoveryRequest},
+        TContext
+      > => {
+      return useMutation(getRecoverFailedPlanningJobSupportJobsJobIdRecoverPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Refresh a user's subscription state during support recovery.
+ * @summary Support Refresh User Subscription
+ */
+export const supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost = (
+    targetUserId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SubscriptionRefreshResponse>(
+      {url: `/support/users/${targetUserId}/subscription/refresh`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getSupportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost>>, TError,{targetUserId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost>>, TError,{targetUserId: string}, TContext> => {
+
+const mutationKey = ['supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost>>, {targetUserId: string}> = (props) => {
+          const {targetUserId} = props ?? {};
+
+          return  supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost(targetUserId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SupportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPostMutationResult = NonNullable<Awaited<ReturnType<typeof supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost>>>
+
+    export type SupportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Support Refresh User Subscription
+ */
+export const useSupportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost>>, TError,{targetUserId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof supportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPost>>,
+        TError,
+        {targetUserId: string},
+        TContext
+      > => {
+      return useMutation(getSupportRefreshUserSubscriptionSupportUsersTargetUserIdSubscriptionRefreshPostMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return support/admin audit events.
+ * @summary List Support Audit Events
+ */
+export const listSupportAuditEventsSupportAuditGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<SupportAuditEventListResponse>(
+      {url: `/support/audit`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getListSupportAuditEventsSupportAuditGetQueryKey = () => {
+    return [
+    `/support/audit`
+    ] as const;
+    }
+
+
+export const getListSupportAuditEventsSupportAuditGetQueryOptions = <TData = Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSupportAuditEventsSupportAuditGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>> = ({ signal }) => listSupportAuditEventsSupportAuditGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSupportAuditEventsSupportAuditGetQueryResult = NonNullable<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>>
+export type ListSupportAuditEventsSupportAuditGetQueryError = HTTPValidationError
+
+
+export function useListSupportAuditEventsSupportAuditGet<TData = Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportAuditEventsSupportAuditGet<TData = Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>,
+          TError,
+          Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSupportAuditEventsSupportAuditGet<TData = Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Support Audit Events
+ */
+
+export function useListSupportAuditEventsSupportAuditGet<TData = Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSupportAuditEventsSupportAuditGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSupportAuditEventsSupportAuditGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return V2 market-MVP beta readiness gates and launch bridge.
+ * @summary Get V2 Rollout Readiness
+ */
+export const getV2RolloutReadinessRolloutV2ReadinessGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<RolloutReadinessResponse>(
+      {url: `/rollout/v2/readiness`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetV2RolloutReadinessRolloutV2ReadinessGetQueryKey = () => {
+    return [
+    `/rollout/v2/readiness`
+    ] as const;
+    }
+
+
+export const getGetV2RolloutReadinessRolloutV2ReadinessGetQueryOptions = <TData = Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetV2RolloutReadinessRolloutV2ReadinessGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>> = ({ signal }) => getV2RolloutReadinessRolloutV2ReadinessGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetV2RolloutReadinessRolloutV2ReadinessGetQueryResult = NonNullable<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>>
+export type GetV2RolloutReadinessRolloutV2ReadinessGetQueryError = HTTPValidationError
+
+
+export function useGetV2RolloutReadinessRolloutV2ReadinessGet<TData = Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>,
+          TError,
+          Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetV2RolloutReadinessRolloutV2ReadinessGet<TData = Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>,
+          TError,
+          Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetV2RolloutReadinessRolloutV2ReadinessGet<TData = Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get V2 Rollout Readiness
+ */
+
+export function useGetV2RolloutReadinessRolloutV2ReadinessGet<TData = Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutReadinessRolloutV2ReadinessGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetV2RolloutReadinessRolloutV2ReadinessGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Return current V2 rollout flags.
+ * @summary Get V2 Rollout Flags
+ */
+export const getV2RolloutFlagsRolloutV2FlagsGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<RolloutFlagResponse>(
+      {url: `/rollout/v2/flags`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetV2RolloutFlagsRolloutV2FlagsGetQueryKey = () => {
+    return [
+    `/rollout/v2/flags`
+    ] as const;
+    }
+
+
+export const getGetV2RolloutFlagsRolloutV2FlagsGetQueryOptions = <TData = Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetV2RolloutFlagsRolloutV2FlagsGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>> = ({ signal }) => getV2RolloutFlagsRolloutV2FlagsGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetV2RolloutFlagsRolloutV2FlagsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>>
+export type GetV2RolloutFlagsRolloutV2FlagsGetQueryError = HTTPValidationError
+
+
+export function useGetV2RolloutFlagsRolloutV2FlagsGet<TData = Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetV2RolloutFlagsRolloutV2FlagsGet<TData = Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetV2RolloutFlagsRolloutV2FlagsGet<TData = Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get V2 Rollout Flags
+ */
+
+export function useGetV2RolloutFlagsRolloutV2FlagsGet<TData = Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2RolloutFlagsRolloutV2FlagsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetV2RolloutFlagsRolloutV2FlagsGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+/**
+ * Patch V2 rollout flags through support/admin access.
+ * @summary Patch V2 Rollout Flags
+ */
+export const patchV2RolloutFlagsRolloutV2FlagsPatch = (
+    rolloutFlagPatchRequest: RolloutFlagPatchRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<RolloutFlagResponse>(
+      {url: `/rollout/v2/flags`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: rolloutFlagPatchRequest, signal
+    },
+      );
+    }
+
+
+
+export const getPatchV2RolloutFlagsRolloutV2FlagsPatchMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchV2RolloutFlagsRolloutV2FlagsPatch>>, TError,{data: RolloutFlagPatchRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof patchV2RolloutFlagsRolloutV2FlagsPatch>>, TError,{data: RolloutFlagPatchRequest}, TContext> => {
+
+const mutationKey = ['patchV2RolloutFlagsRolloutV2FlagsPatch'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchV2RolloutFlagsRolloutV2FlagsPatch>>, {data: RolloutFlagPatchRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  patchV2RolloutFlagsRolloutV2FlagsPatch(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchV2RolloutFlagsRolloutV2FlagsPatchMutationResult = NonNullable<Awaited<ReturnType<typeof patchV2RolloutFlagsRolloutV2FlagsPatch>>>
+    export type PatchV2RolloutFlagsRolloutV2FlagsPatchMutationBody = RolloutFlagPatchRequest
+    export type PatchV2RolloutFlagsRolloutV2FlagsPatchMutationError = HTTPValidationError
+
+    /**
+ * @summary Patch V2 Rollout Flags
+ */
+export const usePatchV2RolloutFlagsRolloutV2FlagsPatch = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchV2RolloutFlagsRolloutV2FlagsPatch>>, TError,{data: RolloutFlagPatchRequest}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchV2RolloutFlagsRolloutV2FlagsPatch>>,
+        TError,
+        {data: RolloutFlagPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchV2RolloutFlagsRolloutV2FlagsPatchMutationOptions(options), queryClient);
+    }
+
+/**
+ * Return the V2 mobile beta feature-surface config.
+ * @summary Get V2 Mobile Beta Config
+ */
+export const getV2MobileBetaConfigRolloutV2MobileConfigGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return huaxiaRequest<MobileBetaFeatureConfigResponse>(
+      {url: `/rollout/v2/mobile-config`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getGetV2MobileBetaConfigRolloutV2MobileConfigGetQueryKey = () => {
+    return [
+    `/rollout/v2/mobile-config`
+    ] as const;
+    }
+
+
+export const getGetV2MobileBetaConfigRolloutV2MobileConfigGetQueryOptions = <TData = Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError = HTTPValidationError>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetV2MobileBetaConfigRolloutV2MobileConfigGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>> = ({ signal }) => getV2MobileBetaConfigRolloutV2MobileConfigGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetV2MobileBetaConfigRolloutV2MobileConfigGetQueryResult = NonNullable<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>>
+export type GetV2MobileBetaConfigRolloutV2MobileConfigGetQueryError = HTTPValidationError
+
+
+export function useGetV2MobileBetaConfigRolloutV2MobileConfigGet<TData = Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError = HTTPValidationError>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>,
+          TError,
+          Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetV2MobileBetaConfigRolloutV2MobileConfigGet<TData = Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>,
+          TError,
+          Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetV2MobileBetaConfigRolloutV2MobileConfigGet<TData = Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get V2 Mobile Beta Config
+ */
+
+export function useGetV2MobileBetaConfigRolloutV2MobileConfigGet<TData = Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError = HTTPValidationError>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getV2MobileBetaConfigRolloutV2MobileConfigGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetV2MobileBetaConfigRolloutV2MobileConfigGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

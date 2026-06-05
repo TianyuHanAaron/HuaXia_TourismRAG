@@ -1,0 +1,11 @@
+{
+  "name": "@huaxia/schemas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/trip.ts",
+  "types": "src/trip.ts",
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

@@ -2,6 +2,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import {
   Alert,
   Box,
@@ -19,7 +20,12 @@ import {
   Typography,
 } from '@mui/material';
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  getListTripsTripsGetQueryKey,
+  useCreateTripFromJobTripsFromJobJobIdPost,
+} from '../../api/generated/huaxia';
 import type { ActivityItem, DailyPlan, TravelAnswer } from '../../api/generated/model';
 import { getStaggerDelay } from '../../app/motion';
 import { HuaxiaActionButton } from '../../components/HuaxiaActionButton';
@@ -32,6 +38,7 @@ import { downloadPdf } from './pdfExport';
 type Props = {
   answer: TravelAnswer | null;
   language: 'zh-CN' | 'en';
+  sourceJobId?: string | null;
 };
 
 const sectionNames = {
@@ -57,6 +64,9 @@ const sectionNames = {
     hiddenMore: '还有 {count} 条专题建议，点“详细版”展开。',
     pdfWorking: '正在生成 PDF',
     noItinerary: '这次回答没有结构化 itinerary，正文里已经包含主要安排。',
+    createTrip: '创建旅行草稿',
+    creatingTrip: '正在创建草稿',
+    tripCreated: '旅行草稿已保存到指挥中心。',
   },
   en: {
     itinerary: 'Itinerary',
@@ -80,15 +90,28 @@ const sectionNames = {
     hiddenMore: '{count} more topic suggestions are available in the detailed view.',
     pdfWorking: 'Generating PDF',
     noItinerary: 'This response does not include a structured itinerary yet.',
+    createTrip: 'Create Trip Draft',
+    creatingTrip: 'Creating Draft',
+    tripCreated: 'Trip draft saved to the command center.',
   },
 };
 
-export function AnswerView({ answer, language }: Props) {
+export function AnswerView({ answer, language, sourceJobId }: Props) {
   const viewMode = useUIStore((state) => state.itineraryViewMode);
   const setViewMode = useUIStore((state) => state.setItineraryViewMode);
   const setHandoffOpen = useUIStore((state) => state.setHandoffOpen);
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [tripCreated, setTripCreated] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
+  const queryClient = useQueryClient();
+  const createTripMutation = useCreateTripFromJobTripsFromJobJobIdPost({
+    mutation: {
+      onSuccess: () => {
+        setTripCreated(true);
+        queryClient.invalidateQueries({ queryKey: getListTripsTripsGetQueryKey() });
+      },
+    },
+  });
   const copy = sectionNames[language];
   const days = answer?.generated_itinerary?.itinerary ?? [];
   const isCompletedItinerary = Boolean(answer && !answer.needs_reply && (days.length > 0 || answer.answer));
@@ -152,6 +175,26 @@ export function AnswerView({ answer, language }: Props) {
           {isCompletedItinerary ? (
             <HuaxiaActionButton variant="contained" startIcon={<LocalOfferIcon />} onClick={() => setHandoffOpen(true)}>
               {language === 'zh-CN' ? '转给华夏旅行社顾问' : 'Send to HuaXia Advisor'}
+            </HuaxiaActionButton>
+          ) : null}
+          {isCompletedItinerary && sourceJobId ? (
+            <HuaxiaActionButton
+              variant="outlined"
+              startIcon={
+                createTripMutation.isPending ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <PlaylistAddCheckIcon />
+                )
+              }
+              disabled={createTripMutation.isPending || tripCreated}
+              onClick={() => createTripMutation.mutate({ jobId: sourceJobId })}
+            >
+              {createTripMutation.isPending
+                ? copy.creatingTrip
+                : tripCreated
+                  ? copy.tripCreated
+                  : copy.createTrip}
             </HuaxiaActionButton>
           ) : null}
         </Stack>

@@ -60,6 +60,15 @@ FoodPreference = Literal[
     "fine_dining",
     "balanced",
 ]
+PreferredMapProvider = Literal["google_maps", "apple_maps", "mapbox", "unknown"]
+PreferredHotelPlatform = Literal[
+    "booking",
+    "agoda",
+    "expedia",
+    "hotel_website",
+    "unknown",
+]
+NotificationPreference = Literal["enabled", "disabled", "prompt_later", "unknown"]
 
 QuickReplyActionId = Literal[
     "preference_option_a",
@@ -523,6 +532,8 @@ class TravelFormRequest(BaseModel):
 
     destination: str | None = Field(default=None, max_length=120)
 
+    destinations: list[str] = Field(default_factory=list, max_length=12)
+
     return_city: str | None = Field(default=None, max_length=80)
 
     required_stops: list[str] = Field(default_factory=list, max_length=12)
@@ -556,6 +567,12 @@ class TravelFormRequest(BaseModel):
 
     food_preference: FoodPreference = "balanced"
 
+    preferred_map_provider: PreferredMapProvider = "unknown"
+
+    preferred_hotel_platform: PreferredHotelPlatform = "unknown"
+
+    notification_preference: NotificationPreference = "unknown"
+
     must_have: list[str] = Field(default_factory=list, max_length=12)
 
     avoid: list[str] = Field(default_factory=list, max_length=12)
@@ -574,6 +591,12 @@ class TravelFormRequest(BaseModel):
 
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        if self.destinations and self.destination is None:
+            self.destination = "、".join(_dedupe_text(self.destinations))
+        if self.origin_city and self.return_city is None:
+            self.return_city = self.origin_city
+        if self.start_date and self.end_date and self.duration_days is None:
+            self.duration_days = (self.end_date - self.start_date).days + 1
         if self.locale_context is None:
             self.locale_context = TravelLocaleContext.for_request(
                 language=self.language,
@@ -645,6 +668,9 @@ class TravelFormRequest(BaseModel):
         self._append_list_line(lines, "兴趣偏好", self.attraction_preferences)
         self._append_line(lines, "住宿偏好", self.accommodation_preference)
         self._append_line(lines, "餐饮偏好", self.food_preference)
+        self._append_line(lines, "地图偏好", self.preferred_map_provider)
+        self._append_line(lines, "酒店平台偏好", self.preferred_hotel_platform)
+        self._append_line(lines, "提醒偏好", self.notification_preference)
         self._append_list_line(lines, "不可删除项", self.must_have)
         self._append_list_line(lines, "避开事项", self.avoid)
         self._append_line(lines, "补充说明", self.extra_notes)
@@ -685,6 +711,13 @@ class TravelFormRequest(BaseModel):
         self._append_list_line(lines, "Interests", self.attraction_preferences)
         self._append_line(lines, "Accommodation preference", self.accommodation_preference)
         self._append_line(lines, "Food preference", self.food_preference)
+        self._append_line(lines, "Map provider preference", self.preferred_map_provider)
+        self._append_line(
+            lines,
+            "Hotel platform preference",
+            self.preferred_hotel_platform,
+        )
+        self._append_line(lines, "Notification preference", self.notification_preference)
         self._append_list_line(lines, "Non-negotiables", self.must_have)
         self._append_list_line(lines, "Avoid", self.avoid)
         self._append_line(lines, "Additional notes", self.extra_notes)

@@ -13,11 +13,18 @@ vi.mock('./api/generated/huaxia', () => ({
   getGetTravelJobStatusTourismJobsJobIdGetQueryOptions: vi.fn((jobId: string) => ({
     queryKey: ['travel-job', jobId],
   })),
+  getListTripsTripsGetQueryKey: vi.fn(() => ['/trips']),
+  useApproveTripDraftTripsTripIdApprovePost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useArchiveTripTripsTripIdArchivePost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useCreateTripFromJobTripsFromJobJobIdPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useCreateDiyItineraryJobTourismJobsDiyPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useCreateFormJobTourismFormsJobsPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useCreateGeneralQuestionJobTourismJobsQuestionsPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useCreateSalesHandoffTourismSalesHandoffsPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useCreateSessionReplyJobTourismSessionsSessionIdReplyJobPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useLaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useListTripsTripsGet: vi.fn(() => ({ data: { trips: [] }, isLoading: false })),
+  usePatchTripTaskTripsTripIdTasksTaskIdPatch: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useTranscribeVoiceUploadTourismVoiceTranscriptionsPost: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useGetTravelJobStatusTourismJobsJobIdGet: vi.fn((_jobId: string, options?: { query?: { enabled?: boolean } }) => {
     queryEnabled = Boolean(options?.query?.enabled);

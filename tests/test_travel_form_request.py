@@ -45,6 +45,59 @@ def test_form_request_requires_at_least_one_traveler():
     assert "at least one traveler" in str(exc_info.value)
 
 
+def test_mobile_intake_v2_preserves_multi_destination_and_execution_preferences():
+    form = TravelFormRequest(
+        request_mode="normal",
+        origin_city="天津",
+        destinations=["北京", "八达岭长城"],
+        start_date="2026-05-08",
+        end_date="2026-05-12",
+        traveler_composition={"adults": 2, "elders": 0, "children": 1},
+        budget_level="mid_range",
+        travel_mode_preference="mixed",
+        pace="balanced",
+        attraction_preferences=["history_culture", "city_classics", "family_friendly"],
+        accommodation_preference="convenient",
+        food_preference="local_snacks",
+        preferred_map_provider="apple_maps",
+        preferred_hotel_platform="booking",
+        notification_preference="prompt_later",
+        extra_notes="长城当天希望单独包车。",
+    )
+
+    question = form.to_travel_question()
+
+    assert form.destination == "北京、八达岭长城"
+    assert form.return_city == "天津"
+    assert form.duration_days == 5
+    assert question.destination == "北京、八达岭长城"
+    assert question.travelers == 3
+    assert "目的地: 北京、八达岭长城" in question.question
+    assert "地图偏好: apple_maps" in question.question
+    assert "酒店平台偏好: booking" in question.question
+    assert "提醒偏好: prompt_later" in question.question
+    assert "history_culture" in question.interests
+
+
+def test_mobile_intake_v2_keeps_unknown_fields_explicit_not_free_text_ambiguous():
+    form = TravelFormRequest(
+        origin_city="南京",
+        destinations=["安徽", "黄山"],
+        traveler_composition={"adults": 2},
+        budget_level=None,
+        preferred_map_provider="unknown",
+        preferred_hotel_platform="unknown",
+        notification_preference="unknown",
+    )
+
+    summary = form.to_request_summary()
+
+    assert "目的地: 安徽、黄山" in summary
+    assert "地图偏好: unknown" in summary
+    assert "酒店平台偏好: unknown" in summary
+    assert "提醒偏好: unknown" in summary
+
+
 def test_long_english_diy_brief_is_accepted_and_detected_as_english():
     prompt = (
         "Two of us from Shanghai, flying business class to London, plan 30 days "

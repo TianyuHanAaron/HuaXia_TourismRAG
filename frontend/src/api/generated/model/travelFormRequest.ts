@@ -11,7 +11,10 @@ import type { TravelFormRequestBudgetLevel } from './travelFormRequestBudgetLeve
 import type { TravelFormRequestDetailLevel } from './travelFormRequestDetailLevel';
 import type { TravelFormRequestFoodPreference } from './travelFormRequestFoodPreference';
 import type { TravelFormRequestLanguage } from './travelFormRequestLanguage';
+import type { TravelFormRequestNotificationPreference } from './travelFormRequestNotificationPreference';
 import type { TravelFormRequestPace } from './travelFormRequestPace';
+import type { TravelFormRequestPreferredHotelPlatform } from './travelFormRequestPreferredHotelPlatform';
+import type { TravelFormRequestPreferredMapProvider } from './travelFormRequestPreferredMapProvider';
 import type { TravelFormRequestRequestMode } from './travelFormRequestRequestMode';
 import type { TravelFormRequestRouteStrictness } from './travelFormRequestRouteStrictness';
 import type { TravelFormRequestTravelerGroup } from './travelFormRequestTravelerGroup';
@@ -25,6 +28,8 @@ export interface TravelFormRequest {
   request_mode?: TravelFormRequestRequestMode;
   origin_city?: string | null;
   destination?: string | null;
+  /** @maxItems 12 */
+  destinations?: string[];
   return_city?: string | null;
   /** @maxItems 12 */
   required_stops?: string[];
@@ -41,6 +46,9 @@ export interface TravelFormRequest {
   attraction_preferences?: TravelFormRequestAttractionPreferencesItem[];
   accommodation_preference?: TravelFormRequestAccommodationPreference;
   food_preference?: TravelFormRequestFoodPreference;
+  preferred_map_provider?: TravelFormRequestPreferredMapProvider;
+  preferred_hotel_platform?: TravelFormRequestPreferredHotelPlatform;
+  notification_preference?: TravelFormRequestNotificationPreference;
   /** @maxItems 12 */
   must_have?: string[];
   /** @maxItems 12 */

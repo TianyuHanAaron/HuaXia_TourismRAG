@@ -16,6 +16,7 @@ import { hasRotatingEngagementTopics } from './features/engagement/engagementRea
 import { JobProgressPanel } from './features/travel/JobProgressPanel';
 import { SalesHandoffDialog } from './features/handoff/SalesHandoffDialog';
 import { TripComposer } from './features/travel/TripComposer';
+import { TripCommandCenter } from './features/trips/TripCommandCenter';
 import { VoiceInputPanel } from './features/voice/VoiceInputPanel';
 import { HuaxiaSurface } from './components/HuaxiaSurface';
 import { useUIStore } from './state/uiStore';
@@ -28,6 +29,8 @@ export default function App() {
   const setActiveJobId = useUIStore((state) => state.setActiveJobId);
   const latestAnswer = useUIStore((state) => state.latestAnswer);
   const setLatestAnswer = useUIStore((state) => state.setLatestAnswer);
+  const latestCompletedJobId = useUIStore((state) => state.latestCompletedJobId);
+  const setLatestCompletedJobId = useUIStore((state) => state.setLatestCompletedJobId);
   const setActiveSessionId = useUIStore((state) => state.setActiveSessionId);
   const setVoicePanelOpen = useUIStore((state) => state.setVoicePanelOpen);
   const [originalRequest, setOriginalRequest] = useState('');
@@ -81,6 +84,7 @@ export default function App() {
       if (job.status === 'completed' && job.answer) {
         setLatestAnswer(job.answer);
         setActiveSessionId(job.answer.session_id ?? null);
+        setLatestCompletedJobId(job.job_id);
         setActiveJobId(null);
         source.close();
       }
@@ -112,6 +116,7 @@ export default function App() {
     queryClient,
     setActiveJobId,
     setActiveSessionId,
+    setLatestCompletedJobId,
     setLatestAnswer,
     supportsEventSource,
   ]);
@@ -124,6 +129,7 @@ export default function App() {
     if (job.status === 'completed' && job.answer) {
       setLatestAnswer(job.answer);
       setActiveSessionId(job.answer.session_id ?? null);
+      setLatestCompletedJobId(job.job_id);
       setActiveJobId(null);
       return;
     }
@@ -131,7 +137,7 @@ export default function App() {
       setLatestAnswer(job.partial_answer);
       setActiveSessionId(job.partial_answer.session_id ?? null);
     }
-  }, [jobQuery.data, setActiveJobId, setActiveSessionId, setLatestAnswer]);
+  }, [jobQuery.data, setActiveJobId, setActiveSessionId, setLatestAnswer, setLatestCompletedJobId]);
 
   const currentJob = streamedJob?.job_id === activeJobId ? streamedJob : jobQuery.data;
   const waitingActive = Boolean(activeJobId && currentJob?.status !== 'completed');
@@ -218,7 +224,12 @@ export default function App() {
             active={waitingActive}
           />
           <CheckpointPanel answer={latestAnswer} language={language} />
-          <AnswerView answer={latestAnswer} language={language} />
+          <AnswerView
+            answer={latestAnswer}
+            language={language}
+            sourceJobId={latestCompletedJobId}
+          />
+          <TripCommandCenter language={language} />
           <CreditsPanel language={language} />
         </Stack>
       </Container>

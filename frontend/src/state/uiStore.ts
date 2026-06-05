@@ -12,6 +12,7 @@ type UIState = {
   mode: PlannerMode;
   detailLevel: DetailLevel;
   activeJobId: string | null;
+  latestCompletedJobId: string | null;
   activeSessionId: string | null;
   latestAnswer: TravelAnswer | null;
   composerText: string;
@@ -24,6 +25,7 @@ type UIState = {
   setMode: (mode: PlannerMode) => void;
   setDetailLevel: (detailLevel: DetailLevel) => void;
   setActiveJobId: (activeJobId: string | null) => void;
+  setLatestCompletedJobId: (latestCompletedJobId: string | null) => void;
   setActiveSessionId: (activeSessionId: string | null) => void;
   setLatestAnswer: (latestAnswer: TravelAnswer | null) => void;
   setComposerText: (composerText: string) => void;
@@ -39,6 +41,7 @@ export const useUIStore = create<UIState>((set) => ({
   mode: 'normal',
   detailLevel: 'deep',
   activeJobId: null,
+  latestCompletedJobId: null,
   activeSessionId: null,
   latestAnswer: null,
   composerText: '',
@@ -51,6 +54,7 @@ export const useUIStore = create<UIState>((set) => ({
   setMode: (mode) => set({ mode }),
   setDetailLevel: (detailLevel) => set({ detailLevel }),
   setActiveJobId: (activeJobId) => set({ activeJobId }),
+  setLatestCompletedJobId: (latestCompletedJobId) => set({ latestCompletedJobId }),
   setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
   setLatestAnswer: (latestAnswer) => set({ latestAnswer }),
   setComposerText: (composerText) => set({ composerText }),
