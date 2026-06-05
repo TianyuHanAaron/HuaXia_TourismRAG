@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Chip, Divider, Text, TextInput } from 'react-native-paper';
+import { Button, Card, Chip, Divider, Text, TextInput } from '../../components/PaperControls';
 
+import { invalidateTripServerState } from '../../api/queryInvalidation';
+import { tripQueries } from '../../api/queryOptions';
 import {
   addDraftMilestone,
   approveTrip,
   deleteDraftMilestone,
-  getTripDraftReview,
   patchDraftMilestone,
   reorderDraftDays,
 } from '../../api/trips';
@@ -20,17 +21,11 @@ export function TripDraftReviewScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const [newTitle, setNewTitle] = useState('');
   const [newDay, setNewDay] = useState('1');
-  const query = useQuery({
-    queryKey: ['trip-draft-review', tripId],
-    queryFn: () => getTripDraftReview(tripId),
-    enabled: Boolean(tripId),
-  });
+  const query = useQuery(tripQueries.draftReview(tripId));
   const review = query.data;
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['trip-draft-review', tripId] });
-    await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-    await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    await invalidateTripServerState(queryClient, tripId);
   };
 
   const addMutation = useMutation({
@@ -61,7 +56,7 @@ export function TripDraftReviewScreen() {
   const approveMutation = useMutation({
     mutationFn: () => approveTrip(tripId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+      await invalidateTripServerState(queryClient, tripId);
       router.replace(`/trips/${tripId}/tasks`);
     },
   });

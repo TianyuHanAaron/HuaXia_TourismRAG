@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 
+import { parseReminderCandidates, reminderSettingsSchema } from '../../schemas/reminders';
 import type { TripReminderCandidate } from '../../types/trip';
 
 export type ReminderScheduleResult = {
@@ -11,18 +12,20 @@ export type ReminderScheduleResult = {
 export async function scheduleTripReminderCandidates(
   candidates: TripReminderCandidate[],
 ): Promise<ReminderScheduleResult> {
+  const parsedCandidates = parseReminderCandidates(candidates);
+  reminderSettingsSchema.parse({ enabled: true });
   const permission = await ensureNotificationPermission();
   if (permission !== Notifications.PermissionStatus.GRANTED) {
     return {
       permission,
       scheduledCount: 0,
-      skippedCount: candidates.length,
+      skippedCount: parsedCandidates.length,
     };
   }
 
   let scheduledCount = 0;
   let skippedCount = 0;
-  for (const candidate of candidates) {
+  for (const candidate of parsedCandidates) {
     const reminderAt = new Date(candidate.reminder_at);
     if (Number.isNaN(reminderAt.getTime()) || reminderAt.getTime() <= Date.now()) {
       skippedCount += 1;

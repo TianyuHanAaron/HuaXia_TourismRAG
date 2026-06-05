@@ -1,9 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Checkbox, Text } from 'react-native-paper';
+import { Button, Card, Checkbox, Text } from '../../components/PaperControls';
 
-import { exportCalendarEvents, getCalendarEvents } from '../../api/trips';
+import { tripQueries } from '../../api/queryOptions';
+import { exportCalendarEvents } from '../../api/trips';
 import { Screen } from '../../components/Screen';
 import { exportToDeviceCalendarOrIcs, writeIcsFallback } from './calendarExport';
 
@@ -11,11 +12,7 @@ export function CalendarExportScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [resultText, setResultText] = useState<string | null>(null);
-  const previewQuery = useQuery({
-    queryKey: ['trip-calendar-events', tripId],
-    queryFn: () => getCalendarEvents(tripId),
-    enabled: Boolean(tripId),
-  });
+  const previewQuery = useQuery(tripQueries.calendarEvents(tripId));
   useEffect(() => {
     if (!previewQuery.data || selectedIds.length) {
       return;

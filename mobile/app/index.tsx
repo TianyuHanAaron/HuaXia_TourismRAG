@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator } from 'react-native-paper';
+import { ActivityIndicator } from '../src/components/PaperControls';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getOnboardingState } from '../src/api/user';
+import { invalidateTripsOverview } from '../src/api/queryInvalidation';
+import { userQueries } from '../src/api/queryOptions';
 import { OnboardingScreen } from '../src/features/onboarding/OnboardingScreen';
 import { TripIntakeScreen } from '../src/features/onboarding/TripIntakeScreen';
 import { TripHomeScreen } from '../src/features/trips/TripHomeScreen';
@@ -11,10 +12,7 @@ import { Screen } from '../src/components/Screen';
 export default function IndexScreen() {
   const queryClient = useQueryClient();
   const [localReady, setLocalReady] = useState(false);
-  const onboardingQuery = useQuery({
-    queryKey: ['onboarding'],
-    queryFn: getOnboardingState,
-  });
+  const onboardingQuery = useQuery(userQueries.onboarding());
 
   if (onboardingQuery.isLoading) {
     return (
@@ -41,8 +39,7 @@ export default function IndexScreen() {
     <OnboardingScreen
       onReady={() => {
         setLocalReady(true);
-        void queryClient.invalidateQueries({ queryKey: ['trips'] });
-        void queryClient.invalidateQueries({ queryKey: ['onboarding'] });
+        void invalidateTripsOverview(queryClient);
       }}
     />
   );

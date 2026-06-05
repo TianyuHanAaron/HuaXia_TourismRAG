@@ -1,4 +1,4 @@
-import { api } from './client';
+import { resolveApiBaseUrl } from './client';
 
 export type TripEventName =
   | 'trip_updated'
@@ -25,7 +25,7 @@ export function createTripEventSource(tripId: string): TripEventSource | null {
   if (!EventSourceConstructor) {
     return null;
   }
-  const baseUrl = api.defaults.baseURL ?? '';
+  const baseUrl = resolveApiBaseUrl();
   const encodedTripId = encodeURIComponent(tripId);
   return new EventSourceConstructor(`${baseUrl}/trips/${encodedTripId}/events`);
 }

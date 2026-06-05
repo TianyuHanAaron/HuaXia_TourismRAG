@@ -1,9 +1,9 @@
-import { api } from './client';
+import { apiPost } from './client';
+import { TravelJobCreateResponseSchema } from './schemas';
 import type { TravelFormRequest, TravelJobCreateResponse } from '../types/trip';
 
 export async function submitTravelFormJob(
   request: TravelFormRequest,
 ): Promise<TravelJobCreateResponse> {
-  const response = await api.post<TravelJobCreateResponse>('/tourism/forms/jobs', request);
-  return response.data;
+  return apiPost('/tourism/forms/jobs', request, TravelJobCreateResponseSchema);
 }

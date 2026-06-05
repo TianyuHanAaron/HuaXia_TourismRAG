@@ -1,3 +1,6 @@
-import { CurrentTaskScreen } from '../../../src/features/workflow/CurrentTaskScreen';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
-export default CurrentTaskScreen;
+export default function TasksRedirectRoute() {
+  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  return <Redirect href={`/trips/${tripId}/(tabs)/tasks`} />;
+}

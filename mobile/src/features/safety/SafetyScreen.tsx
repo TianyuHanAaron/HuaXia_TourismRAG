@@ -2,19 +2,15 @@ import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Chip, List, Text } from 'react-native-paper';
+import { Button, Card, Chip, List, Text } from '../../components/PaperControls';
 
-import { getSafetyCard } from '../../api/trips';
+import { tripQueries } from '../../api/queryOptions';
 import { Screen } from '../../components/Screen';
 import type { SafetyCardResponse } from '../../types/trip';
 
 export function SafetyScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
-  const query = useQuery({
-    queryKey: ['trip-safety-card', tripId],
-    queryFn: () => getSafetyCard(tripId),
-    enabled: Boolean(tripId),
-  });
+  const query = useQuery(tripQueries.safetyCard(tripId));
   const card = query.data;
 
   return (

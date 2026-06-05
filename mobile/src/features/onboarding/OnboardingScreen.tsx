@@ -1,23 +1,24 @@
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Chip, Divider, Text } from 'react-native-paper';
+import { Button, Card, Chip, Divider, Text } from '../../components/PaperControls';
 
+import { invalidateTripsOverview } from '../../api/queryInvalidation';
 import { createSampleTrip } from '../../api/trips';
 import { startGuestSession, updateOnboardingState } from '../../api/user';
 import { Screen } from '../../components/Screen';
+import { useTripUiStore } from '../../state/tripUiStore';
 import { TripIntakeScreen } from './TripIntakeScreen';
 
 type Props = {
   onReady: () => void;
 };
 
-type Stage = 'promise' | 'intake';
-
 export function OnboardingScreen({ onReady }: Props) {
   const queryClient = useQueryClient();
-  const [stage, setStage] = useState<Stage>('promise');
-  const [language, setLanguage] = useState<'zh-CN' | 'en'>('zh-CN');
+  const language = useTripUiStore((state) => state.language);
+  const setLanguage = useTripUiStore((state) => state.setLanguage);
+  const onboardingStage = useTripUiStore((state) => state.onboardingStage);
+  const setOnboardingStage = useTripUiStore((state) => state.setOnboardingStage);
 
   const guestMutation = useMutation({
     mutationFn: startGuestSession,
@@ -25,14 +26,13 @@ export function OnboardingScreen({ onReady }: Props) {
   const onboardingMutation = useMutation({
     mutationFn: updateOnboardingState,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['onboarding'] });
+      await invalidateTripsOverview(queryClient);
     },
   });
   const sampleMutation = useMutation({
     mutationFn: createSampleTrip,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['trips'] });
-      await queryClient.invalidateQueries({ queryKey: ['onboarding'] });
+      await invalidateTripsOverview(queryClient);
       onReady();
     },
   });
@@ -62,7 +62,7 @@ export function OnboardingScreen({ onReady }: Props) {
       notification_permission: 'prompt_later',
       calendar_permission: 'prompt_later',
     });
-    setStage('intake');
+    setOnboardingStage('intake');
   }
 
   async function skipOnboarding() {
@@ -73,13 +73,13 @@ export function OnboardingScreen({ onReady }: Props) {
       notification_permission: 'denied',
       calendar_permission: 'prompt_later',
     });
-    setStage('intake');
+    setOnboardingStage('intake');
   }
 
   const busy =
     guestMutation.isPending || onboardingMutation.isPending || sampleMutation.isPending;
 
-  if (stage === 'intake') {
+  if (onboardingStage === 'intake') {
     return <TripIntakeScreen />;
   }
 

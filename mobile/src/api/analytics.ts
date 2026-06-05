@@ -1,4 +1,8 @@
-import { api } from './client';
+import { apiPost } from './client';
+import {
+  AnalyticsBatchResponseSchema,
+  AnalyticsEventResponseSchema,
+} from './schemas';
 import type {
   AnalyticsBatchRequest,
   AnalyticsBatchResponse,
@@ -9,23 +13,29 @@ import type {
 export async function recordAnalyticsEvent(
   event: AnalyticsEventRequest,
 ): Promise<AnalyticsEventResponse> {
-  const response = await api.post<AnalyticsEventResponse>('/analytics/events', {
-    source: 'mobile',
-    ...event,
-  });
-  return response.data;
+  return apiPost(
+    '/analytics/events',
+    {
+      source: 'mobile',
+      ...event,
+    },
+    AnalyticsEventResponseSchema,
+  );
 }
 
 export async function flushAnalyticsEvents(
   batch: AnalyticsBatchRequest,
 ): Promise<AnalyticsBatchResponse> {
-  const response = await api.post<AnalyticsBatchResponse>('/analytics/events/batch', {
-    ...batch,
-    events: batch.events.map((event) => ({
-      source: 'mobile',
-      offline_queued: true,
-      ...event,
-    })),
-  });
-  return response.data;
+  return apiPost(
+    '/analytics/events/batch',
+    {
+      ...batch,
+      events: batch.events.map((event) => ({
+        source: 'mobile',
+        offline_queued: true,
+        ...event,
+      })),
+    },
+    AnalyticsBatchResponseSchema,
+  );
 }

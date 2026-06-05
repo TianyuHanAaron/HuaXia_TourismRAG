@@ -1,23 +1,18 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Chip, Text } from 'react-native-paper';
+import { Button, Card, Chip, Text } from '../../components/PaperControls';
 
 import { recordAnalyticsEvent } from '../../api/analytics';
-import {
-  completeTask,
-  getRouteBundles,
-  getTrip,
-  launchProviderAction,
-  patchTask,
-} from '../../api/trips';
+import { invalidateTripTaskServerState } from '../../api/queryInvalidation';
+import { tripQueries } from '../../api/queryOptions';
+import { completeTask, patchTask } from '../../api/trips';
 import { Screen } from '../../components/Screen';
-import { ProviderActionSheet } from '../providers/ProviderActionSheet';
+import { reminderStatusForTask } from '../notifications/reminderUi';
+import { useTripUiStore } from '../../state/tripUiStore';
 import type {
   RouteBundle,
   TripProviderAction,
-  TripProviderActionLaunchRequest,
   TripTask,
 } from '../../types/trip';
 
@@ -26,27 +21,17 @@ export function TaskDetailScreen() {
     tripId: string;
     taskId: string;
   }>();
-  const [selectedAction, setSelectedAction] = useState<{
-    action: TripProviderAction;
-    routeBundle?: RouteBundle | null;
-  } | null>(null);
   const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: ['trip', tripId],
-    queryFn: () => getTrip(tripId),
-    enabled: Boolean(tripId && taskId),
-  });
-  const routeQuery = useQuery({
-    queryKey: ['trip-route-bundles', tripId],
-    queryFn: () => getRouteBundles(tripId),
-    enabled: Boolean(tripId && taskId),
-  });
+  const openProviderActionSheet = useTripUiStore(
+    (state) => state.openProviderActionSheet,
+  );
+  const query = useQuery(tripQueries.trip(tripId));
+  const routeQuery = useQuery(tripQueries.routeBundles(tripId));
   const task = query.data?.trip.tasks?.find((item) => item.task_id === taskId) ?? null;
+  const reminderStatus = task ? reminderStatusForTask(task) : null;
   const actions = task ? getTaskActions(task, query.data?.trip.provider_actions ?? []) : [];
   const invalidateTaskData = () => {
-    queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-    queryClient.invalidateQueries({ queryKey: ['trip-task-command', tripId] });
-    queryClient.invalidateQueries({ queryKey: ['trips'] });
+    void invalidateTripTaskServerState(queryClient, tripId);
   };
   const completeMutation = useMutation({
     mutationFn: () => completeTask(tripId, taskId),
@@ -72,43 +57,9 @@ export function TaskDetailScreen() {
       invalidateTaskData();
     },
   });
-  const providerLaunchMutation = useMutation({
-    mutationFn: ({
-      action,
-      request,
-    }: {
-      action: TripProviderAction;
-      request: TripProviderActionLaunchRequest;
-    }) => launchProviderAction(tripId, action.action_id, request),
-    onSuccess: (_data, { action, request }) => {
-      void recordAnalyticsEvent({
-        event_type: 'provider_action_launched',
-        client_event_id: `task-detail-provider-action-${tripId}-${action.action_id}-${Date.now()}`,
-        trip_id: tripId,
-        metadata: {
-          action_id: action.action_id,
-          action_type: action.action_type,
-          provider: action.provider,
-          launch_channel: request.launch_channel ?? 'app',
-        },
-      }).catch(() => undefined);
-      invalidateTaskData();
-    },
-  });
-
   return (
     <Screen title="任务详情" subtitle="这里放长说明、阻塞原因、来源和外部动作。">
       {query.isLoading ? <Text>正在加载任务...</Text> : null}
-      {selectedAction ? (
-        <ProviderActionSheet
-          action={selectedAction.action}
-          routeBundle={selectedAction.routeBundle}
-          onLaunch={(action, request) =>
-            providerLaunchMutation.mutateAsync({ action, request })
-          }
-          onHandled={() => setSelectedAction(null)}
-        />
-      ) : null}
       {!query.isLoading && !task ? (
         <Card>
           <Card.Content>
@@ -125,6 +76,7 @@ export function TaskDetailScreen() {
               <Chip compact>{task.category}</Chip>
               <Chip compact>{task.priority}</Chip>
               <Chip compact>{task.status}</Chip>
+              {reminderStatus ? <Chip compact>{reminderStatus.label}</Chip> : null}
             </View>
             <Text variant="headlineSmall">{task.title}</Text>
             {task.due_at ? <Text variant="labelMedium">截止：{formatDueAt(task.due_at)}</Text> : null}
@@ -143,16 +95,27 @@ export function TaskDetailScreen() {
                     key={action.action_id}
                     mode="contained-tonal"
                     disabled={!action.available || task.status === 'blocked'}
-                    onPress={() =>
-                      setSelectedAction({
+                    onPress={() => {
+                      const routeBundle = findRouteBundleForTask(
+                        task,
                         action,
-                        routeBundle: findRouteBundleForTask(
-                          task,
-                          action,
-                          routeQuery.data?.route_bundles ?? [],
-                        ),
-                      })
-                    }
+                        routeQuery.data?.route_bundles ?? [],
+                      );
+                      openProviderActionSheet({
+                        actionId: action.action_id,
+                        routeBundleId: routeBundle?.route_id ?? null,
+                        sourceTaskId: task.task_id,
+                      });
+                      router.push({
+                        pathname: '/trips/[tripId]/modals/provider-actions/[actionId]',
+                        params: {
+                          tripId,
+                          actionId: action.action_id,
+                          sourceTaskId: task.task_id,
+                          routeBundleId: routeBundle?.route_id ?? '',
+                        },
+                      });
+                    }}
                   >
                     {routeButtonLabel(
                       action,
@@ -168,6 +131,16 @@ export function TaskDetailScreen() {
             ) : null}
             {task.status === 'pending' || task.status === 'in_progress' || task.status === 'blocked' ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                <Button
+                  onPress={() =>
+                    router.push({
+                      pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
+                      params: { tripId, taskId: task.task_id },
+                    })
+                  }
+                >
+                  编辑
+                </Button>
                 {task.status !== 'blocked' ? (
                   <Button
                     loading={completeMutation.isPending}

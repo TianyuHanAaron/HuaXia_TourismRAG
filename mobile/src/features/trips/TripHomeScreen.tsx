@@ -1,48 +1,92 @@
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, Chip, ProgressBar, Text } from 'react-native-paper';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Card, Chip, ProgressBar, Text } from '../../components/PaperControls';
 
-import { recordAnalyticsEvent } from '../../api/analytics';
+import { invalidateTripServerState } from '../../api/queryInvalidation';
+import { tripQueries, userQueries } from '../../api/queryOptions';
 import { createTripEventSource } from '../../api/tripEvents';
-import { getPreferences, getSubscription } from '../../api/user';
 import {
-  getOfflineSnapshot,
-  getReminderCandidates,
-  getSafetyCard,
-  getTripSummary,
-  listTrips,
-} from '../../api/trips';
+  CommandCard,
+  EmptyState,
+  PhaseChip,
+  SectionHeader,
+  SkeletonBlock,
+  StatusChip,
+  StickyActionBar,
+} from '../../components/HuaXiaDesignSystem';
 import { Screen } from '../../components/Screen';
-import { scheduleTripReminderCandidates } from '../notifications/reminders';
 import {
   cacheOfflineSnapshot,
   readLastOfflineSnapshot,
 } from '../offline/offlineSnapshotCache';
-import type { Trip } from '../../types/trip';
+import { useTripUiStore } from '../../state/tripUiStore';
+import {
+  readSelectedTripIdFromMmkv,
+  writeSelectedTripIdToMmkv,
+} from '../../storage/mmkvStorage';
+import type { Trip, TripSummaryResponse } from '../../types/trip';
+import {
+  cacheTripHomeSummary,
+  readLastTripHomeSummary,
+  readTripHomeSummary,
+} from './tripHomeSummaryCache';
+import {
+  buildTripHomeViewModel,
+  type TripHomeAlert,
+  type TripHomeViewModel,
+} from './tripHomeViewModel';
 
 export function TripHomeScreen() {
-  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
   const [cachedTrip, setCachedTrip] = useState<Trip | null>(null);
+  const [cachedSummary, setCachedSummary] = useState<TripSummaryResponse | null>(null);
+  const [selectedTripHydrated, setSelectedTripHydrated] = useState(false);
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: ['trips'], queryFn: listTrips });
+  const selectedTripId = useTripUiStore((state) => state.selectedTripId);
+  const setSelectedTripId = useTripUiStore((state) => state.setSelectedTripId);
+  const query = useQuery(tripQueries.list());
+  const allTrips = query.data?.trips ?? [];
   const activeTrips =
-    query.data?.trips?.filter(
+    allTrips.filter(
       (trip) =>
         trip.status !== 'completed' &&
         trip.status !== 'archived' &&
         trip.status !== 'cancelled',
     ) ?? [];
-  const remoteActiveTrip = activeTrips[0] ?? query.data?.trips?.[0];
+  const selectedTrip =
+    selectedTripId && allTrips.length
+      ? allTrips.find((trip) => trip.trip_id === selectedTripId)
+      : null;
+  const remoteActiveTrip = selectedTrip ?? activeTrips[0] ?? allTrips[0];
   const activeTrip = remoteActiveTrip ?? cachedTrip;
+  const offlineSnapshotQuery = useQuery(
+    tripQueries.offlineSnapshot(remoteActiveTrip?.trip_id),
+  );
   useEffect(() => {
-    if (remoteActiveTrip?.trip_id) {
-      void getOfflineSnapshot(remoteActiveTrip.trip_id)
-        .then(cacheOfflineSnapshot)
-        .catch(() => undefined);
+    const persistedTripId = readSelectedTripIdFromMmkv();
+    if (persistedTripId && !selectedTripId) {
+      setSelectedTripId(persistedTripId);
     }
-  }, [remoteActiveTrip?.trip_id]);
+    const warmSummary = persistedTripId
+      ? readTripHomeSummary(persistedTripId) ?? readLastTripHomeSummary()
+      : readLastTripHomeSummary();
+    if (warmSummary) {
+      setCachedSummary(warmSummary);
+    }
+    setSelectedTripHydrated(true);
+  }, [selectedTripId, setSelectedTripId]);
+  useEffect(() => {
+    if (!selectedTripHydrated) {
+      return;
+    }
+    writeSelectedTripIdToMmkv(selectedTripId);
+  }, [selectedTripHydrated, selectedTripId]);
+  useEffect(() => {
+    if (offlineSnapshotQuery.data) {
+      void cacheOfflineSnapshot(offlineSnapshotQuery.data).catch(() => undefined);
+    }
+  }, [offlineSnapshotQuery.data]);
   useEffect(() => {
     if (!remoteActiveTrip) {
       void readLastOfflineSnapshot().then((snapshot) => {
@@ -50,6 +94,17 @@ export function TripHomeScreen() {
       });
     }
   }, [remoteActiveTrip]);
+  useEffect(() => {
+    if (!allTrips.length) {
+      if (selectedTripId) {
+        setSelectedTripId(null);
+      }
+      return;
+    }
+    if (remoteActiveTrip?.trip_id && selectedTripId !== remoteActiveTrip.trip_id) {
+      setSelectedTripId(remoteActiveTrip.trip_id);
+    }
+  }, [allTrips.length, remoteActiveTrip?.trip_id, selectedTripId, setSelectedTripId]);
   useEffect(() => {
     if (!activeTrip?.trip_id) {
       return undefined;
@@ -59,17 +114,7 @@ export function TripHomeScreen() {
       return undefined;
     }
     const refreshTripQueries = () => {
-      queryClient.invalidateQueries({ queryKey: ['trips'] });
-      queryClient.invalidateQueries({ queryKey: ['trip-summary', activeTrip.trip_id] });
-      queryClient.invalidateQueries({
-        queryKey: ['trip-task-command', activeTrip.trip_id],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['trip-safety-card', activeTrip.trip_id],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['trip-route-bundles', activeTrip.trip_id],
-      });
+      void invalidateTripServerState(queryClient, activeTrip.trip_id);
     };
     source.addEventListener('trip_updated', refreshTripQueries);
     source.addEventListener('phase_updated', refreshTripQueries);
@@ -82,212 +127,131 @@ export function TripHomeScreen() {
     };
     return () => source.close();
   }, [activeTrip?.trip_id, queryClient]);
-  const summaryQuery = useQuery({
-    queryKey: ['trip-summary', activeTrip?.trip_id],
-    queryFn: () => getTripSummary(activeTrip!.trip_id),
-    enabled: Boolean(activeTrip?.trip_id),
-  });
-  const safetyQuery = useQuery({
-    queryKey: ['trip-safety-card', activeTrip?.trip_id],
-    queryFn: () => getSafetyCard(activeTrip!.trip_id),
-    enabled: Boolean(activeTrip?.trip_id),
-  });
-  const preferencesQuery = useQuery({
-    queryKey: ['user-preferences'],
-    queryFn: getPreferences,
-  });
-  const subscriptionQuery = useQuery({
-    queryKey: ['subscription'],
-    queryFn: getSubscription,
-  });
-  const reminderMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeTrip) {
-        throw new Error('No active trip');
-      }
-      const candidates = await getReminderCandidates(activeTrip.trip_id, {
-        quiet_hours_start: preferencesQuery.data?.quiet_hours_start,
-        quiet_hours_end: preferencesQuery.data?.quiet_hours_end,
-      });
-      const result = await scheduleTripReminderCandidates(candidates.candidates);
-      return { candidates, result };
-    },
-    onSuccess: ({ candidates, result }) => {
-      setReminderMessage(
-        result.permission === 'granted'
-          ? `已安排 ${result.scheduledCount} 条提醒，跳过 ${result.skippedCount} 条。`
-          : '未获得通知权限，暂不安排提醒。',
-      );
-      void recordAnalyticsEvent({
-        event_type:
-          result.permission === 'granted'
-            ? 'notification_opted_in'
-            : 'notification_opted_out',
-        client_event_id: `reminders-${activeTrip?.trip_id}-${Date.now()}`,
-        trip_id: activeTrip?.trip_id,
-        metadata: {
-          candidate_count: String(candidates.candidates.length),
-          scheduled_count: String(result.scheduledCount),
-        },
-      }).catch(() => undefined);
-    },
-  });
-  const tasks = activeTrip?.tasks ?? [];
-  const completed = tasks.filter(
-    (task) => task.status === 'completed' || task.status === 'skipped',
-  ).length;
-  const progress = summaryQuery.data
-    ? summaryQuery.data.progress_percent / 100
-    : tasks.length
-      ? completed / tasks.length
-      : 0;
-  const nextTask =
-    summaryQuery.data?.next_task ??
-    tasks.find((task) => task.status === 'pending' || task.status === 'in_progress');
+  const summaryQuery = useQuery(tripQueries.summary(activeTrip?.trip_id));
+  const safetyQuery = useQuery(tripQueries.safetyCard(activeTrip?.trip_id));
+  const preferencesQuery = useQuery(userQueries.preferences());
+  const subscriptionQuery = useQuery(userQueries.subscription());
+  useEffect(() => {
+    if (summaryQuery.data) {
+      cacheTripHomeSummary(summaryQuery.data);
+      setCachedSummary(summaryQuery.data);
+    }
+  }, [summaryQuery.data]);
   const subscriptionWarning =
     subscriptionQuery.data &&
     subscriptionQuery.data.status !== 'active' &&
     subscriptionQuery.data.status !== 'trialing'
       ? `${subscriptionQuery.data.tier} · ${subscriptionQuery.data.status}`
       : null;
+  const summaryForView =
+    summaryQuery.data ??
+    (cachedSummary &&
+    (!activeTrip || cachedSummary.trip_id === activeTrip.trip_id || cachedSummary.trip_id === selectedTripId)
+      ? cachedSummary
+      : null);
+  const viewModel = buildTripHomeViewModel({
+    trip: activeTrip,
+    summary: summaryForView,
+    isWarmCache: Boolean(summaryForView && !summaryQuery.data),
+    subscriptionWarning,
+    reminderMessage: null,
+    safetyOfflineAvailable: safetyQuery.data?.offline_available,
+    safetyNumbers: safetyQuery.data?.emergency_numbers,
+  });
 
   return (
     <Screen
       title="华夏旅行指挥中心"
       subtitle="从旅行想法到回家，把每一步变成可执行任务。"
     >
-      {query.isLoading ? <Text>正在读取旅行...</Text> : null}
+      {query.isLoading && !viewModel ? <SkeletonBlock label="正在读取旅行..." /> : null}
       {query.data && query.isFetching ? (
-        <Text variant="bodySmall">正在后台刷新旅行状态...</Text>
+        <SkeletonBlock label="正在后台刷新旅行状态，先保持当前卡片稳定。" />
       ) : null}
       {query.isError ? (
         <Text variant="bodySmall">当前显示的是本地缓存，联网后会自动刷新。</Text>
       ) : null}
-      {!activeTrip && !query.isLoading ? (
-        <Card>
-          <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">还没有可执行旅行</Text>
-            <Text variant="bodyMedium">先用移动端快速表单生成规划任务。</Text>
+      {!viewModel && !query.isLoading ? (
+        <EmptyState
+          title="还没有可执行旅行"
+          body="先用移动端快速表单生成规划任务。"
+          action={
             <Link href="/intake" asChild>
               <Button mode="contained">创建旅行</Button>
             </Link>
-          </Card.Content>
-        </Card>
+          }
+        />
       ) : null}
-      {activeTrip ? (
-        <Card mode="elevated">
-          <Card.Content style={styles.cardContent}>
+      {viewModel ? (
+        <CommandCard>
+          <View style={styles.cardContent}>
             <View style={styles.row}>
-              <Text variant="titleLarge" style={styles.title}>
-                {activeTrip.draft.title}
-              </Text>
-              <Chip compact>{activeTrip.status}</Chip>
+              <SectionHeader title={viewModel.title} />
+              <StatusChip label={viewModel.status} />
             </View>
             {activeTrips.length > 1 ? (
               <Text variant="bodySmall">还有 {activeTrips.length - 1} 个进行中的旅行。</Text>
             ) : null}
-            <Text variant="bodyMedium">{activeTrip.draft.destination}</Text>
+            <Text variant="bodyMedium">{viewModel.destination}</Text>
             <View style={styles.chips}>
-              {summaryQuery.data?.current_phase ? (
-                <Chip compact>{summaryQuery.data.current_phase.title}</Chip>
+              {viewModel.currentPhaseTitle ? (
+                <PhaseChip label={viewModel.currentPhaseTitle} />
               ) : null}
               {subscriptionQuery.data ? (
                 <Chip compact>{subscriptionQuery.data.tier}</Chip>
               ) : null}
               {subscriptionWarning ? <Chip compact>{subscriptionWarning}</Chip> : null}
-              {!remoteActiveTrip && cachedTrip ? <Chip compact>离线缓存</Chip> : null}
+              {viewModel.isWarmCache ? <Chip compact>本机缓存</Chip> : null}
             </View>
-            <ProgressBar progress={progress} style={styles.progress} />
-            {summaryQuery.data ? (
-              <View style={styles.metricGrid}>
-                <Metric label="待办" value={summaryQuery.data.open_task_count} />
-                <Metric label="今天" value={summaryQuery.data.today_task_count} />
-                <Metric label="逾期" value={summaryQuery.data.overdue_task_count} />
-                <Metric label="阻塞" value={summaryQuery.data.blocked_task_count} />
-              </View>
+            <ProgressBar progress={viewModel.progress} style={styles.progress} />
+            <View style={styles.metricGrid}>
+              <Metric label="待办" value={viewModel.openTaskCount} />
+              <Metric label="今天" value={viewModel.todayTaskCount} />
+              <Metric label="逾期" value={viewModel.overdueTaskCount} />
+              <Metric label="阻塞" value={viewModel.blockedTaskCount} />
+            </View>
+            {viewModel.contextualAlert ? (
+              <ContextualAlertCard alert={viewModel.contextualAlert} />
             ) : null}
-            {summaryQuery.data?.urgent_warnings.length ? (
-              <Card mode="outlined">
-                <Card.Content>
-                  <Text variant="labelLarge">重要提醒</Text>
-                  {summaryQuery.data.urgent_warnings.slice(0, 3).map((warning) => (
-                    <Text key={warning} variant="bodySmall">
-                      {warning}
-                    </Text>
-                  ))}
-                </Card.Content>
-              </Card>
-            ) : null}
-            {safetyQuery.data?.offline_available ? (
-              <Card mode="outlined">
-                <Card.Content>
-                  <Text variant="labelLarge">离线安全卡已准备</Text>
-                  <Text variant="bodySmall">
-                    {safetyQuery.data.emergency_numbers.join(' / ')}
-                  </Text>
-                </Card.Content>
-              </Card>
-            ) : null}
-            {nextTask ? (
-              <Card mode="outlined">
-                <Card.Content>
-                  <View style={styles.row}>
-                    <Text variant="labelLarge">下一步</Text>
-                    {summaryQuery.data?.next_task_urgency ? (
-                      <Chip compact>
-                        {urgencyLabel(summaryQuery.data.next_task_urgency)}
-                      </Chip>
-                    ) : null}
-                  </View>
-                  <Text variant="titleMedium">{nextTask.title}</Text>
-                  {nextTask.due_at ? (
-                    <Text variant="labelSmall">截止：{formatDueAt(nextTask.due_at)}</Text>
-                  ) : null}
-                  <Text variant="bodySmall">{nextTask.instruction}</Text>
-                </Card.Content>
-              </Card>
-            ) : null}
-            <View style={styles.actions}>
-              {activeTrip.status === 'draft' || activeTrip.status === 'reviewing' ? (
-                <Link href={`/trips/${activeTrip.trip_id}/review`} asChild>
+            <NextBestActionCard viewModel={viewModel} />
+            <StickyActionBar>
+              <View style={styles.actions}>
+              {viewModel.status === 'draft' || viewModel.status === 'reviewing' ? (
+                <Link href={`/trips/${viewModel.tripId}/review`} asChild>
                   <Button mode="contained">审批草稿</Button>
                 </Link>
               ) : (
-                <Link href={`/trips/${activeTrip.trip_id}/tasks`} asChild>
+                <Link href={`/trips/${viewModel.tripId}/(tabs)/tasks`} asChild>
                   <Button mode="contained">查看任务</Button>
                 </Link>
               )}
-              {activeTrip.status !== 'draft' && activeTrip.status !== 'reviewing' ? (
-                <Button
-                  mode="outlined"
-                  loading={reminderMutation.isPending}
-                  onPress={() => reminderMutation.mutate()}
-                >
-                  开启任务提醒
-                </Button>
+              {activeTrip && viewModel.status !== 'draft' && viewModel.status !== 'reviewing' ? (
+                <Link href={`/trips/${viewModel.tripId}/modals/reminders/settings`} asChild>
+                  <Button mode="outlined">开启任务提醒</Button>
+                </Link>
               ) : null}
-              <Link href={`/trips/${activeTrip.trip_id}/timeline`} asChild>
+              <Link href={`/trips/${viewModel.tripId}/(tabs)/timeline`} asChild>
                 <Button mode="outlined">全程时间线</Button>
               </Link>
-              <Link href={`/trips/${activeTrip.trip_id}/safety`} asChild>
+              <Link href={`/trips/${viewModel.tripId}/safety`} asChild>
                 <Button mode="outlined">安全</Button>
               </Link>
-              <Link href={`/trips/${activeTrip.trip_id}/documents`} asChild>
+              <Link href={`/trips/${viewModel.tripId}/(tabs)/documents`} asChild>
                 <Button mode="outlined">文件</Button>
               </Link>
-              <Link href={`/trips/${activeTrip.trip_id}/settings`} asChild>
+              <Link href={`/trips/${viewModel.tripId}/(tabs)/settings`} asChild>
                 <Button mode="outlined">设置</Button>
               </Link>
-            </View>
+              </View>
+            </StickyActionBar>
             {preferencesQuery.data?.quiet_hours_start && preferencesQuery.data.quiet_hours_end ? (
               <Text variant="bodySmall">
                 安静时段：{preferencesQuery.data.quiet_hours_start}-
                 {preferencesQuery.data.quiet_hours_end}
               </Text>
             ) : null}
-            {reminderMessage ? <Text variant="bodySmall">{reminderMessage}</Text> : null}
-          </Card.Content>
-        </Card>
+          </View>
+        </CommandCard>
       ) : null}
     </Screen>
   );
@@ -302,28 +266,54 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function urgencyLabel(value: string): string {
-  const labels: Record<string, string> = {
-    none: '无',
-    upcoming: '即将',
-    today: '今天',
-    overdue: '逾期',
-    blocked: '阻塞',
-  };
-  return labels[value] ?? value;
+function ContextualAlertCard({ alert }: { alert: TripHomeAlert }) {
+  return (
+    <Card mode="outlined">
+      <Card.Content>
+        <View style={styles.row}>
+          <Text variant="labelLarge">{alert.title}</Text>
+          <Chip compact>{alertToneLabel(alert.tone)}</Chip>
+        </View>
+        <Text variant="bodySmall">{alert.body}</Text>
+      </Card.Content>
+    </Card>
+  );
 }
 
-function formatDueAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function NextBestActionCard({ viewModel }: { viewModel: TripHomeViewModel }) {
+  const action = viewModel.nextBestAction;
+  const href =
+    viewModel.status === 'draft' || viewModel.status === 'reviewing'
+      ? `/trips/${viewModel.tripId}/review`
+      : action.taskId
+        ? `/trips/${viewModel.tripId}/tasks/${action.taskId}`
+        : `/trips/${viewModel.tripId}/(tabs)/tasks`;
+  return (
+    <Card mode="outlined">
+      <Card.Content>
+        <View style={styles.row}>
+          <Text variant="labelLarge">下一步</Text>
+          <Chip compact>{action.urgencyLabel}</Chip>
+        </View>
+        <Text variant="titleMedium">{action.title}</Text>
+        {action.dueLabel ? <Text variant="labelSmall">截止：{action.dueLabel}</Text> : null}
+        <Text variant="bodySmall">{action.body}</Text>
+        <Link href={href} asChild>
+          <Button mode="contained-tonal">处理下一步</Button>
+        </Link>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function alertToneLabel(tone: TripHomeAlert['tone']): string {
+  const labels: Record<TripHomeAlert['tone'], string> = {
+    info: '提示',
+    warning: '注意',
+    danger: '风险',
+    success: '完成',
+  };
+  return labels[tone];
 }
 
 const styles = StyleSheet.create({

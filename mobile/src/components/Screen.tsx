@@ -1,50 +1,18 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+
+import { AppScreen } from './HuaXiaDesignSystem';
 
 type Props = {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  scroll?: boolean;
 };
 
-export function Screen({ title, subtitle, children }: Props) {
+export function Screen({ title, subtitle, children, scroll = true }: Props) {
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.title}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
+    <AppScreen title={title} subtitle={subtitle} scroll={scroll}>
       {children}
-    </ScrollView>
+    </AppScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8f3ec',
-  },
-  content: {
-    padding: 16,
-    gap: 14,
-  },
-  header: {
-    gap: 6,
-    paddingTop: 8,
-  },
-  title: {
-    color: '#1f2a33',
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: '#5f6b73',
-    lineHeight: 21,
-  },
-});

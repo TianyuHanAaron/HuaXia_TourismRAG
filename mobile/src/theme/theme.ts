@@ -1,15 +1,17 @@
 import { MD3LightTheme } from 'react-native-paper';
 
+import { huaxiaColorTokens, huaxiaRadiusTokens } from '../../tamagui.config';
+
 export const huaxiaMobileTheme = {
   ...MD3LightTheme,
-  roundness: 2,
+  roundness: huaxiaRadiusTokens.sm,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#df4634',
-    secondary: '#2b7a78',
-    background: '#f8f3ec',
-    surface: '#fffaf5',
-    surfaceVariant: '#f1e7dc',
-    onSurface: '#1f2a33',
+    primary: huaxiaColorTokens.primary,
+    secondary: huaxiaColorTokens.secondary,
+    background: huaxiaColorTokens.paper,
+    surface: huaxiaColorTokens.surface,
+    surfaceVariant: huaxiaColorTokens.surfaceMuted,
+    onSurface: huaxiaColorTokens.ink,
   },
 };

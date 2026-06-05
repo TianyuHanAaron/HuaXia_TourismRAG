@@ -1,5 +1,21 @@
-import { api } from './client';
-import * as SecureStore from 'expo-secure-store';
+import { apiGet, apiPatch, apiPost } from './client';
+import {
+  CurrentUserSchema,
+  EntitlementCheckResponseSchema,
+  GuestSessionResponseSchema,
+  GuestUpgradeResponseSchema,
+  MobileBetaFeatureConfigResponseSchema,
+  OnboardingStateResponseSchema,
+  PaywallConfigResponseSchema,
+  PrivacyDataExportResponseSchema,
+  PrivacyDeletionRequestResponseSchema,
+  PrivacySettingsResponseSchema,
+  SubscriptionRefreshResponseSchema,
+  SubscriptionStateSchema,
+  UserPreferenceProfileSchema,
+} from './schemas';
+import { privacySettingsPatchSchema } from '../schemas/userPreferences';
+import { saveGuestSession } from '../storage/secureSession';
 import type {
   CurrentUser,
   EntitlementCheckRequest,
@@ -22,102 +38,104 @@ import type {
 } from '../types/trip';
 
 export async function getCurrentUser(): Promise<CurrentUser> {
-  const response = await api.get<CurrentUser>('/users/me');
-  return response.data;
+  return apiGet('/users/me', CurrentUserSchema);
 }
 
 export async function startGuestSession(): Promise<GuestSessionResponse> {
-  const response = await api.post<GuestSessionResponse>('/users/me/guest-session');
-  await SecureStore.setItemAsync('huaxia_guest_user_id', response.data.user_id);
-  await SecureStore.setItemAsync('huaxia_guest_tenant_id', response.data.tenant_id);
-  return response.data;
+  const response = await apiPost(
+    '/users/me/guest-session',
+    {},
+    GuestSessionResponseSchema,
+  );
+  await saveGuestSession(response);
+  return response;
 }
 
 export async function getOnboardingState(): Promise<OnboardingStateResponse> {
-  const response = await api.get<OnboardingStateResponse>('/users/me/onboarding');
-  return response.data;
+  return apiGet('/users/me/onboarding', OnboardingStateResponseSchema);
 }
 
 export async function updateOnboardingState(
   request: OnboardingUpdateRequest,
 ): Promise<OnboardingStateResponse> {
-  const response = await api.patch<OnboardingStateResponse>(
+  return apiPatch(
     '/users/me/onboarding',
     request,
+    OnboardingStateResponseSchema,
   );
-  return response.data;
 }
 
 export async function upgradeGuestTrips(
   request: GuestUpgradeRequest,
 ): Promise<GuestUpgradeResponse> {
-  const response = await api.post<GuestUpgradeResponse>(
+  return apiPost(
     '/users/me/guest-upgrade',
     request,
+    GuestUpgradeResponseSchema,
   );
-  return response.data;
 }
 
 export async function getPreferences(): Promise<UserPreferenceProfile> {
-  const response = await api.get<UserPreferenceProfile>('/users/me/preferences');
-  return response.data;
+  return apiGet('/users/me/preferences', UserPreferenceProfileSchema);
 }
 
 export async function getSubscription(): Promise<SubscriptionState> {
-  const response = await api.get<SubscriptionState>('/users/me/subscription');
-  return response.data;
+  return apiGet('/users/me/subscription', SubscriptionStateSchema);
 }
 
 export async function refreshSubscription(): Promise<SubscriptionRefreshResponse> {
-  const response = await api.post<SubscriptionRefreshResponse>('/users/me/subscription/refresh');
-  return response.data;
+  return apiPost(
+    '/users/me/subscription/refresh',
+    {},
+    SubscriptionRefreshResponseSchema,
+  );
 }
 
 export async function getPrivacySettings(): Promise<PrivacySettingsResponse> {
-  const response = await api.get<PrivacySettingsResponse>('/users/me/privacy');
-  return response.data;
+  return apiGet('/users/me/privacy', PrivacySettingsResponseSchema);
 }
 
 export async function updatePrivacySettings(
   request: PrivacySettingsPatchRequest,
 ): Promise<PrivacySettingsResponse> {
-  const response = await api.patch<PrivacySettingsResponse>('/users/me/privacy', request);
-  return response.data;
+  return apiPatch(
+    '/users/me/privacy',
+    privacySettingsPatchSchema.parse(request),
+    PrivacySettingsResponseSchema,
+  );
 }
 
 export async function exportPrivacyData(): Promise<PrivacyDataExportResponse> {
-  const response = await api.get<PrivacyDataExportResponse>('/users/me/data-export');
-  return response.data;
+  return apiGet('/users/me/data-export', PrivacyDataExportResponseSchema);
 }
 
 export async function requestPrivacyDeletion(
   request: PrivacyDeletionRequest,
 ): Promise<PrivacyDeletionRequestResponse> {
-  const response = await api.post<PrivacyDeletionRequestResponse>(
+  return apiPost(
     '/users/me/privacy/delete-request',
     request,
+    PrivacyDeletionRequestResponseSchema,
   );
-  return response.data;
 }
 
 export async function getPaywallConfig(): Promise<PaywallConfigResponse> {
-  const response = await api.get<PaywallConfigResponse>('/users/me/paywall');
-  return response.data;
+  return apiGet('/users/me/paywall', PaywallConfigResponseSchema);
 }
 
 export async function checkEntitlement(
   request: EntitlementCheckRequest,
 ): Promise<EntitlementCheckResponse> {
-  const response = await api.post<EntitlementCheckResponse>(
+  return apiPost(
     '/users/me/entitlements/check',
     request,
+    EntitlementCheckResponseSchema,
   );
-  return response.data;
 }
 
 export async function getMobileBetaConfig(): Promise<MobileBetaFeatureConfigResponse> {
-  const response = await api.get<MobileBetaFeatureConfigResponse>(
+  return apiGet(
     '/rollout/v2/mobile-config',
+    MobileBetaFeatureConfigResponseSchema,
   );
-  return response.data;
 }

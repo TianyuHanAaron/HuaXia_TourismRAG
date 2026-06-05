@@ -1,3 +1,6 @@
-import { TimelineScreen } from '../../../src/features/workflow/TimelineScreen';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
-export default TimelineScreen;
+export default function TimelineRedirectRoute() {
+  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  return <Redirect href={`/trips/${tripId}/(tabs)/timeline`} />;
+}

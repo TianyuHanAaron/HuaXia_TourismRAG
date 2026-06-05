@@ -1,29 +1,31 @@
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActivityIndicator, Button, Card, Chip, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Chip, Text, TextInput } from '../../components/PaperControls';
 
+import { invalidateTripServerState } from '../../api/queryInvalidation';
+import { tripQueries } from '../../api/queryOptions';
 import {
   attachBooking,
   attachDocument,
   deleteBooking,
   deleteDocument,
-  getTrip,
 } from '../../api/trips';
 import { Screen } from '../../components/Screen';
+import { parseBookingMetadata, parseDocumentMetadata } from '../../schemas/documents';
 import type { TripBooking, TripDocument } from '../../types/trip';
-
-const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
-  flight_train: '机票/车票',
-  hotel: '酒店',
-  ticket: '门票',
-  id_passport: '证件',
-  insurance: '保险',
-  visa: '签证',
-  custom: '自定义',
-};
+import { DocumentAttachSheet } from './DocumentAttachSheet';
+import {
+  buildDocumentAttachDraft,
+  buildDocumentVaultGroups,
+  taskOptionsForDocumentAttach,
+  validatePickedDocumentAsset,
+  type DocumentVaultCategoryKey,
+  type PickedDocumentAsset,
+} from './documentVaultUi';
 
 const BOOKING_CATEGORY_LABELS: Record<string, string> = {
   flight: '航班',
@@ -40,41 +42,60 @@ export function DocumentVaultScreen() {
   const [bookingTitle, setBookingTitle] = useState('');
   const [bookingProvider, setBookingProvider] = useState('');
   const [bookingCode, setBookingCode] = useState('');
-  const [lastDocument, setLastDocument] = useState<string | null>(null);
+  const [documentFeedback, setDocumentFeedback] = useState<string | null>(null);
+  const [pendingAsset, setPendingAsset] = useState<PickedDocumentAsset | null>(null);
+  const [selectedCategory, setSelectedCategory] =
+    useState<DocumentVaultCategoryKey>('custom');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const tripQuery = useQuery({
-    queryKey: ['trip', tripId],
-    queryFn: () => getTrip(tripId),
-    enabled: Boolean(tripId),
+    ...tripQueries.trip(tripId),
   });
   const trip = tripQuery.data?.trip;
   const documents = trip?.documents ?? [];
   const bookings = trip?.bookings ?? [];
-  const documentTaskIds = trip?.tasks?.some((task) => task.task_id === 'task-prepare-documents')
-    ? ['task-prepare-documents']
-    : [];
+  const attachTaskOptions = useMemo(
+    () => taskOptionsForDocumentAttach(trip?.tasks ?? []),
+    [trip?.tasks],
+  );
+  const vaultGroups = useMemo(
+    () => buildDocumentVaultGroups({ documents, bookings }),
+    [documents, bookings],
+  );
+  const deferredDetailMode = 'metadata-only';
   const bookingTaskIds = trip?.tasks?.some((task) => task.task_id === 'task-book-transport')
     ? ['task-book-transport']
     : [];
+  const pendingAssetValidation = pendingAsset
+    ? validatePickedDocumentAsset(pendingAsset)
+    : null;
 
   const refreshTrip = () => {
-    queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-    queryClient.invalidateQueries({ queryKey: ['trips'] });
+    void invalidateTripServerState(queryClient, tripId);
   };
 
   const attachDocumentMutation = useMutation({
-    mutationFn: (asset: DocumentPicker.DocumentPickerAsset) =>
-      attachDocument(tripId, {
-        category: 'custom',
-        title: asset.name ?? '旅行文件',
-        file_name: asset.name ?? null,
-        content_type: asset.mimeType ?? null,
-        local_reference: asset.uri,
-        storage_ref: `local-cache:${asset.uri}`,
-        task_ids: documentTaskIds,
-        sensitive: true,
-      }),
-    onSuccess: refreshTrip,
+    mutationFn: (params: {
+      asset: PickedDocumentAsset;
+      category: DocumentVaultCategoryKey;
+      taskId?: string | null;
+    }) =>
+      attachDocument(
+        tripId,
+        parseDocumentMetadata(
+          buildDocumentAttachDraft({
+            asset: params.asset,
+            category: params.category,
+            taskId: params.taskId,
+          }),
+        ),
+      ),
+    onSuccess: () => {
+      setDocumentFeedback('已保存文件元数据；文件正文仍默认不进入任何 LLM 提示词。');
+      setPendingAsset(null);
+      setSelectedTaskId(null);
+      refreshTrip();
+    },
   });
 
   const deleteDocumentMutation = useMutation({
@@ -84,13 +105,16 @@ export function DocumentVaultScreen() {
 
   const attachBookingMutation = useMutation({
     mutationFn: () =>
-      attachBooking(tripId, {
-        category: 'custom',
-        title: bookingTitle.trim(),
-        provider: bookingProvider.trim() || null,
-        confirmation_code: bookingCode.trim() || null,
-        task_ids: bookingTaskIds,
-      }),
+      attachBooking(
+        tripId,
+        parseBookingMetadata({
+          category: 'custom',
+          title: bookingTitle,
+          provider: bookingProvider || null,
+          confirmation_code: bookingCode || null,
+          task_ids: bookingTaskIds,
+        }),
+      ),
     onSuccess: () => {
       setBookingTitle('');
       setBookingProvider('');
@@ -107,14 +131,23 @@ export function DocumentVaultScreen() {
   const pickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
     if (result.canceled) {
+      setDocumentFeedback('已取消文件选择。');
       return;
     }
     const asset = result.assets[0];
     if (!asset) {
+      setDocumentFeedback('未读取到文件，请重新选择。');
       return;
     }
-    setLastDocument(asset.name ?? '旅行文件');
-    attachDocumentMutation.mutate(asset);
+    const pickedAsset = await normalizePickedAsset(asset);
+    const validationMessage = validatePickedDocumentAsset(pickedAsset);
+    setPendingAsset(pickedAsset);
+    setSelectedCategory(inferCategoryFromAsset(pickedAsset));
+    setSelectedTaskId(attachTaskOptions[0]?.task_id ?? null);
+    setDocumentFeedback(
+      validationMessage ??
+        '已读取本地文件元数据。请确认分类、关联任务和隐私设置后保存。',
+    );
   };
 
   const bookingFormReady = bookingTitle.trim().length > 0;
@@ -132,6 +165,7 @@ export function DocumentVaultScreen() {
           <Text variant="bodyMedium" style={styles.helper}>
             移动端只记录文件名、本地引用、类型和关联任务。证件、保险和订单正文默认隔离。
           </Text>
+          <Chip compact>{deferredDetailMode}</Chip>
           <Button
             mode="contained"
             onPress={pickDocument}
@@ -140,17 +174,79 @@ export function DocumentVaultScreen() {
           >
             添加文件元数据
           </Button>
-          {lastDocument ? <Text variant="bodySmall">最近选择：{lastDocument}</Text> : null}
+          <Text variant="bodySmall">
+            若文件不支持或文件过大，会停留在本机选择状态，不会提交到服务器。
+          </Text>
+          {documentFeedback ? <Text variant="bodySmall">{documentFeedback}</Text> : null}
+          {pendingAsset ? (
+            <DocumentAttachSheet
+              asset={pendingAsset}
+              category={selectedCategory}
+              taskId={selectedTaskId}
+              tasks={attachTaskOptions}
+              validationMessage={pendingAssetValidation}
+              loading={attachDocumentMutation.isPending}
+              onCategoryChange={setSelectedCategory}
+              onTaskIdChange={setSelectedTaskId}
+              onAttach={() =>
+                attachDocumentMutation.mutate({
+                  asset: pendingAsset,
+                  category: selectedCategory,
+                  taskId: selectedTaskId,
+                })
+              }
+              onCancel={() => {
+                setPendingAsset(null);
+                setDocumentFeedback('已取消文件选择。');
+              }}
+            />
+          ) : null}
           {tripQuery.isLoading ? <ActivityIndicator /> : null}
-          {documents.length ? (
+          {vaultGroups.length ? (
             <View style={styles.list}>
-              {documents.map((document) => (
-                <DocumentRow
-                  key={document.document_id}
-                  document={document}
-                  onDelete={() => deleteDocumentMutation.mutate(document.document_id)}
-                  deleting={deleteDocumentMutation.isPending}
-                />
+              {vaultGroups.map((group) => (
+                <Card key={group.key} mode="outlined">
+                  <Card.Content style={styles.group}>
+                    <View style={styles.groupHeader}>
+                      <View style={styles.rowMain}>
+                        <Text variant="titleSmall">{group.title}</Text>
+                        <Text variant="bodySmall" style={styles.helper}>
+                          {group.subtitle}
+                        </Text>
+                        <Text variant="bodySmall" style={styles.helper}>
+                          {group.privacyCopy}
+                        </Text>
+                      </View>
+                      <Chip compact>{group.documents.length + group.bookings.length}</Chip>
+                    </View>
+                    <View style={styles.chips}>
+                      {group.sensitive ? <Chip compact>敏感分类</Chip> : null}
+                      {group.promptExcluded ? <Chip compact>默认不进提示词</Chip> : null}
+                    </View>
+                    {group.documents.map((document) => (
+                      <DocumentRow
+                        key={document.document_id}
+                        document={document}
+                        categoryLabel={group.title}
+                        onDelete={() => deleteDocumentMutation.mutate(document.document_id)}
+                        deleting={deleteDocumentMutation.isPending}
+                      />
+                    ))}
+                    {group.bookings.map((booking) => (
+                      <BookingRow
+                        key={booking.booking_id}
+                        booking={booking}
+                        onDelete={() => deleteBookingMutation.mutate(booking.booking_id)}
+                        deleting={deleteBookingMutation.isPending}
+                      />
+                    ))}
+                    {!group.documents.length && !group.bookings.length ? (
+                      <Text variant="bodySmall" style={styles.empty}>
+                        {group.emptyLabel}
+                      </Text>
+                    ) : null}
+                  </Card.Content>
+                </Card>
               ))}
             </View>
           ) : (
@@ -216,10 +312,12 @@ export function DocumentVaultScreen() {
 
 function DocumentRow({
   document,
+  categoryLabel,
   deleting,
   onDelete,
 }: {
   document: TripDocument;
+  categoryLabel: string;
   deleting: boolean;
   onDelete: () => void;
 }) {
@@ -231,9 +329,10 @@ function DocumentRow({
           {document.file_name ?? '未记录文件名'}
         </Text>
         <View style={styles.chips}>
-          <Chip compact>{DOCUMENT_CATEGORY_LABELS[document.category] ?? document.category}</Chip>
+          <Chip compact>{categoryLabel}</Chip>
           <Chip compact>{document.sensitive ? '敏感' : '普通'}</Chip>
           <Chip compact>{document.prompt_excluded ? '不进提示词' : '需确认'}</Chip>
+          {document.task_ids.length ? <Chip compact>已关联任务</Chip> : null}
         </View>
       </View>
       <Button mode="text" onPress={onDelete} disabled={deleting}>
@@ -305,4 +404,46 @@ const styles = StyleSheet.create({
   empty: {
     color: '#7b6d63',
   },
+  group: {
+    gap: 10,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
 });
+
+async function normalizePickedAsset(
+  asset: DocumentPicker.DocumentPickerAsset,
+): Promise<PickedDocumentAsset> {
+  const info = await FileSystem.getInfoAsync(asset.uri);
+  const sizeFromFileSystem =
+    info.exists && 'size' in info && typeof info.size === 'number' ? info.size : null;
+  return {
+    name: asset.name ?? null,
+    uri: asset.uri,
+    mimeType: asset.mimeType ?? null,
+    size: asset.size ?? sizeFromFileSystem,
+  };
+}
+
+function inferCategoryFromAsset(asset: PickedDocumentAsset): DocumentVaultCategoryKey {
+  const name = asset.name?.toLowerCase() ?? '';
+  if (name.includes('passport') || name.includes('visa') || name.includes('护照') || name.includes('签证')) {
+    return 'id_passport';
+  }
+  if (name.includes('insurance') || name.includes('保险')) {
+    return 'insurance';
+  }
+  if (name.includes('ticket') || name.includes('门票')) {
+    return 'ticket';
+  }
+  if (name.includes('hotel') || name.includes('booking') || name.includes('酒店') || name.includes('民宿')) {
+    return 'hotel';
+  }
+  if (name.includes('flight') || name.includes('train') || name.includes('航班') || name.includes('车票')) {
+    return 'flight_train';
+  }
+  return 'custom';
+}

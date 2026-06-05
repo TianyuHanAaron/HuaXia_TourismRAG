@@ -1,14 +1,25 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { Button, Card, Text } from 'react-native-paper';
+import { Button, Card, Text } from '../../components/PaperControls';
 
+import {
+  CommandCard,
+  SectionHeader,
+  StatusChip,
+} from '../../components/HuaXiaDesignSystem';
 import type {
   ProviderActionLaunchChannel,
   RouteBundle,
   TripProviderAction,
   TripProviderActionLaunchRequest,
 } from '../../types/trip';
+import { parseProviderFollowUp } from '../../schemas/providerAction';
+import {
+  buildProviderActionSheetViewModel,
+  type ProviderActionLaunchOption,
+} from './providerActionSheetViewModel';
 
 type Props = {
   action: TripProviderAction;
@@ -21,138 +32,156 @@ type Props = {
 };
 
 export function ProviderActionSheet({ action, routeBundle, onLaunch, onHandled }: Props) {
-  const target = routeBundle?.fallback_url ?? action.deep_link ?? action.url ?? action.fallback_url ?? null;
-  const unavailable = !action.available || action.validation_status === 'unavailable';
+  const [hasLaunched, setHasLaunched] = useState(false);
+  const viewModel = useMemo(
+    () => buildProviderActionSheetViewModel({ action, routeBundle }),
+    [action, routeBundle],
+  );
 
-  const openTarget = async (
-    url: string | null,
-    launchChannel: ProviderActionLaunchChannel,
-  ) => {
-    if (unavailable) {
-      return;
-    }
-    await onLaunch?.(action, {
-      launch_channel: launchChannel,
-      target_url: url,
-      client_event_id: `mobile-${action.action_id}-${Date.now()}`,
+  const launchOption = async (option: ProviderActionLaunchOption) => {
+    const followUp = parseProviderFollowUp({
+      launch_channel: option.channel,
+      target_url: option.url,
+      client_event_id: `mobile-provider-launch-${action.action_id}-${Date.now()}`,
     });
-    if (!url) return;
-    if (launchChannel === 'browser' || launchChannel === 'fallback_browser') {
-      await WebBrowser.openBrowserAsync(url);
+    await onLaunch?.(action, followUp);
+    setHasLaunched(true);
+    if (!option.url) {
       return;
     }
-    const canOpen = await Linking.canOpenURL(url);
+    if (option.channel === 'browser' || option.channel === 'fallback_browser') {
+      await WebBrowser.openBrowserAsync(option.url);
+      return;
+    }
+    const canOpen = await Linking.canOpenURL(option.url);
     if (canOpen) {
-      await Linking.openURL(url);
+      await Linking.openURL(option.url);
       return;
     }
-    await WebBrowser.openBrowserAsync(url);
+    await WebBrowser.openBrowserAsync(option.url);
   };
 
-  const recordManual = async (launchChannel: ProviderActionLaunchChannel) => {
-    await onLaunch?.(action, {
-      launch_channel: launchChannel,
-      client_event_id: `mobile-${action.action_id}-${Date.now()}`,
-    });
+  const recordFollowUp = async (
+    launchChannel: ProviderActionLaunchChannel,
+    clientEventPrefix: string,
+  ) => {
+    await onLaunch?.(
+      action,
+      parseProviderFollowUp({
+        launch_channel: launchChannel,
+        client_event_id: `${clientEventPrefix}-${action.action_id}-${Date.now()}`,
+      }),
+    );
     onHandled?.();
   };
 
   return (
-    <Card mode="elevated">
-      <Card.Content>
-        <Text variant="titleMedium">{action.label}</Text>
-        {action.reason ? <Text variant="bodyMedium">{action.reason}</Text> : null}
-        {unavailable && action.unavailable_reason ? (
-          <Text variant="bodySmall">{action.unavailable_reason}</Text>
+    <CommandCard>
+      <SectionHeader
+        title={viewModel.title}
+        subtitle={action.reason ?? undefined}
+        action={
+          <StatusChip
+            label={viewModel.statusLabel}
+            tone={viewModel.statusTone}
+          />
+        }
+      />
+      {viewModel.unavailableReason ? (
+        <Text variant="bodySmall">{viewModel.unavailableReason}</Text>
+      ) : null}
+      <ContextRows rows={viewModel.contextRows} expectedNextStep={viewModel.expectedNextStep} />
+      <View style={{ gap: 8 }}>
+        {viewModel.primaryLaunch ? (
+          <Button mode="contained" onPress={() => launchOption(viewModel.primaryLaunch as ProviderActionLaunchOption)}>
+            {viewModel.primaryLaunch.label}
+          </Button>
         ) : null}
-        {routeBundle ? <RouteBundleSummary routeBundle={routeBundle} /> : null}
-        {routeBundle && routeBundle.handoff_ready && !unavailable ? (
-          <View style={{ gap: 8, marginTop: 10 }}>
-            {Object.entries(routeBundle.provider_urls).map(([provider, url]) => (
-              <Button
-                key={provider}
-                mode={provider === routeBundle.primary_provider ? 'contained' : 'outlined'}
-                disabled={!url || !action.available}
-                onPress={() =>
-                  openTarget(
-                    url,
-                    provider === routeBundle.primary_provider ? 'app' : 'browser',
-                  )
-                }
-              >
-                {providerLabel(provider)}
-              </Button>
-            ))}
-            {routeBundle.fallback_url ? (
-              <Button
-                mode="outlined"
-                disabled={!routeBundle.fallback_url || unavailable}
-                onPress={() => openTarget(routeBundle.fallback_url ?? null, 'fallback_browser')}
-              >
-                浏览器备用打开
-              </Button>
-            ) : null}
-          </View>
-        ) : (
-          <View style={{ gap: 8, marginTop: 10 }}>
-            <Button
-              mode="contained"
-              disabled={unavailable || (!target && action.requires_external_target !== false)}
-              onPress={() =>
-                target
-                  ? openTarget(target, 'app')
-                  : recordManual('manual_done')
-              }
-            >
-              {target ? '打开推荐服务' : '进入应用内处理'}
-            </Button>
-            {action.fallback_url ? (
-              <Button
-                mode="outlined"
-                disabled={unavailable}
-                onPress={() => openTarget(action.fallback_url ?? null, 'fallback_browser')}
-              >
-                浏览器备用打开
-              </Button>
-            ) : null}
-          </View>
-        )}
-        <Button disabled={unavailable} onPress={() => recordManual('manual_done')}>
-          我已处理
-        </Button>
-        <Button disabled={unavailable} onPress={() => recordManual('remind_later')}>
-          稍后提醒
-        </Button>
-      </Card.Content>
-    </Card>
+        {viewModel.alternativeLaunches.map((option) => (
+          <Button
+            key={option.key}
+            mode="outlined"
+            onPress={() => launchOption(option)}
+          >
+            {option.label}
+          </Button>
+        ))}
+        {!viewModel.primaryLaunch && !viewModel.alternativeLaunches.length ? (
+          <Card mode="outlined">
+            <Card.Content>
+              <Text variant="titleSmall">暂时没有可打开的外部动作</Text>
+              <Text variant="bodySmall">
+                请返回任务页刷新，或选择“出了问题”记录当前状态。
+              </Text>
+            </Card.Content>
+          </Card>
+        ) : null}
+      </View>
+      {hasLaunched ? (
+        <PostLaunchFollowUps
+          onCompleted={() => recordFollowUp('manual_done', 'mobile-provider-completed')}
+          onRemindLater={() => recordFollowUp('remind_later', 'mobile-provider-remind-later')}
+          onWentWrong={() => recordFollowUp('remind_later', 'mobile-provider-went-wrong')}
+        />
+      ) : null}
+    </CommandCard>
   );
 }
 
-function RouteBundleSummary({ routeBundle }: { routeBundle: RouteBundle }) {
+function ContextRows({
+  rows,
+  expectedNextStep,
+}: {
+  rows: Array<{ label: string; value: string }>;
+  expectedNextStep: string;
+}) {
   return (
-    <Card mode="outlined" style={{ marginTop: 10 }}>
+    <Card mode="outlined">
       <Card.Content>
-        <Text variant="titleSmall">{routeBundle.label}</Text>
-        <Text variant="bodySmall">
-          {routeBundle.origin} → {routeBundle.destination}
-        </Text>
-        {routeBundle.waypoints.length ? (
-          <Text variant="bodySmall">途经：{routeBundle.waypoints.join('、')}</Text>
-        ) : null}
-        <Text variant="labelSmall">路线可信度：{routeBundle.confidence}</Text>
-        {!routeBundle.handoff_ready && routeBundle.unavailable_reason ? (
-          <Text variant="bodySmall">{routeBundle.unavailable_reason}</Text>
-        ) : null}
+        <Text variant="titleSmall">准备好的上下文</Text>
+        {rows.map((row) => (
+          <View
+            key={`${row.label}-${row.value}`}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}
+          >
+            <Text variant="bodySmall">{row.label}</Text>
+            <Text variant="bodySmall" style={{ flex: 1, textAlign: 'right' }}>
+              {row.value}
+            </Text>
+          </View>
+        ))}
+        <Text variant="labelSmall">下一步：{expectedNextStep}</Text>
       </Card.Content>
     </Card>
   );
 }
 
-function providerLabel(provider: string): string {
-  const labels: Record<string, string> = {
-    google_maps: 'Google Maps',
-    apple_maps: 'Apple Maps',
-    mapbox: 'Mapbox',
-  };
-  return labels[provider] ?? provider;
+function PostLaunchFollowUps({
+  onCompleted,
+  onRemindLater,
+  onWentWrong,
+}: {
+  onCompleted: () => void;
+  onRemindLater: () => void;
+  onWentWrong: () => void;
+}) {
+  return (
+    <Card mode="outlined">
+      <Card.Content>
+        <Text variant="titleSmall">回到华夏后</Text>
+        <Text variant="bodySmall">告诉我外部动作是否已经处理，任务状态会同步更新。</Text>
+        <View style={{ gap: 8, marginTop: 8 }}>
+          <Button mode="contained-tonal" onPress={onCompleted}>
+            我已完成
+          </Button>
+          <Button mode="outlined" onPress={onRemindLater}>
+            稍后提醒
+          </Button>
+          <Button mode="outlined" onPress={onWentWrong}>
+            出了问题
+          </Button>
+        </View>
+      </Card.Content>
+    </Card>
+  );
 }

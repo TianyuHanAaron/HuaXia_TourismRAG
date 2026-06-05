@@ -65,6 +65,7 @@ export const tripIntakeSchema = z
   );
 
 export type TripIntakeForm = z.infer<typeof tripIntakeSchema>;
+export type TripIntakeFormInput = z.input<typeof tripIntakeSchema>;
 
 export function buildTravelFormRequest(form: TripIntakeForm): TravelFormRequest {
   const durationDays =
