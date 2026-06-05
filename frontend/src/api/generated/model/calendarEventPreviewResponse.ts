@@ -5,6 +5,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CalendarEventPreview } from './calendarEventPreview';
+import type { CalendarEventPreviewResponseFallbackTarget } from './calendarEventPreviewResponseFallbackTarget';
+import type { CalendarEventPreviewResponseTargetOptionsItem } from './calendarEventPreviewResponseTargetOptionsItem';
 
 /**
  * Calendar preview response.
@@ -12,4 +14,10 @@ import type { CalendarEventPreview } from './calendarEventPreview';
 export interface CalendarEventPreviewResponse {
   trip_id: string;
   events: CalendarEventPreview[];
+  provider_id?: string;
+  /** @maxItems 4 */
+  target_options?: CalendarEventPreviewResponseTargetOptionsItem[];
+  fallback_target?: CalendarEventPreviewResponseFallbackTarget;
+  requires_user_confirmation?: boolean;
+  requires_device_permission?: boolean;
 }

@@ -23,6 +23,7 @@ from huaxia_tourismrag.schemas.market import (
     PrivacySettingsResponse,
     ProductPositioning,
     MobileBetaFeatureConfigResponse,
+    ProviderActionFunnelBreakdown,
     RolloutFlagPatchRequest,
     RolloutFlagResponse,
     RolloutGate,
@@ -35,6 +36,9 @@ from huaxia_tourismrag.schemas.market import (
     SupportAuditEvent,
     UserPreferencePatchRequest,
     UserPreferenceProfile,
+    V3ProviderReadinessResponse,
+    V3ProviderRolloutPhase,
+    V4ReliabilityBridge,
 )
 
 
@@ -250,6 +254,162 @@ REQUIRED_ROLLOUT_METRIC_EVENTS = {
     "subscription_conversion": "subscription_started",
     "support_feedback": "support_recovery_completed",
 }
+REQUIRED_V3_PROVIDER_METRIC_EVENTS = {
+    "provider_viewed": "provider_action_viewed",
+    "provider_validation_failed": "provider_action_validation_failed",
+    "provider_launch_attempted": "provider_action_launch_attempted",
+    "provider_launched": "provider_action_launched",
+    "provider_fallback_used": "provider_action_fallback_used",
+    "provider_returned": "provider_action_returned",
+    "provider_succeeded": "provider_action_succeeded",
+    "provider_failed": "provider_action_failed",
+    "booking_reference_attached": "booking_reference_attached",
+    "support_recovery_used": "support_recovery_used",
+}
+V3_PROVIDER_ROLLOUT_PHASES = [
+    (
+        "provider_registry",
+        "Provider connector registry",
+        ["maps", "booking", "calendar", "weather", "documents"],
+        ["connector capabilities", "regional scope", "fallback rules"],
+    ),
+    (
+        "route_bundles",
+        "Route bundle generation",
+        ["maps", "local_transport"],
+        ["origin/destination", "waypoints", "mode", "confidence"],
+    ),
+    (
+        "map_navigation",
+        "Map and navigation handoff",
+        ["amap", "google_maps", "apple_maps", "mapbox"],
+        ["prepared provider URLs", "mobile preview", "fallback launch"],
+    ),
+    (
+        "weather_alerts",
+        "Weather and operational alerts",
+        ["weather"],
+        ["packing tasks", "outdoor warnings", "route risk"],
+    ),
+    (
+        "calendar_export",
+        "Calendar export",
+        ["calendar"],
+        ["event preview", "timezone handling", "ics fallback"],
+    ),
+    (
+        "ticket_handoff",
+        "Ticket and attraction handoff",
+        ["tickets", "official_attraction"],
+        ["official links", "identity/time-slot warnings", "fallback search"],
+    ),
+    (
+        "hotel_flight_handoff",
+        "Hotel and flight search handoff",
+        ["hotel", "flight"],
+        ["search context", "preferred platform", "booking import"],
+    ),
+    (
+        "document_import",
+        "Document import and parser metadata",
+        ["documents"],
+        ["metadata-only import", "prompt exclusion", "booking references"],
+    ),
+    (
+        "validation_audit",
+        "Validation, audit, and recovery",
+        ["provider_actions"],
+        ["validation status", "launch audit", "follow-up state"],
+    ),
+    (
+        "analytics_support_debugging",
+        "Analytics and support debugging",
+        ["analytics", "support"],
+        ["provider funnel", "failure reasons", "sanitized diagnostics"],
+    ),
+]
+V3_SCENARIO_TESTS = [
+    "domestic_china_city_trip",
+    "domestic_china_regional_trip",
+    "international_city_trip",
+    "outdoor_nature_trip",
+    "long_multistop_trip",
+]
+V4_BRIDGE = V4ReliabilityBridge(
+    next_capabilities=[
+        "provider_health_monitoring",
+        "background_sync",
+        "regional_slo_dashboards",
+        "credential_rotation",
+        "partner_api_deepening",
+        "automated_provider_regression_tests",
+    ],
+    promotion_criteria=[
+        "provider launch success rate improves across beta trips",
+        "fallback and support recovery rates are tracked by provider domain",
+        "no critical privacy leaks in provider URLs, documents, or support views",
+        "China and global map handoffs both pass mobile scenario tests",
+    ],
+)
+PROVIDER_ACTION_EVENT_COUNTERS = {
+    "provider_action_viewed": "viewed_count",
+    "provider_action_validation_failed": "validation_failed_count",
+    "provider_action_launch_attempted": "launch_attempted_count",
+    "provider_action_launched": "launched_count",
+    "provider_action_fallback_used": "fallback_used_count",
+    "provider_action_returned": "returned_count",
+    "provider_action_succeeded": "succeeded_count",
+    "provider_action_failed": "failed_count",
+    "provider_action_manual_completed": "manual_completed_count",
+    "booking_reference_attached": "booking_reference_attached_count",
+    "reminder_deferred": "reminder_deferred_count",
+    "support_recovery_used": "support_recovery_used_count",
+}
+PROVIDER_ACTION_TOTAL_KEYS = {
+    "provider_action_viewed": "viewed",
+    "provider_action_validation_failed": "validation_failed",
+    "provider_action_launch_attempted": "launch_attempted",
+    "provider_action_launched": "launched",
+    "provider_action_fallback_used": "fallback_used",
+    "provider_action_returned": "returned",
+    "provider_action_succeeded": "succeeded",
+    "provider_action_failed": "failed",
+    "provider_action_manual_completed": "manual_completed",
+    "booking_reference_attached": "booking_reference_attached",
+    "reminder_deferred": "reminder_deferred",
+    "support_recovery_used": "support_recovery_used",
+}
+PROVIDER_ACTION_FRICTION_EVENTS = {
+    "provider_action_validation_failed",
+    "provider_action_fallback_used",
+    "provider_action_failed",
+}
+
+
+def _provider_action_funnel_key(
+    event: AnalyticsEventRequest,
+) -> tuple[str, str, str, str]:
+    metadata = event.metadata
+    provider_id = (
+        metadata.get("provider_id")
+        or metadata.get("provider")
+        or metadata.get("provider_key")
+        or "unknown"
+    )
+    domain = (
+        metadata.get("domain")
+        or metadata.get("provider_domain")
+        or metadata.get("action_domain")
+        or "unknown"
+    )
+    region = metadata.get("region") or metadata.get("country_region") or "unknown"
+    task_type = (
+        metadata.get("task_type")
+        or metadata.get("task_category")
+        or metadata.get("action_type")
+        or "unknown"
+    )
+    return provider_id, domain, region, task_type
 ROLLOUT_GATE_DEFINITIONS = [
     (
         "backend_trip_workflow",
@@ -398,7 +558,7 @@ class MarketStore(Protocol):
         actor_user_id: str,
         target_user_id: str,
         action: SupportAuditAction,
-        resource_type: Literal["user", "job", "subscription"],
+        resource_type: Literal["user", "job", "subscription", "provider_action"],
         resource_id: str | None = None,
         metadata: dict[str, str] | None = None,
     ) -> SupportAuditEvent:
@@ -420,6 +580,9 @@ class MarketStore(Protocol):
 
     async def get_rollout_readiness(self, user_id: str) -> RolloutReadinessResponse:
         """Return V2 launch-readiness gates and metric instrumentation."""
+
+    async def get_v3_provider_readiness(self, user_id: str) -> V3ProviderReadinessResponse:
+        """Return V3 provider rollout readiness and V4 bridge."""
 
     async def get_mobile_beta_config(self) -> MobileBetaFeatureConfigResponse:
         """Return V2 mobile beta feature-surface config."""
@@ -554,6 +717,13 @@ class InMemoryMarketStore:
         events = await self.list_events(user_id)
         event_counts: dict[str, int] = {}
         source_counts: dict[str, int] = {}
+        provider_action_funnel: dict[
+            tuple[str, str, str, str],
+            ProviderActionFunnelBreakdown,
+        ] = {}
+        provider_action_totals = {
+            total_key: 0 for total_key in PROVIDER_ACTION_TOTAL_KEYS.values()
+        }
         approved_trip_ids: set[str] = set()
         first_task_trip_ids: set[str] = set()
         subscription_started_count = 0
@@ -570,6 +740,37 @@ class InMemoryMarketStore:
                 first_task_trip_ids.add(event.trip_id)
             if event.event_type == "subscription_started":
                 subscription_started_count += 1
+            if event.event_type in PROVIDER_ACTION_EVENT_COUNTERS:
+                provider_action_totals[
+                    PROVIDER_ACTION_TOTAL_KEYS[event.event_type]
+                ] += 1
+                key = _provider_action_funnel_key(event)
+                summary = provider_action_funnel.get(key)
+                if summary is None:
+                    summary = ProviderActionFunnelBreakdown(
+                        provider_id=key[0],
+                        domain=key[1],
+                        region=key[2],
+                        task_type=key[3],
+                    )
+                    provider_action_funnel[key] = summary
+                counter_name = PROVIDER_ACTION_EVENT_COUNTERS[event.event_type]
+                setattr(summary, counter_name, getattr(summary, counter_name) + 1)
+                if event.offline_queued:
+                    summary.offline_event_count += 1
+                if (
+                    event.event_type in PROVIDER_ACTION_FRICTION_EVENTS
+                    and event.metadata.get("failure_reason")
+                ):
+                    reason = event.metadata["failure_reason"]
+                    summary.failure_reasons[reason] = (
+                        summary.failure_reasons.get(reason, 0) + 1
+                    )
+                if (
+                    summary.last_event_at is None
+                    or event.occurred_at > summary.last_event_at
+                ):
+                    summary.last_event_at = event.occurred_at
 
         return AnalyticsFunnelResponse(
             user_id=user_id,
@@ -578,6 +779,16 @@ class InMemoryMarketStore:
                 for event_type, count in sorted(event_counts.items())
             ],
             source_counts=source_counts,
+            provider_action_funnel=sorted(
+                provider_action_funnel.values(),
+                key=lambda item: (
+                    item.provider_id,
+                    item.domain,
+                    item.region,
+                    item.task_type,
+                ),
+            ),
+            provider_action_totals=provider_action_totals,
             approved_trip_count=len(approved_trip_ids),
             first_task_completed_trip_count=len(first_task_trip_ids),
             subscription_started_count=subscription_started_count,
@@ -652,7 +863,7 @@ class InMemoryMarketStore:
         actor_user_id: str,
         target_user_id: str,
         action: SupportAuditAction,
-        resource_type: Literal["user", "job", "subscription"],
+        resource_type: Literal["user", "job", "subscription", "provider_action"],
         resource_id: str | None = None,
         metadata: dict[str, str] | None = None,
     ) -> SupportAuditEvent:
@@ -724,6 +935,41 @@ class InMemoryMarketStore:
             required_metric_events=REQUIRED_ROLLOUT_METRIC_EVENTS.copy(),
         )
 
+    async def get_v3_provider_readiness(self, user_id: str) -> V3ProviderReadinessResponse:
+        events = await self.list_events(user_id)
+        present_event_types = {event.event_type for event in events}
+        provider_metric_events = {
+            metric_key: event_type in present_event_types
+            for metric_key, event_type in REQUIRED_V3_PROVIDER_METRIC_EVENTS.items()
+        }
+        all_metrics_ready = all(provider_metric_events.values())
+        flags = await self.get_rollout_flags()
+        launch_mode = _launch_mode(flags)
+        phases = [
+            _build_v3_provider_phase(
+                phase_key=phase_key,
+                title=title,
+                provider_domains=provider_domains,
+                evidence=evidence,
+                all_metrics_ready=all_metrics_ready,
+                flags=flags,
+            )
+            for phase_key, title, provider_domains, evidence in V3_PROVIDER_ROLLOUT_PHASES
+        ]
+        return V3ProviderReadinessResponse(
+            launch_mode=launch_mode,
+            safe_to_expand_provider_rollout=(
+                flags.controlled_beta_enabled
+                and not flags.rollback_mode
+                and all_metrics_ready
+            ),
+            phases=phases,
+            provider_metric_events=provider_metric_events,
+            required_provider_metric_events=REQUIRED_V3_PROVIDER_METRIC_EVENTS.copy(),
+            scenario_tests=V3_SCENARIO_TESTS.copy(),
+            v4_bridge=V4_BRIDGE,
+        )
+
     async def get_mobile_beta_config(self) -> MobileBetaFeatureConfigResponse:
         flags = await self.get_rollout_flags()
         enabled = MOBILE_BETA_SURFACES.copy() if not flags.rollback_mode else []
@@ -784,6 +1030,33 @@ def _build_rollout_gate(
         title=title,
         status=status,
         owner=owner,
+        evidence=evidence,
+        blocking_reason=blocking_reason,
+    )
+
+
+def _build_v3_provider_phase(
+    *,
+    phase_key: str,
+    title: str,
+    provider_domains: list[str],
+    evidence: list[str],
+    all_metrics_ready: bool,
+    flags: RolloutFlagResponse,
+) -> V3ProviderRolloutPhase:
+    status = "ready"
+    blocking_reason = None
+    if phase_key == "analytics_support_debugging" and not all_metrics_ready:
+        status = "monitoring"
+        blocking_reason = "provider funnel and support-debug events are not fully observed yet"
+    if flags.rollback_mode:
+        status = "blocked"
+        blocking_reason = flags.kill_switch_reason or "rollback mode is enabled"
+    return V3ProviderRolloutPhase(
+        phase_key=phase_key,
+        title=title,
+        status=status,
+        provider_domains=provider_domains,
         evidence=evidence,
         blocking_reason=blocking_reason,
     )

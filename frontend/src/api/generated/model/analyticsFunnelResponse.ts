@@ -5,6 +5,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AnalyticsEventCount } from './analyticsEventCount';
+import type { AnalyticsFunnelResponseProviderActionTotals } from './analyticsFunnelResponseProviderActionTotals';
+import type { ProviderActionFunnelBreakdown } from './providerActionFunnelBreakdown';
 
 /**
  * Privacy-safe launch funnel summary for product decisions.
@@ -13,6 +15,8 @@ export interface AnalyticsFunnelResponse {
   user_id: string;
   event_counts?: AnalyticsEventCount[];
   source_counts?: Partial<Record<'web' | 'mobile' | 'backend' | 'support_admin', number>>;
+  provider_action_funnel?: ProviderActionFunnelBreakdown[];
+  provider_action_totals?: AnalyticsFunnelResponseProviderActionTotals;
   /** @minimum 0 */
   approved_trip_count: number;
   /** @minimum 0 */

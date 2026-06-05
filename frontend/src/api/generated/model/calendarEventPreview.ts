@@ -4,7 +4,9 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarEventPreviewFallbackTarget } from './calendarEventPreviewFallbackTarget';
 import type { CalendarEventPreviewSourceKind } from './calendarEventPreviewSourceKind';
+import type { CalendarEventPreviewTargetOptionsItem } from './calendarEventPreviewTargetOptionsItem';
 
 /**
  * Calendar-ready event preview.
@@ -27,4 +29,12 @@ export interface CalendarEventPreview {
   source_task_id?: string | null;
   selected_by_default?: boolean;
   duplicate_key?: string | null;
+  /** @maxLength 80 */
+  provider_id?: string;
+  /** @maxItems 4 */
+  target_options?: CalendarEventPreviewTargetOptionsItem[];
+  fallback_target?: CalendarEventPreviewFallbackTarget;
+  requires_device_permission?: boolean;
+  /** @maxItems 4 */
+  reminder_offsets_minutes?: number[];
 }

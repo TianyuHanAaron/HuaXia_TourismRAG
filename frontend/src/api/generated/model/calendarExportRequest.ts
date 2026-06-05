@@ -18,5 +18,6 @@ export interface CalendarExportRequest {
   target?: CalendarExportRequestTarget;
   /** @maxLength 80 */
   timezone?: string;
+  provider_id?: string | null;
   client_event_id?: string | null;
 }

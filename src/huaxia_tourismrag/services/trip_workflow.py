@@ -1,17 +1,43 @@
 """Trip conversion, lifecycle, and task generation helpers."""
 
+from dataclasses import dataclass
 from datetime import UTC, date as Date, datetime, time as Time, timedelta
 from typing import Literal
-from urllib.parse import quote_plus
+from urllib.parse import parse_qsl, quote_plus, urlparse
 from uuid import uuid4
 
 from huaxia_tourismrag.schemas.evidence import TravelAnswer
+from huaxia_tourismrag.services.provider_registry import (
+    ProviderConnectorRegistry,
+    default_provider_registry,
+)
 from huaxia_tourismrag.schemas.trips import (
     CalendarExportRequest,
     CalendarExportResponse,
+    CalendarExportContext,
+    CalendarExportTarget,
     CalendarEventPreview,
+    DocumentImportContext,
+    FlightSearchContext,
+    HotelSearchContext,
+    LocalTransportPlanResponse,
+    LodgingAreaRecommendation,
+    MobileProviderActionSheetContextRow,
+    MobileProviderActionSheetOption,
+    MobileProviderActionSheetResponse,
+    NavigationPreview,
+    NavigationPreviewAction,
+    OfficialAttractionLink,
+    OfflineProviderCacheEntry,
+    ProviderActionAuditEvent,
+    ProviderRecoveryState,
+    ProviderRecoveryStateResponse,
     RouteBundle,
+    RiskAdvisorySnapshot,
     SafetyCardResponse,
+    SafetyEntryRequirementsReference,
+    TicketRequirement,
+    TransportModeOption,
     Trip,
     TripAuditEvent,
     TripBooking,
@@ -33,14 +59,51 @@ from huaxia_tourismrag.schemas.trips import (
     TripPhase,
     TripPhaseType,
     TripProviderAction,
+    TripProviderActionFollowUpRequest,
     TripProviderActionLaunchRequest,
     TripReminderCandidate,
     TripSummaryResponse,
     TripTask,
     TripTaskCommandResponse,
     TripTaskCreateRequest,
+    WeatherAlert,
+    WeatherProviderSource,
+    WeatherSnapshotResponse,
+    WeatherTaskImpact,
 )
 
+
+MapDevicePlatform = Literal["web", "ios", "android", "unknown"]
+RouteProviderId = Literal["amap", "google_maps", "apple_maps", "mapbox"]
+RouteRegion = Literal["china", "international", "unknown"]
+SENSITIVE_PROVIDER_URL_QUERY_KEYS = {
+    "address",
+    "booking_reference",
+    "confirmation",
+    "confirmation_code",
+    "credit_card",
+    "document",
+    "email",
+    "home",
+    "id_number",
+    "name",
+    "passport",
+    "passport_number",
+    "payment",
+    "phone",
+    "token",
+}
+
+
+@dataclass(frozen=True)
+class RouteProviderDecision:
+    """Selected map provider and presentation metadata for a route bundle."""
+
+    provider_id: RouteProviderId
+    route_region: RouteRegion
+    available_provider_ids: list[str]
+    preview_provider_id: str | None
+    reason: str
 
 PHASE_TITLES: dict[TripPhaseType, str] = {
     "planning": "Trip planning",
@@ -156,6 +219,7 @@ def draft_from_travel_answer(
         start_date=start_date,
         end_date=itinerary.end_date if itinerary else None,
         travelers=itinerary.travelers if itinerary else None,
+        budget_level=itinerary.budget_level if itinerary else None,
         milestones=milestones,
         warnings=answer.warnings,
         evidence_refs=evidence_refs,
@@ -247,7 +311,7 @@ def apply_trip_patch(trip: Trip, patch: TripPatchRequest, *, actor: str = "user"
         if _is_execution_date_patch(trip, updates):
             return apply_execution_date_patch(trip, updates, actor=actor)
         raise TripStateTransitionError("only draft or reviewing trips can be edited")
-    trip.draft = trip.draft.model_copy(update=updates)
+    trip.draft = TripDraft.model_validate({**trip.draft.model_dump(), **updates})
     trip.updated_at = datetime.now(UTC)
     trip.audit_events.append(
         audit_event("draft_updated", "Trip draft updated.", actor=actor)
@@ -572,17 +636,132 @@ def update_task(
     raise TripWorkflowError("task not found")
 
 
-def validate_provider_action(action: TripProviderAction) -> TripProviderAction:
+def validate_provider_action(
+    action: TripProviderAction,
+    *,
+    registry: ProviderConnectorRegistry | None = None,
+) -> TripProviderAction:
     """Normalize provider action availability before clients render launch buttons."""
 
+    registry = registry or default_provider_registry()
+    action = _normalize_provider_webview_policy(action)
+    missing_context = [
+        field
+        for field in action.required_context
+        if not str(action.context.get(field, "")).strip()
+    ]
+    if missing_context:
+        missing_text = ", ".join(missing_context)
+        return action.model_copy(
+            update={
+                "available": False,
+                "validation_status": "unavailable",
+                "unavailable_reason": f"Missing provider action context: {missing_text}.",
+                "validation_errors": [f"missing_context:{field}" for field in missing_context],
+            }
+        )
+
+    connector = registry.get(action.provider)
+    if connector and connector.health_status == "disabled":
+        return action.model_copy(
+            update={
+                "available": False,
+                "validation_status": "unavailable",
+                "unavailable_reason": f"Provider {action.provider} is disabled.",
+                "validation_errors": [f"provider_disabled:{action.provider}"],
+            }
+        )
+
+    action_region = _provider_action_region(action)
+    if connector and action_region and not _provider_supports_region(connector.region_scope, action_region):
+        return action.model_copy(
+            update={
+                "available": False,
+                "validation_status": "unavailable",
+                "unavailable_reason": (
+                    f"Provider {action.provider} does not support region: {action_region}."
+                ),
+                "validation_errors": [
+                    f"provider_region_unsupported:{action.provider}:{action_region}"
+                ],
+            }
+        )
+
     has_primary_target = bool(action.deep_link or action.url)
-    has_fallback_target = bool(action.fallback_url)
+    has_valid_fallback_target = _is_valid_http_url(action.fallback_url)
+    if action.fallback_url and not has_valid_fallback_target:
+        return action.model_copy(
+            update={
+                "available": False,
+                "validation_status": "unavailable",
+                "unavailable_reason": "Provider fallback URL is invalid.",
+                "validation_errors": ["invalid_fallback_url"],
+            }
+        )
+    if action.deep_link and not _is_valid_deep_link(action.deep_link):
+        return action.model_copy(
+            update={
+                "available": False,
+                "validation_status": "unavailable",
+                "unavailable_reason": "Provider deep link is invalid.",
+                "validation_errors": ["invalid_deep_link"],
+            }
+        )
+
+    review_errors = _provider_action_review_errors(action)
+    if connector and connector.health_status == "degraded":
+        review_errors.append(f"provider_degraded:{action.provider}")
+
     if not action.requires_external_target:
         return action.model_copy(
             update={
                 "available": True,
                 "validation_status": "ready",
                 "unavailable_reason": None,
+                "validation_errors": [],
+            }
+        )
+
+    if (
+        action.data_sensitivity == "sensitive"
+        and action.requires_external_target
+        and action.context.get("user_confirmed_sensitive_handoff") != "true"
+    ):
+        return action.model_copy(
+            update={
+                "available": False,
+                "validation_status": "unavailable",
+                "unavailable_reason": "Sensitive provider handoff requires explicit user confirmation.",
+                "validation_errors": ["sensitive_handoff_unconfirmed"],
+            }
+        )
+
+    has_launch_target = has_primary_target or has_valid_fallback_target
+    if action.validation_status == "needs_fallback" and has_launch_target:
+        return action.model_copy(
+            update={
+                "available": True,
+                "validation_status": "needs_fallback",
+                "unavailable_reason": None,
+                "validation_errors": review_errors,
+            }
+        )
+    if review_errors and has_launch_target:
+        return action.model_copy(
+            update={
+                "available": True,
+                "validation_status": "needs_fallback",
+                "unavailable_reason": None,
+                "validation_errors": review_errors,
+            }
+        )
+    if has_primary_target and not has_valid_fallback_target:
+        return action.model_copy(
+            update={
+                "available": True,
+                "validation_status": "needs_fallback",
+                "unavailable_reason": None,
+                "validation_errors": ["missing_fallback_target"],
             }
         )
     if has_primary_target:
@@ -591,14 +770,16 @@ def validate_provider_action(action: TripProviderAction) -> TripProviderAction:
                 "available": True,
                 "validation_status": "ready",
                 "unavailable_reason": None,
+                "validation_errors": [],
             }
         )
-    if has_fallback_target:
+    if has_valid_fallback_target:
         return action.model_copy(
             update={
                 "available": True,
                 "validation_status": "needs_fallback",
                 "unavailable_reason": None,
+                "validation_errors": [],
             }
         )
     return action.model_copy(
@@ -606,6 +787,105 @@ def validate_provider_action(action: TripProviderAction) -> TripProviderAction:
             "available": False,
             "validation_status": "unavailable",
             "unavailable_reason": "A provider URL or deep link is required before launch.",
+            "validation_errors": ["missing_launch_target"],
+        }
+    )
+
+
+def _provider_action_region(action: TripProviderAction) -> str | None:
+    """Return a normalized action region when the generated action knows one."""
+
+    raw_region = (
+        action.context.get("route_region")
+        or action.context.get("region")
+        or ("china" if action.route_provider_id == "amap" else None)
+    )
+    if not raw_region:
+        return None
+    normalized = raw_region.strip().lower()
+    if normalized in {"unknown", "global", "device"}:
+        return None
+    return normalized
+
+
+def _provider_supports_region(provider_region_scope: str, action_region: str) -> bool:
+    """Check provider region support for action validation."""
+
+    if provider_region_scope in {"global", "device"}:
+        return True
+    if provider_region_scope == "china":
+        return action_region in {"china", "cn", "mainland_china", "中国", "大陆"}
+    if provider_region_scope == "international":
+        return action_region not in {"china", "cn", "mainland_china", "中国", "大陆"}
+    return True
+
+
+def _is_valid_http_url(value: str | None) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _is_valid_deep_link(value: str | None) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value)
+    return bool(parsed.scheme)
+
+
+def _provider_action_review_errors(action: TripProviderAction) -> list[str]:
+    """Return non-blocking validation problems that demote an action to fallback-only."""
+
+    errors: list[str] = []
+    if action.route_confidence == "low":
+        errors.append("route_confidence_low")
+    if action.context.get("source_stale") == "true":
+        errors.append("source_stale")
+    if action.context.get("source_freshness") == "stale":
+        errors.append("source_stale")
+    if action.context.get("deep_link_available") == "false":
+        errors.append("deep_link_unavailable")
+    return errors
+
+
+def _normalize_provider_webview_policy(action: TripProviderAction) -> TripProviderAction:
+    """Prevent in-app browser use for payment, checkout, login, and credential flows."""
+
+    flow_type = (
+        action.context.get("flow_type")
+        or action.context.get("provider_flow")
+        or action.context.get("handoff_flow")
+        or ""
+    ).strip().lower()
+    sensitive_flows = {
+        "payment",
+        "checkout",
+        "login",
+        "account_login",
+        "credential",
+        "credentials",
+        "oauth",
+    }
+    if flow_type not in sensitive_flows:
+        return action
+
+    allowed_channels = [
+        channel for channel in action.allowed_launch_channels if channel != "in_app_browser"
+    ]
+    if action.url and "browser" not in allowed_channels:
+        allowed_channels.insert(0, "browser")
+    if action.fallback_url and "fallback_browser" not in allowed_channels:
+        allowed_channels.append("fallback_browser")
+
+    return action.model_copy(
+        update={
+            "allowed_launch_channels": allowed_channels,
+            "webview_policy": "external_only",
+            "webview_policy_reason": (
+                "Payment, checkout, login, OAuth, and credential flows must open in a "
+                "native app or external browser; HuaXia does not embed or automate them."
+            ),
         }
     )
 
@@ -614,8 +894,10 @@ def _provider_action_target(
     action: TripProviderAction,
     request: TripProviderActionLaunchRequest,
 ) -> str | None:
-    if request.launch_channel in {"manual_done", "remind_later"}:
+    if request.launch_channel in {"manual_done", "remind_later", "manual_instruction"}:
         return None
+    if request.launch_channel == "copy_only":
+        return request.target_url or action.fallback_url or (str(action.url) if action.url else None)
     if request.target_url:
         return request.target_url
     if request.launch_channel == "fallback_browser":
@@ -624,11 +906,33 @@ def _provider_action_target(
         if action.url:
             return str(action.url)
         return action.deep_link
+    if request.launch_channel in {"browser", "in_app_browser"}:
+        if action.url:
+            return str(action.url)
+        if action.fallback_url:
+            return action.fallback_url
+        return action.deep_link
     if action.deep_link:
         return action.deep_link
     if action.url:
         return str(action.url)
     return action.fallback_url
+
+
+def _provider_audit_target_url(
+    action: TripProviderAction,
+    target_url: str,
+) -> tuple[str, bool]:
+    if action.data_sensitivity != "public":
+        return "[redacted:sensitive_provider_url]", True
+    parsed = urlparse(target_url)
+    query_keys = {
+        key.lower()
+        for key, _value in parse_qsl(parsed.query, keep_blank_values=True)
+    }
+    if query_keys.intersection(SENSITIVE_PROVIDER_URL_QUERY_KEYS):
+        return "[redacted:sensitive_provider_url]", True
+    return target_url, False
 
 
 def mark_provider_action_launched(
@@ -647,10 +951,16 @@ def mark_provider_action_launched(
         action = validate_provider_action(action)
         if not action.available:
             raise TripWorkflowError(action.unavailable_reason or "provider action unavailable")
+        if request.launch_channel not in action.allowed_launch_channels:
+            raise TripWorkflowError(
+                f"launch channel {request.launch_channel} is not allowed for this provider action"
+            )
         target_url = _provider_action_target(action, request)
         if action.requires_external_target and request.launch_channel not in {
             "manual_done",
             "remind_later",
+            "manual_instruction",
+            "copy_only",
         } and not target_url:
             raise TripWorkflowError("provider action has no launch target")
 
@@ -661,10 +971,20 @@ def mark_provider_action_launched(
         }
         if request.launch_channel == "manual_done":
             update["handled_at"] = timestamp
+            update["last_launch_result"] = "manual_completed"
+            update["recovery_status"] = "completed"
         elif request.launch_channel == "remind_later":
             update["remind_later_at"] = timestamp
+            update["last_launch_result"] = "remind_later"
+            update["recovery_status"] = "remind_later"
         else:
             update["launched_at"] = timestamp
+            update["last_launch_result"] = "launched"
+            update["recovery_status"] = "needs_follow_up"
+            update["follow_up_prompt_at"] = timestamp + timedelta(minutes=5)
+        fallback_used = request.launch_channel == "fallback_browser" or (
+            bool(target_url) and target_url == action.fallback_url
+        )
 
         launched = action.model_copy(update=update)
         trip.provider_actions[index] = launched
@@ -673,9 +993,22 @@ def mark_provider_action_launched(
             "action_id": action_id,
             "provider": action.provider,
             "launch_channel": request.launch_channel,
+            "validation_status": action.validation_status,
+            "data_sensitivity": action.data_sensitivity,
+            "fallback_used": str(fallback_used).lower(),
+            "recovery_status": str(update["recovery_status"]),
+            "last_launch_result": str(update["last_launch_result"]),
         }
+        if update.get("follow_up_prompt_at"):
+            metadata["follow_up_prompt_at"] = str(update["follow_up_prompt_at"])
         if target_url:
-            metadata["target_url"] = target_url
+            audit_target_url, target_url_redacted = _provider_audit_target_url(
+                action,
+                target_url,
+            )
+            metadata["target_url"] = audit_target_url
+            if target_url_redacted:
+                metadata["target_url_redacted"] = "true"
         if request.client_event_id:
             metadata["client_event_id"] = request.client_event_id
         trip.audit_events.append(
@@ -688,6 +1021,840 @@ def mark_provider_action_launched(
         )
         return trip
     raise TripWorkflowError("provider action not found")
+
+
+def record_provider_action_follow_up(
+    trip: Trip,
+    action_id: str,
+    request: TripProviderActionFollowUpRequest,
+    *,
+    actor: str = "user",
+) -> Trip:
+    """Record user follow-up after returning from a provider handoff."""
+
+    for index, action in enumerate(trip.provider_actions):
+        if action.action_id != action_id:
+            continue
+
+        timestamp = datetime.now(UTC)
+        update: dict[str, object] = {}
+        event_type = "provider_action_recovered"
+        if request.outcome == "completed":
+            update.update(
+                {
+                    "handled_at": timestamp,
+                    "last_launch_result": "completed",
+                    "recovery_status": "completed",
+                    "failure_reason": None,
+                }
+            )
+            trip = _complete_provider_action_tasks(
+                trip,
+                action_id,
+                request.task_id,
+                follow_up_outcome=request.outcome,
+                actor=actor,
+            )
+        elif request.outcome == "failed":
+            event_type = "provider_action_failed"
+            update.update(
+                {
+                    "last_launch_result": "failed",
+                    "recovery_status": "retry_available",
+                    "failure_reason": request.failure_reason or "Provider action failed.",
+                }
+            )
+        elif request.outcome == "try_another":
+            update.update(
+                {
+                    "last_launch_result": "returned",
+                    "recovery_status": "retry_available",
+                    "failure_reason": request.failure_reason,
+                }
+            )
+        elif request.outcome == "remind_later":
+            update.update(
+                {
+                    "remind_later_at": timestamp,
+                    "last_launch_result": "remind_later",
+                    "recovery_status": "remind_later",
+                    "failure_reason": None,
+                }
+            )
+        elif request.outcome == "attach_confirmation":
+            update.update(
+                {
+                    "last_launch_result": "returned",
+                    "recovery_status": "needs_follow_up",
+                    "failure_reason": None,
+                }
+            )
+
+        updated = trip.provider_actions[index].model_copy(update=update)
+        trip.provider_actions[index] = updated
+        trip.updated_at = datetime.now(UTC)
+        metadata = {
+            "action_id": action_id,
+            "provider": updated.provider,
+            "follow_up_outcome": request.outcome,
+            "recovery_status": updated.recovery_status,
+            "last_launch_result": updated.last_launch_result or "",
+            "validation_status": updated.validation_status,
+        }
+        if request.task_id:
+            metadata["task_id"] = request.task_id
+        if request.failure_reason:
+            metadata["failure_reason"] = request.failure_reason
+        if request.client_event_id:
+            metadata["client_event_id"] = request.client_event_id
+        trip.audit_events.append(
+            audit_event(
+                event_type,
+                f"Provider action follow-up: {updated.label}",
+                actor=actor,
+                metadata=metadata,
+            )
+        )
+        return trip
+    raise TripWorkflowError("provider action not found")
+
+
+def build_provider_recovery_states(trip: Trip) -> ProviderRecoveryStateResponse:
+    """Build support-safe provider action recovery states."""
+
+    task_ids_by_action: dict[str, list[str]] = {}
+    for task in trip.tasks:
+        for action_id in task.provider_action_ids:
+            task_ids_by_action.setdefault(action_id, []).append(task.task_id)
+
+    return ProviderRecoveryStateResponse(
+        trip_id=trip.trip_id,
+        states=[
+            ProviderRecoveryState(
+                action_id=action.action_id,
+                provider_id=action.provider,
+                label=action.label,
+                recovery_status=action.recovery_status,
+                last_launch_result=action.last_launch_result,
+                last_launch_channel=action.last_launch_channel,
+                last_launch_at=action.launched_at,
+                handled_at=action.handled_at,
+                remind_later_at=action.remind_later_at,
+                follow_up_prompt_at=action.follow_up_prompt_at,
+                failure_reason=action.failure_reason,
+                validation_status=action.validation_status,
+                task_ids=task_ids_by_action.get(action.action_id, []),
+                recovery_options=_provider_recovery_options(action.recovery_status),
+                audit_events=_provider_action_audit_events(trip, action.action_id),
+            )
+            for action in trip.provider_actions
+        ],
+    )
+
+
+def build_mobile_provider_action_sheet(
+    trip: Trip,
+    action_id: str,
+    *,
+    task_id: str | None = None,
+) -> MobileProviderActionSheetResponse:
+    """Build the compact mobile bottom-sheet payload for one provider action."""
+
+    action = next(
+        (candidate for candidate in trip.provider_actions if candidate.action_id == action_id),
+        None,
+    )
+    if action is None:
+        raise TripWorkflowError("provider action not found")
+
+    validated = validate_provider_action(action)
+    linked_task_id = task_id or _first_task_id_for_provider_action(trip, action_id)
+    primary_action = _mobile_provider_primary_option(validated)
+    alternative_actions = _mobile_provider_alternative_options(validated, primary_action)
+    recovery_actions = _mobile_provider_recovery_options(validated)
+    validation_errors = list(validated.validation_errors)
+    requires_correction = (
+        not validated.available
+        or validated.validation_status != "ready"
+        or bool(validation_errors)
+        or primary_action.disabled
+    )
+
+    return MobileProviderActionSheetResponse(
+        trip_id=trip.trip_id,
+        action_id=validated.action_id,
+        task_id=linked_task_id,
+        title=_mobile_provider_sheet_title(validated),
+        explanation=validated.reason or f"Prepared provider action: {validated.label}.",
+        recommended_provider_id=validated.provider,
+        validation_status=validated.validation_status,
+        available=validated.available,
+        requires_correction=requires_correction,
+        correction_prompt=_mobile_provider_correction_prompt(validated),
+        latest_audit_event_id=_latest_provider_action_audit_event_id(trip, action_id),
+        context_rows=_mobile_provider_context_rows(validated),
+        primary_action=primary_action,
+        alternative_actions=alternative_actions,
+        recovery_actions=recovery_actions,
+    )
+
+
+def _first_task_id_for_provider_action(trip: Trip, action_id: str) -> str | None:
+    for task in trip.tasks:
+        if action_id in task.provider_action_ids:
+            return task.task_id
+    return None
+
+
+def _latest_provider_action_audit_event_id(trip: Trip, action_id: str) -> str | None:
+    for event in reversed(trip.audit_events):
+        if event.metadata.get("action_id") == action_id:
+            return event.event_id
+    return None
+
+
+def _mobile_provider_sheet_title(action: TripProviderAction) -> str:
+    if action.action_type == "open_hotel_search":
+        return "Search lodging"
+    if action.action_type == "open_flight_search":
+        return "Search flight"
+    if action.action_type == "open_map_route":
+        return "Open route"
+    if action.action_type == "open_ticket_site":
+        return "Open ticket"
+    return action.label
+
+
+def _mobile_provider_correction_prompt(action: TripProviderAction) -> str | None:
+    if "route_confidence_low" in action.validation_errors:
+        return "Review route confidence before launching."
+    if not action.available:
+        return action.unavailable_reason or "Fix missing provider context before launching."
+    if action.validation_status == "needs_fallback":
+        return "Review provider context or use the fallback option."
+    if action.validation_errors:
+        return "Review provider context before launching."
+    return None
+
+
+def _mobile_provider_primary_option(action: TripProviderAction) -> MobileProviderActionSheetOption:
+    if not action.available:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:fix-context",
+            label="Fix missing provider context",
+            provider_id=action.provider,
+            disabled=True,
+            reason=action.unavailable_reason or "Provider action is missing required context.",
+        )
+
+    if action.validation_status == "needs_fallback" and action.fallback_url:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:fallback",
+            label="Open fallback",
+            launch_channel="fallback_browser",
+            launch_surface="external_browser",
+            target_url=action.fallback_url,
+            provider_id=action.provider,
+            reason="Use fallback while the prepared provider context needs review.",
+        )
+
+    if action.deep_link and "app" in action.allowed_launch_channels:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:app",
+            label="Open in app",
+            launch_channel="app",
+            launch_surface="native_app",
+            target_url=action.deep_link,
+            provider_id=action.provider,
+        )
+
+    if (
+        action.webview_policy == "allowed"
+        and action.url
+        and "in_app_browser" in action.allowed_launch_channels
+    ):
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:in-app-browser",
+            label="Open in HuaXia browser",
+            launch_channel="in_app_browser",
+            launch_surface="in_app_browser",
+            target_url=str(action.url),
+            provider_id=action.provider,
+        )
+
+    if action.url and "browser" in action.allowed_launch_channels:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:browser",
+            label="Open in browser",
+            launch_channel="browser",
+            launch_surface="external_browser",
+            target_url=str(action.url),
+            provider_id=action.provider,
+        )
+
+    if action.fallback_url and "fallback_browser" in action.allowed_launch_channels:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:fallback",
+            label="Open fallback",
+            launch_channel="fallback_browser",
+            launch_surface="external_browser",
+            target_url=action.fallback_url,
+            provider_id=action.provider,
+        )
+
+    if "copy_only" in action.allowed_launch_channels:
+        target_url = action.fallback_url or (str(action.url) if action.url else None)
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:copy",
+            label="Copy provider context",
+            launch_channel="copy_only",
+            launch_surface="copy_only",
+            target_url=target_url,
+            provider_id=action.provider,
+        )
+
+    if "manual_instruction" in action.allowed_launch_channels:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:manual-instruction",
+            label="Show manual instructions",
+            launch_channel="manual_instruction",
+            launch_surface="manual_instruction",
+            provider_id=action.provider,
+        )
+
+    if not action.requires_external_target and "manual_done" in action.allowed_launch_channels:
+        return MobileProviderActionSheetOption(
+            option_id=f"{action.action_id}:manual",
+            label="Mark handled",
+            launch_channel="manual_done",
+            launch_surface="manual_instruction",
+            provider_id=action.provider,
+        )
+
+    return MobileProviderActionSheetOption(
+        option_id=f"{action.action_id}:no-target",
+        label="Fix missing provider context",
+        provider_id=action.provider,
+        disabled=True,
+        reason="Provider action has no launch target.",
+    )
+
+
+def _mobile_provider_alternative_options(
+    action: TripProviderAction,
+    primary: MobileProviderActionSheetOption,
+) -> list[MobileProviderActionSheetOption]:
+    options: list[MobileProviderActionSheetOption] = []
+    seen_channels = {primary.launch_channel}
+    if action.deep_link and "app" in action.allowed_launch_channels and "app" not in seen_channels:
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:app",
+                label="Open native app",
+                launch_channel="app",
+                launch_surface="native_app",
+                target_url=action.deep_link,
+                provider_id=action.provider,
+            )
+        )
+        seen_channels.add("app")
+    if (
+        action.webview_policy == "allowed"
+        and action.url
+        and "in_app_browser" in action.allowed_launch_channels
+        and "in_app_browser" not in seen_channels
+    ):
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:in-app-browser",
+                label="Open in HuaXia browser",
+                launch_channel="in_app_browser",
+                launch_surface="in_app_browser",
+                target_url=str(action.url),
+                provider_id=action.provider,
+            )
+        )
+        seen_channels.add("in_app_browser")
+    if action.url and "browser" in action.allowed_launch_channels and "browser" not in seen_channels:
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:browser",
+                label="Open browser",
+                launch_channel="browser",
+                launch_surface="external_browser",
+                target_url=str(action.url),
+                provider_id=action.provider,
+            )
+        )
+        seen_channels.add("browser")
+    if (
+        action.fallback_url
+        and "fallback_browser" in action.allowed_launch_channels
+        and "fallback_browser" not in seen_channels
+    ):
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:fallback",
+                label="Open fallback",
+                launch_channel="fallback_browser",
+                launch_surface="external_browser",
+                target_url=action.fallback_url,
+                provider_id=action.provider,
+            )
+        )
+    if "copy_only" in action.allowed_launch_channels and "copy_only" not in seen_channels:
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:copy",
+                label="Copy provider context",
+                launch_channel="copy_only",
+                launch_surface="copy_only",
+                target_url=action.fallback_url or (str(action.url) if action.url else None),
+                provider_id=action.provider,
+            )
+        )
+        seen_channels.add("copy_only")
+    if (
+        "manual_instruction" in action.allowed_launch_channels
+        and "manual_instruction" not in seen_channels
+    ):
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:manual-instruction",
+                label="Show manual instructions",
+                launch_channel="manual_instruction",
+                launch_surface="manual_instruction",
+                provider_id=action.provider,
+            )
+        )
+    return options
+
+
+def _mobile_provider_recovery_options(
+    action: TripProviderAction,
+) -> list[MobileProviderActionSheetOption]:
+    options: list[MobileProviderActionSheetOption] = []
+    if "manual_done" in action.allowed_launch_channels:
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:manual-done",
+                label="I already handled this",
+                launch_channel="manual_done",
+                launch_surface="manual_instruction",
+                provider_id=action.provider,
+            )
+        )
+    if "remind_later" in action.allowed_launch_channels:
+        options.append(
+            MobileProviderActionSheetOption(
+                option_id=f"{action.action_id}:remind-later",
+                label="Remind me later",
+                launch_channel="remind_later",
+                launch_surface="manual_instruction",
+                provider_id=action.provider,
+            )
+        )
+    return options
+
+
+def _mobile_provider_context_rows(
+    action: TripProviderAction,
+) -> list[MobileProviderActionSheetContextRow]:
+    rows: list[MobileProviderActionSheetContextRow] = []
+    _append_mobile_context_row(rows, "provider", "Provider", action.provider)
+    _append_mobile_context_row(rows, "action_type", "Action", action.action_type)
+    _append_mobile_context_row(rows, "validation_status", "Status", action.validation_status)
+    _append_mobile_context_row(
+        rows,
+        "webview_policy",
+        "Web browser policy",
+        action.webview_policy,
+        status="warning" if action.webview_policy != "allowed" else "normal",
+    )
+    if action.webview_policy_reason:
+        _append_mobile_context_row(
+            rows,
+            "webview_policy_reason",
+            "Web browser policy reason",
+            action.webview_policy_reason,
+            status="warning" if action.webview_policy != "allowed" else "normal",
+        )
+    if action.unavailable_reason:
+        _append_mobile_context_row(
+            rows,
+            "unavailable_reason",
+            "Unavailable reason",
+            action.unavailable_reason,
+            status="missing",
+        )
+    if action.validation_errors:
+        _append_mobile_context_row(
+            rows,
+            "validation_errors",
+            "Validation issues",
+            ", ".join(action.validation_errors),
+            status="warning" if action.available else "missing",
+        )
+
+    if action.required_context:
+        for key in action.required_context:
+            value = action.context.get(key)
+            _append_mobile_context_row(
+                rows,
+                key,
+                _humanize_context_key(key),
+                value or "Missing",
+                status="normal" if value else "missing",
+            )
+
+    for key in sorted(action.context):
+        if key in action.required_context:
+            continue
+        _append_mobile_context_row(rows, key, _humanize_context_key(key), action.context[key])
+
+    _append_mobile_context_row(rows, "route_origin", "Route origin", action.route_origin)
+    _append_mobile_context_row(rows, "route_destination", "Route destination", action.route_destination)
+    _append_mobile_context_row(rows, "route_mode", "Route mode", action.route_mode)
+    _append_mobile_context_row(
+        rows,
+        "route_confidence",
+        "Route confidence",
+        action.route_confidence,
+        status="warning" if action.route_confidence == "low" else "normal",
+    )
+
+    if action.hotel_search_context:
+        hotel = action.hotel_search_context
+        if hotel.recommended_area:
+            value = hotel.recommended_area.area_name
+            if hotel.recommended_area.rationale:
+                value = f"{value} · {hotel.recommended_area.rationale}"
+            _append_mobile_context_row(rows, "recommended_area", "Recommended area", value)
+        _append_mobile_context_row(rows, "check_in_date", "Check in", _date_text(hotel.check_in_date))
+        _append_mobile_context_row(rows, "check_out_date", "Check out", _date_text(hotel.check_out_date))
+        _append_mobile_context_row(rows, "guest_count", "Guests", str(hotel.guest_count))
+
+    if action.flight_search_context:
+        flight = action.flight_search_context
+        _append_mobile_context_row(rows, "origin_city", "Origin", flight.origin_city)
+        _append_mobile_context_row(rows, "destination_city", "Destination", flight.destination_city)
+        _append_mobile_context_row(rows, "departure_date", "Departure", _date_text(flight.departure_date))
+        _append_mobile_context_row(rows, "return_date", "Return", _date_text(flight.return_date))
+
+    if action.ticket_requirement:
+        ticket = action.ticket_requirement
+        _append_mobile_context_row(rows, "attraction_name", "Attraction", ticket.attraction_name)
+        _append_mobile_context_row(rows, "visit_date", "Visit date", _date_text(ticket.visit_date))
+
+    return rows[:24]
+
+
+def _append_mobile_context_row(
+    rows: list[MobileProviderActionSheetContextRow],
+    key: str,
+    label: str,
+    value: object,
+    *,
+    status: Literal["normal", "warning", "missing"] = "normal",
+) -> None:
+    if value is None:
+        return
+    text = str(value).strip()
+    if not text:
+        return
+    rows.append(
+        MobileProviderActionSheetContextRow(
+            key=key,
+            label=label,
+            value=text,
+            status=status,
+        )
+    )
+
+
+def _humanize_context_key(key: str) -> str:
+    return key.replace("_", " ").strip().title()
+
+
+def _date_text(value: object) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return str(value.isoformat())
+    return str(value)
+
+
+def build_offline_provider_cache_entries(
+    trip: Trip,
+    *,
+    now: datetime | None = None,
+) -> tuple[list[OfflineProviderCacheEntry], list[str], list[str]]:
+    """Build provider context that remains useful during low connectivity."""
+
+    generated_at = datetime.now(UTC)
+    entries: list[OfflineProviderCacheEntry] = []
+    stale_banners: list[str] = []
+    sensitive_document_ids_excluded: list[str] = []
+
+    for bundle in build_route_bundles(trip):
+        summary = _route_summary(bundle.origin, bundle.destination, bundle.waypoints)
+        stale = bundle.validation_status != "ready" or bundle.confidence == "low"
+        entries.append(
+            OfflineProviderCacheEntry(
+                cache_id=f"route:{bundle.route_bundle_id}",
+                entry_type="route_summary",
+                title=bundle.label,
+                summary=summary,
+                provider_id=bundle.provider_id,
+                route_bundle_id=bundle.route_bundle_id,
+                task_ids=bundle.related_task_ids,
+                url=bundle.launch_url or bundle.fallback_url,
+                requires_network=False,
+                available_offline=True,
+                stale=stale,
+                stale_reason=bundle.unavailable_reason if stale else None,
+                generated_at=generated_at,
+            )
+        )
+        if stale and bundle.unavailable_reason:
+            stale_banners.append(f"Route cache needs review: {bundle.unavailable_reason}")
+
+    for action in trip.provider_actions:
+        action = validate_provider_action(action)
+        requires_network = any(
+            channel in {"app", "browser", "in_app_browser", "fallback_browser"}
+            for channel in action.allowed_launch_channels
+        ) and action.requires_external_target
+        entries.append(
+            OfflineProviderCacheEntry(
+                cache_id=f"provider-action:{action.action_id}",
+                entry_type="provider_action",
+                title=action.label,
+                summary=action.reason or f"Prepared provider action for {action.provider}.",
+                provider_id=action.provider,
+                action_id=action.action_id,
+                task_ids=[
+                    task.task_id
+                    for task in trip.tasks
+                    if action.action_id in task.provider_action_ids
+                ][:20],
+                url=_offline_provider_action_url(action),
+                requires_network=requires_network,
+                available_offline=True,
+                stale=action.validation_status != "ready",
+                stale_reason=(
+                    action.unavailable_reason
+                    or ", ".join(action.validation_errors)
+                    or None
+                )
+                if action.validation_status != "ready"
+                else None,
+                sensitive=action.data_sensitivity == "sensitive",
+                generated_at=generated_at,
+            )
+        )
+
+    weather = build_weather_snapshot(trip, now=now)
+    entries.append(
+        OfflineProviderCacheEntry(
+            cache_id="weather:snapshot",
+            entry_type="weather_snapshot",
+            title="Weather and outdoor risk snapshot",
+            summary=_offline_weather_summary(weather),
+            provider_id=weather.provider.provider_id,
+            requires_network=True,
+            available_offline=True,
+            stale=weather.stale,
+            stale_reason=weather.stale_reason,
+            generated_at=generated_at,
+        )
+    )
+    if weather.stale:
+        stale_banners.append(
+            f"Weather cache stale: {weather.stale_reason or 'refresh when online.'}"
+        )
+
+    safety = build_safety_card(trip)
+    entries.append(
+        OfflineProviderCacheEntry(
+            cache_id="safety:card",
+            entry_type="safety_card",
+            title="Safety and emergency references",
+            summary="; ".join(safety.safety_notes[:3]),
+            requires_network=False,
+            available_offline=True,
+            stale=False,
+            generated_at=generated_at,
+        )
+    )
+
+    for event in build_calendar_events(trip)[:20]:
+        entries.append(
+            OfflineProviderCacheEntry(
+                cache_id=f"calendar:{event.event_id}",
+                entry_type="calendar_event",
+                title=event.title,
+                summary=f"{event.starts_at.isoformat()} · {event.location or 'No location'}",
+                provider_id=event.provider_id,
+                task_ids=[event.source_task_id] if event.source_task_id else [],
+                requires_network=False,
+                available_offline=True,
+                stale=False,
+                generated_at=generated_at,
+            )
+        )
+
+    for booking in trip.bookings:
+        entries.append(
+            OfflineProviderCacheEntry(
+                cache_id=f"booking:{booking.booking_id}",
+                entry_type="booking_reference",
+                title=booking.title,
+                summary=_offline_booking_summary(booking),
+                provider_id=booking.provider,
+                booking_id=booking.booking_id,
+                task_ids=booking.task_ids,
+                requires_network=False,
+                available_offline=True,
+                stale=False,
+                sensitive=True,
+                generated_at=generated_at,
+            )
+        )
+
+    for document in trip.documents:
+        if document.sensitive:
+            sensitive_document_ids_excluded.append(document.document_id)
+            continue
+        entries.append(
+            OfflineProviderCacheEntry(
+                cache_id=f"document:{document.document_id}",
+                entry_type="document_metadata",
+                title=document.title,
+                summary=f"{document.category} · {document.file_name or 'metadata only'}",
+                document_id=document.document_id,
+                task_ids=document.task_ids,
+                requires_network=False,
+                available_offline=True,
+                stale=False,
+                sensitive=False,
+                generated_at=generated_at,
+            )
+        )
+
+    return entries, _dedupe_preserve_order(stale_banners), sensitive_document_ids_excluded
+
+
+def _offline_provider_action_url(action: TripProviderAction) -> str | None:
+    if action.deep_link and action.webview_policy != "external_only":
+        return action.deep_link
+    if action.url:
+        return str(action.url)
+    return action.fallback_url
+
+
+def _offline_weather_summary(weather: WeatherSnapshotResponse) -> str:
+    alert_titles = [alert.title for alert in weather.alerts[:4]]
+    if alert_titles:
+        return "; ".join(alert_titles)
+    return weather.stale_reason or "Refresh weather provider data when online."
+
+
+def _offline_booking_summary(booking: TripBooking) -> str:
+    parts = [booking.category]
+    if booking.confirmation_code:
+        parts.append(f"confirmation {booking.confirmation_code}")
+    if booking.starts_at:
+        parts.append(booking.starts_at.isoformat())
+    return " · ".join(parts)
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _complete_provider_action_tasks(
+    trip: Trip,
+    action_id: str,
+    task_id: str | None,
+    *,
+    follow_up_outcome: str,
+    actor: str,
+) -> Trip:
+    target_ids = [
+        task.task_id
+        for task in trip.tasks
+        if action_id in task.provider_action_ids and (task_id is None or task.task_id == task_id)
+    ]
+    if task_id and task_id not in target_ids:
+        raise TripWorkflowError("task is not linked to provider action")
+    for target_id in target_ids:
+        task = next(task for task in trip.tasks if task.task_id == target_id)
+        if task.status in {"completed", "skipped"}:
+            continue
+        trip = update_task(
+            trip,
+            target_id,
+            updates={"status": "completed"},
+            actor=actor,
+            metadata={
+                "provider_action_id": action_id,
+                "follow_up_outcome": follow_up_outcome,
+            },
+        )
+    return trip
+
+
+def _provider_recovery_options(recovery_status: str) -> list[str]:
+    if recovery_status == "completed":
+        return []
+    if recovery_status == "retry_available":
+        return ["try_another", "completed", "attach_confirmation", "remind_later"]
+    if recovery_status == "remind_later":
+        return ["completed", "attach_confirmation", "try_another"]
+    if recovery_status == "needs_follow_up":
+        return ["completed", "attach_confirmation", "try_another", "failed", "remind_later"]
+    return []
+
+
+def _provider_action_audit_events(
+    trip: Trip,
+    action_id: str,
+) -> list[ProviderActionAuditEvent]:
+    provider_events: list[ProviderActionAuditEvent] = []
+    for event in trip.audit_events:
+        if event.metadata.get("action_id") != action_id:
+            continue
+        if event.event_type not in {
+            "provider_action_launched",
+            "provider_action_failed",
+            "provider_action_recovered",
+        }:
+            continue
+        provider_events.append(
+            ProviderActionAuditEvent(
+                event_type=event.event_type,
+                action_id=event.metadata.get("action_id"),
+                provider_id=event.metadata.get("provider"),
+                launch_channel=event.metadata.get("launch_channel") or None,
+                validation_status=event.metadata.get("validation_status") or None,
+                fallback_used=event.metadata.get("fallback_used") == "true",
+                target_url=event.metadata.get("target_url"),
+                follow_up_outcome=event.metadata.get("follow_up_outcome") or None,
+                recovery_status=event.metadata.get("recovery_status") or None,
+                failure_reason=event.metadata.get("failure_reason"),
+                client_event_id=event.metadata.get("client_event_id"),
+                created_at=event.created_at,
+            )
+        )
+    return provider_events
 
 
 def generate_lifecycle_phases(trip: Trip) -> list[TripPhase]:
@@ -714,71 +1881,41 @@ def generate_provider_actions(trip: Trip) -> list[TripProviderAction]:
 
     destination = trip.draft.destination or trip.draft.title
     encoded_destination = quote_plus(destination)
+    route_bundles = build_route_bundles(trip) if destination else []
+    route_bundle = route_bundles[0] if route_bundles else None
+    map_action = _map_provider_action_from_route_bundle(route_bundle, destination)
+    flight_action = _flight_search_provider_action(trip)
+    hotel_action = _hotel_search_provider_action(trip)
+    ticket_action = _ticket_provider_action(trip)
+    weather_action = _weather_provider_action(trip)
+    local_transport_action = _local_transport_provider_action(trip, route_bundle)
     actions = [
-        TripProviderAction(
-            action_id="action-map-overview",
-            action_type="open_map_route",
-            label="Open destination map",
-            provider="preferred_map",
-            reason="Use your preferred map app to inspect the trip area.",
-            deep_link=f"https://www.google.com/maps/search/?api=1&query={destination}",
-            fallback_url=f"https://www.google.com/maps/search/?api=1&query={encoded_destination}",
-        ),
-        TripProviderAction(
-            action_id="action-flight-search",
-            action_type="open_flight_search",
-            label="Search main transport",
-            provider="preferred_flight_platform",
-            reason="Compare flights or trains before locking the trip budget.",
-            url=f"https://www.google.com/travel/flights?q={encoded_destination}",
-            fallback_url=f"https://www.google.com/travel/flights?q={encoded_destination}",
-        ),
-        TripProviderAction(
-            action_id="action-transport-booking",
-            action_type="open_transport_booking",
-            label="Arrange local transport",
-            provider="preferred_transport_provider",
-            reason="Confirm charter, rental, taxi, or public-transport handoff for key legs.",
-            url=f"https://www.google.com/maps/search/transport+{encoded_destination}",
-            fallback_url=f"https://www.google.com/maps/search/transport+{encoded_destination}",
-        ),
-        TripProviderAction(
-            action_id="action-hotel-search",
-            action_type="open_hotel_search",
-            label="Search hotels",
-            provider="preferred_hotel_platform",
-            reason="Confirm lodging before detailed arrival and check-in tasks.",
-            url=f"https://www.google.com/travel/hotels?q={encoded_destination}",
-            fallback_url=f"https://www.google.com/travel/hotels?q={encoded_destination}",
-            available=bool(destination),
-            unavailable_reason=None if destination else "Destination is required before hotel search.",
-        ),
-        TripProviderAction(
-            action_id="action-ticket-site",
-            action_type="open_ticket_site",
-            label="Check attraction tickets",
-            provider="official_ticket_sources",
-            reason="Confirm timed-entry tickets and attraction reservations.",
-            url=f"https://www.google.com/search?q={encoded_destination}+景点+预约+门票",
-            fallback_url=f"https://www.google.com/search?q={encoded_destination}+景点+预约+门票",
-        ),
+        map_action,
+        flight_action,
+        local_transport_action,
+        hotel_action,
+        ticket_action,
         TripProviderAction(
             action_id="action-upload-document",
             action_type="upload_document",
             label="Add booking and ID documents",
-            provider="document_vault",
-            reason="Keep booking references and identification metadata attached to the trip.",
+            provider="local_document_parser",
+            reason=(
+                "Import only booking/document metadata, then confirm it before linking tasks; "
+                "raw sensitive content stays out of LLM prompts."
+            ),
             requires_external_target=False,
+            context={
+                "metadata_only_default": "true",
+                "prompt_excluded_by_default": "true",
+                "manual_confirmation_required": "true",
+                "fallback_provider_id": "manual_booking_entry",
+            },
+            allowed_launch_channels=["manual_done", "remind_later"],
+            data_sensitivity="sensitive",
+            document_import_context=DocumentImportContext(),
         ),
-        TripProviderAction(
-            action_id="action-weather",
-            action_type="open_weather",
-            label="Check destination weather",
-            provider="preferred_weather_provider",
-            reason="Use weather to adjust packing, safety, and departure timing.",
-            url=f"https://www.google.com/search?q={encoded_destination}+天气",
-            fallback_url=f"https://www.google.com/search?q={encoded_destination}+天气",
-        ),
+        weather_action,
         TripProviderAction(
             action_id="action-local-guide",
             action_type="open_local_guide",
@@ -792,12 +1929,1169 @@ def generate_provider_actions(trip: Trip) -> list[TripProviderAction]:
             action_id="action-calendar-export",
             action_type="add_calendar_event",
             label="Export trip calendar",
-            provider="calendar",
-            reason="Add fixed trip dates and reminders after approval.",
+            provider="expo_calendar",
+            reason="Preview fixed trip items, then export through Expo Calendar or ICS fallback after user confirmation.",
             requires_external_target=False,
+            context={
+                "provider_id": "expo_calendar",
+                "fallback_target": "ics",
+                "requires_user_confirmation": "true",
+                "requires_device_permission": "true",
+            },
+            data_sensitivity="personal",
+            calendar_export_context=CalendarExportContext(provider_id="expo_calendar"),
         ),
     ]
     return [validate_provider_action(action) for action in actions]
+
+
+def _map_provider_action_from_route_bundle(
+    route_bundle: RouteBundle | None,
+    destination: str,
+) -> TripProviderAction:
+    encoded_destination = quote_plus(destination)
+    if route_bundle is None:
+        search_url = f"https://www.google.com/maps/search/?api=1&query={encoded_destination}"
+        return TripProviderAction(
+            action_id="action-map-overview",
+            action_type="open_map_route",
+            label="Open destination map",
+            provider="preferred_map",
+            reason="Use your preferred map app to inspect the trip area.",
+            deep_link=search_url,
+            fallback_url=search_url,
+        )
+    return TripProviderAction(
+        action_id=f"action-{route_bundle.route_bundle_id}",
+        action_type="open_map_route",
+        label=f"Preview route to {route_bundle.destination}",
+        provider=route_bundle.provider_id,
+        reason=route_bundle.provider_selection_reason
+        or "Preview the route before opening an external map app.",
+        deep_link=route_bundle.deep_link_url,
+        fallback_url=route_bundle.fallback_url or route_bundle.launch_url,
+        required_context=["route_bundle_id", "origin", "destination"],
+        context={
+            "route_bundle_id": route_bundle.route_bundle_id,
+            "origin": route_bundle.origin,
+            "destination": route_bundle.destination,
+            "travel_mode": route_bundle.travel_mode,
+            "provider_id": route_bundle.provider_id,
+        },
+        route_bundle_id=route_bundle.route_bundle_id,
+        route_origin=route_bundle.origin,
+        route_destination=route_bundle.destination,
+        route_mode=route_bundle.travel_mode,
+        route_confidence=route_bundle.confidence,
+        route_provider_id=route_bundle.provider_id,
+        available=route_bundle.validation_status == "ready",
+        unavailable_reason=route_bundle.unavailable_reason,
+        validation_status=(
+            "ready" if route_bundle.validation_status == "ready" else "needs_fallback"
+        ),
+    )
+
+
+def build_flight_search_context(
+    trip: Trip,
+    *,
+    preferred_provider_id: str | None = None,
+    api_provider_id: str = "amadeus",
+    flexible_dates: bool = False,
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> FlightSearchContext:
+    """Build flight search context for handoff without in-app ticketing."""
+
+    registry = provider_registry or default_provider_registry()
+    handoff_provider_id = _resolve_provider_id(
+        registry,
+        domain="flight",
+        capability="flight_search_url",
+        preferred_provider_id=preferred_provider_id or "skyscanner",
+        fallback_provider_id="skyscanner",
+    )
+    api_selected_provider_id = _resolve_provider_id(
+        registry,
+        domain="flight",
+        capability="flight_search",
+        preferred_provider_id=api_provider_id,
+        fallback_provider_id="amadeus",
+    )
+    origin_city = trip.draft.origin_city
+    destination_city = trip.draft.destination or trip.draft.title
+    departure_date = trip.draft.start_date
+    return_date = trip.draft.end_date
+    travelers = trip.draft.travelers or 1
+    missing_fields = [
+        field
+        for field, value in (
+            ("origin_city", origin_city),
+            ("destination_city", destination_city),
+            ("departure_date", departure_date),
+        )
+        if not value
+    ]
+    validation_status: Literal["ready", "needs_review", "unavailable"]
+    if not destination_city:
+        validation_status = "unavailable"
+    elif missing_fields:
+        validation_status = "needs_review"
+    else:
+        validation_status = "ready"
+
+    search_url = _flight_search_url(
+        handoff_provider_id,
+        origin_city=origin_city,
+        destination_city=destination_city,
+        departure_date=departure_date,
+        return_date=return_date,
+        travelers=travelers,
+        preferred_airline=trip.draft.preferred_airline,
+    )
+    fallback_url = _flight_search_url(
+        "google_flights",
+        origin_city=origin_city,
+        destination_city=destination_city,
+        departure_date=departure_date,
+        return_date=return_date,
+        travelers=travelers,
+        preferred_airline=trip.draft.preferred_airline,
+    )
+    return FlightSearchContext(
+        origin_city=origin_city,
+        destination_city=destination_city,
+        departure_date=departure_date,
+        return_date=return_date,
+        travelers=travelers,
+        preferred_airline=trip.draft.preferred_airline,
+        preferred_provider_id=handoff_provider_id,
+        api_provider_id=api_selected_provider_id,
+        flexible_dates=flexible_dates,
+        search_url=search_url,
+        fallback_url=fallback_url,
+        validation_status=validation_status,
+        missing_fields=missing_fields,
+    )
+
+
+def _flight_search_provider_action(trip: Trip) -> TripProviderAction:
+    context = build_flight_search_context(trip)
+    is_ready = context.validation_status == "ready"
+    reason = (
+        "Flight search is prefilled; HuaXia hands off to the provider and does not book tickets."
+        if is_ready
+        else "Flight search needs review before launch; HuaXia prepares search context but does not book tickets."
+    )
+    action_context = {
+        "destination_city": context.destination_city or "",
+        "travelers": str(context.travelers),
+        "provider_id": context.preferred_provider_id,
+        "api_provider_id": context.api_provider_id,
+    }
+    if context.origin_city:
+        action_context["origin_city"] = context.origin_city
+    if context.departure_date:
+        action_context["departure_date"] = context.departure_date.isoformat()
+    if context.return_date:
+        action_context["return_date"] = context.return_date.isoformat()
+    if context.preferred_airline:
+        action_context["preferred_airline"] = context.preferred_airline
+    return TripProviderAction(
+        action_id="action-flight-search",
+        action_type="open_flight_search",
+        label="Search outbound flight",
+        provider=context.preferred_provider_id,
+        reason=reason,
+        url=context.search_url,
+        fallback_url=context.fallback_url,
+        context=action_context,
+        data_sensitivity="personal",
+        flight_search_context=context,
+        validation_status="ready" if is_ready else "needs_fallback",
+    )
+
+
+def build_hotel_search_context(
+    trip: Trip,
+    *,
+    preferred_provider_id: str | None = None,
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> HotelSearchContext:
+    """Build hotel search context for provider handoff without availability claims."""
+
+    registry = provider_registry or default_provider_registry()
+    provider_id = _resolve_provider_id(
+        registry,
+        domain="hotel",
+        capability="hotel_search_url",
+        preferred_provider_id=preferred_provider_id
+        or trip.draft.preferred_hotel_platform
+        or "booking_com",
+        fallback_provider_id="booking_com",
+    )
+    destination_city = trip.draft.destination or trip.draft.title
+    area_name = trip.draft.lodging_area or destination_city
+    recommended_area = (
+        LodgingAreaRecommendation(
+            area_name=area_name,
+            city=destination_city,
+            rationale=(
+                "User-selected lodging area."
+                if trip.draft.lodging_area
+                else "Default stay area from the trip destination; review before booking."
+            ),
+            source="user" if trip.draft.lodging_area else "workflow",
+        )
+        if area_name
+        else None
+    )
+    check_in_date = trip.draft.start_date
+    check_out_date = trip.draft.end_date
+    guest_count = trip.draft.travelers or 1
+    missing_fields = [
+        field
+        for field, value in (
+            ("destination_city", destination_city),
+            ("check_in_date", check_in_date),
+            ("check_out_date", check_out_date),
+        )
+        if not value
+    ]
+    validation_status: Literal["ready", "needs_review", "unavailable"]
+    if not destination_city:
+        validation_status = "unavailable"
+    elif missing_fields:
+        validation_status = "needs_review"
+    else:
+        validation_status = "ready"
+    search_url = _hotel_search_url(
+        provider_id,
+        destination_city=destination_city,
+        lodging_area=area_name,
+        check_in_date=check_in_date,
+        check_out_date=check_out_date,
+        guest_count=guest_count,
+        budget_level=trip.draft.budget_level,
+    )
+    fallback_url = _hotel_search_url(
+        "google_hotels",
+        destination_city=destination_city,
+        lodging_area=area_name,
+        check_in_date=check_in_date,
+        check_out_date=check_out_date,
+        guest_count=guest_count,
+        budget_level=trip.draft.budget_level,
+    )
+    return HotelSearchContext(
+        destination_city=destination_city,
+        recommended_area=recommended_area,
+        check_in_date=check_in_date,
+        check_out_date=check_out_date,
+        guest_count=guest_count,
+        room_count=1,
+        budget_level=trip.draft.budget_level,
+        preferred_provider_id=provider_id,
+        search_url=search_url,
+        fallback_url=fallback_url,
+        availability_confirmed=False,
+        validation_status=validation_status,
+        missing_fields=missing_fields,
+    )
+
+
+def _hotel_search_provider_action(trip: Trip) -> TripProviderAction:
+    context = build_hotel_search_context(trip)
+    is_ready = context.validation_status == "ready"
+    reason = (
+        "Hotel search is prefilled; HuaXia hands off to the provider and does not confirm availability."
+        if is_ready
+        else "Hotel search needs review before launch; HuaXia prepares search context but does not confirm availability."
+    )
+    action_context = {
+        "destination_city": context.destination_city or "",
+        "guest_count": str(context.guest_count),
+        "provider_id": context.preferred_provider_id,
+    }
+    if context.recommended_area:
+        action_context["lodging_area"] = context.recommended_area.area_name
+    if context.check_in_date:
+        action_context["check_in_date"] = context.check_in_date.isoformat()
+    if context.check_out_date:
+        action_context["check_out_date"] = context.check_out_date.isoformat()
+    if context.budget_level:
+        action_context["budget_level"] = context.budget_level
+    return TripProviderAction(
+        action_id="action-hotel-search",
+        action_type="open_hotel_search",
+        label="Search hotels",
+        provider=context.preferred_provider_id,
+        reason=reason,
+        url=context.search_url,
+        fallback_url=context.fallback_url,
+        context=action_context,
+        data_sensitivity="personal",
+        hotel_search_context=context,
+        validation_status="ready" if is_ready else "needs_fallback",
+        available=context.validation_status != "unavailable",
+        unavailable_reason=(
+            None
+            if context.validation_status != "unavailable"
+            else "Destination is required before hotel search."
+        ),
+    )
+
+
+def build_ticket_requirement(
+    trip: Trip,
+    *,
+    preferred_provider_id: str | None = None,
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> TicketRequirement:
+    """Build attraction ticket context for official-link or provider handoff."""
+
+    registry = provider_registry or default_provider_registry()
+    milestone = _first_ticket_milestone(trip)
+    destination_city = (milestone.city if milestone else None) or trip.draft.destination or trip.draft.title
+    attraction_name = (milestone.title if milestone else None) or destination_city
+    visit_date = _milestone_visit_date(trip, milestone)
+    visit_time = milestone.start_time if milestone else None
+    visitor_count = trip.draft.travelers or 1
+    official_link = _matching_official_attraction_link(trip, attraction_name)
+    is_china_ticket = bool(official_link) or _route_region(destination_city, destination_city) == "china"
+    provider_id = _resolve_provider_id(
+        registry,
+        domain="activity_ticket",
+        capability="official_ticket_link" if is_china_ticket else "booking_link",
+        preferred_provider_id=preferred_provider_id
+        or trip.draft.preferred_activity_provider
+        or ("official_attraction" if is_china_ticket else "viator"),
+        fallback_provider_id="official_attraction" if is_china_ticket else "viator",
+    )
+    fallback_provider_id = "viator" if provider_id != "viator" else "google_search"
+    search_url = (
+        str(official_link.url)
+        if official_link
+        else _ticket_search_url(
+            provider_id,
+            attraction_name=attraction_name,
+            destination_city=destination_city,
+            visit_date=visit_date,
+            visitor_count=visitor_count,
+        )
+    )
+    fallback_url = _ticket_search_url(
+        fallback_provider_id,
+        attraction_name=attraction_name,
+        destination_city=destination_city,
+        visit_date=visit_date,
+        visitor_count=visitor_count,
+    )
+    missing_fields = [
+        field
+        for field, value in (
+            ("attraction_name", attraction_name),
+            ("destination_city", destination_city),
+        )
+        if not value
+    ]
+    if missing_fields:
+        validation_status: Literal["ready", "needs_review", "unavailable"] = "unavailable"
+    elif official_link:
+        validation_status = "ready"
+    else:
+        validation_status = "needs_review"
+    confidence: Literal["exact_official_link", "provider_search", "destination_search"]
+    if official_link:
+        confidence = "exact_official_link"
+    elif provider_id == "viator":
+        confidence = "provider_search"
+    else:
+        confidence = "destination_search"
+
+    return TicketRequirement(
+        attraction_name=attraction_name,
+        destination_city=destination_city,
+        visit_date=visit_date,
+        visit_time=visit_time,
+        visitor_count=visitor_count,
+        time_slot_required=bool(official_link and official_link.time_slot_required),
+        identity_document_required=bool(
+            official_link and official_link.identity_document_required
+        ),
+        official_link=official_link,
+        preferred_provider_id=provider_id,
+        search_url=search_url,
+        fallback_url=fallback_url,
+        validation_status=validation_status,
+        missing_fields=missing_fields,
+        confidence=confidence,
+    )
+
+
+def _ticket_provider_action(trip: Trip) -> TripProviderAction:
+    requirement = build_ticket_requirement(trip)
+    is_ready = requirement.validation_status == "ready"
+    label_target = requirement.attraction_name or requirement.destination_city or "attraction"
+    reason = (
+        "Official attraction ticket link is known; HuaXia opens it with visit context attached."
+        if requirement.official_link
+        else "Ticket search needs review; HuaXia prepares attraction context but does not confirm availability."
+    )
+    action_context = {
+        "attraction_name": requirement.attraction_name or "",
+        "destination_city": requirement.destination_city or "",
+        "visitor_count": str(requirement.visitor_count),
+        "provider_id": requirement.preferred_provider_id,
+        "confidence": requirement.confidence,
+    }
+    if requirement.visit_date:
+        action_context["visit_date"] = requirement.visit_date.isoformat()
+    if requirement.visit_time:
+        action_context["visit_time"] = requirement.visit_time.isoformat()
+    if requirement.time_slot_required:
+        action_context["time_slot_required"] = "true"
+    if requirement.identity_document_required:
+        action_context["identity_document_required"] = "true"
+    return TripProviderAction(
+        action_id="action-ticket-site",
+        action_type="open_ticket_site",
+        label=f"Check tickets for {label_target}",
+        provider=requirement.preferred_provider_id,
+        reason=reason,
+        url=requirement.search_url,
+        fallback_url=requirement.fallback_url,
+        context=action_context,
+        data_sensitivity="personal",
+        ticket_requirement=requirement,
+        validation_status="ready" if is_ready else "needs_fallback",
+        available=requirement.validation_status != "unavailable",
+        unavailable_reason=(
+            None
+            if requirement.validation_status != "unavailable"
+            else "Attraction or destination is required before ticket handoff."
+        ),
+    )
+def _first_ticket_milestone(trip: Trip) -> TripMilestone | None:
+    for milestone in sorted(
+        trip.draft.milestones,
+        key=lambda item: (item.day or 0, item.start_time or Time(0, 0), item.title),
+    ):
+        if milestone.title.strip():
+            return milestone
+    return None
+
+
+def _milestone_visit_date(trip: Trip, milestone: TripMilestone | None) -> Date | None:
+    if milestone is None:
+        return trip.draft.start_date
+    if milestone.date:
+        return milestone.date
+    if trip.draft.start_date and milestone.day:
+        return trip.draft.start_date + timedelta(days=milestone.day - 1)
+    return trip.draft.start_date
+
+
+def _matching_official_attraction_link(
+    trip: Trip,
+    attraction_name: str | None,
+) -> OfficialAttractionLink | None:
+    if not trip.draft.official_attraction_links:
+        return None
+    if not attraction_name:
+        first_link = trip.draft.official_attraction_links[0]
+        return _coerce_official_attraction_link(first_link)
+    normalized_target = _normalize_ticket_name(attraction_name)
+    for raw_link in trip.draft.official_attraction_links:
+        link = _coerce_official_attraction_link(raw_link)
+        if link is None:
+            continue
+        normalized_link = _normalize_ticket_name(link.attraction_name)
+        if normalized_link == normalized_target:
+            return link
+        if normalized_link and normalized_link in normalized_target:
+            return link
+        if normalized_target and normalized_target in normalized_link:
+            return link
+    return _coerce_official_attraction_link(trip.draft.official_attraction_links[0])
+
+
+def _coerce_official_attraction_link(
+    raw_link: OfficialAttractionLink | dict | object,
+) -> OfficialAttractionLink | None:
+    if isinstance(raw_link, OfficialAttractionLink):
+        return raw_link
+    if isinstance(raw_link, dict):
+        return OfficialAttractionLink.model_validate(raw_link)
+    return None
+
+
+def _normalize_ticket_name(value: str) -> str:
+    return "".join(char.lower() for char in value if not char.isspace())
+
+
+def _ticket_search_url(
+    provider_id: str,
+    *,
+    attraction_name: str | None,
+    destination_city: str | None,
+    visit_date: Date | None,
+    visitor_count: int,
+) -> str | None:
+    query_parts = [
+        part
+        for part in (
+            attraction_name,
+            destination_city,
+            visit_date.isoformat() if visit_date else None,
+        )
+        if part
+    ]
+    if not query_parts:
+        return None
+    query = " ".join(query_parts)
+    if provider_id == "viator":
+        return (
+            "https://www.viator.com/searchResults/all"
+            f"?text={quote_plus(query)}&people={visitor_count}"
+        )
+    if provider_id == "official_attraction":
+        official_query = " ".join([*query_parts, "官方 预约 门票"])
+        return f"https://www.google.com/search?q={quote_plus(official_query)}"
+    return f"https://www.google.com/search?q={quote_plus(query + ' tickets reservation')}"
+
+
+def build_weather_snapshot(
+    trip: Trip,
+    *,
+    provider_id: str = "weatherapi",
+    now: datetime | None = None,
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> WeatherSnapshotResponse:
+    """Build provider-aware weather status and operational task impacts.
+
+    This does not fetch live weather yet. It prepares provider metadata, flags
+    stale/future forecast state, and maps trip warnings into useful task impacts.
+    """
+
+    registry = provider_registry or default_provider_registry()
+    selected_provider_id = _resolve_provider_id(
+        registry,
+        domain="weather",
+        capability="operational_alerts",
+        preferred_provider_id=provider_id,
+        fallback_provider_id="weatherapi",
+    )
+    connector = registry.get(selected_provider_id)
+    location = trip.draft.destination or trip.draft.title
+    generated_at = now or datetime.now(UTC)
+    fallback_provider_id = "openweather" if selected_provider_id != "openweather" else None
+    source_url = _weather_provider_url(
+        selected_provider_id,
+        location=location,
+        start_date=trip.draft.start_date,
+    )
+    status, stale_reason = _weather_snapshot_status(
+        location=location,
+        start_date=trip.draft.start_date,
+        now=generated_at,
+    )
+    alerts = _weather_alerts_from_trip(trip)
+    task_impacts = _weather_task_impacts(alerts)
+    return WeatherSnapshotResponse(
+        trip_id=trip.trip_id,
+        location=location,
+        start_date=trip.draft.start_date,
+        end_date=trip.draft.end_date,
+        provider=WeatherProviderSource(
+            provider_id=selected_provider_id,
+            display_name=connector.display_name if connector else selected_provider_id,
+            fallback_provider_id=fallback_provider_id,
+            source_url=source_url,
+            fetched_at=None,
+        ),
+        fallback_provider_id=fallback_provider_id,
+        status=status,
+        stale=True,
+        stale_reason=stale_reason,
+        alerts=alerts,
+        task_impacts=task_impacts,
+        generated_at=generated_at,
+    )
+
+
+def _weather_provider_action(trip: Trip) -> TripProviderAction:
+    snapshot = build_weather_snapshot(trip)
+    source_url = snapshot.provider.source_url
+    context = {
+        "provider_id": snapshot.provider.provider_id,
+        "fallback_provider_id": snapshot.fallback_provider_id or "",
+        "location": snapshot.location or "",
+        "status": snapshot.status,
+        "stale": str(snapshot.stale).lower(),
+        "alert_count": str(len(snapshot.alerts)),
+        "task_impact_count": str(len(snapshot.task_impacts)),
+    }
+    reason = (
+        "Weather context is prepared for packing, route timing, and outdoor activity safety."
+    )
+    return TripProviderAction(
+        action_id="action-weather",
+        action_type="open_weather",
+        label="Review weather impacts",
+        provider=snapshot.provider.provider_id,
+        reason=reason,
+        url=source_url,
+        fallback_url=_weather_provider_url(
+            "openweather",
+            location=snapshot.location,
+            start_date=snapshot.start_date,
+        ),
+        context=context,
+        data_sensitivity="public",
+        weather_snapshot=snapshot,
+        validation_status="ready" if source_url else "needs_fallback",
+        available=bool(snapshot.location),
+        unavailable_reason=None if snapshot.location else "Destination is required before weather lookup.",
+    )
+
+
+def build_local_transport_plan(
+    trip: Trip,
+    *,
+    route_bundle: RouteBundle | None = None,
+    preferred_provider_id: str | None = None,
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> LocalTransportPlanResponse:
+    """Build mode-aware local transport handoff options from route and weather state."""
+
+    registry = provider_registry or default_provider_registry()
+    bundle = route_bundle or (build_route_bundles(trip)[0] if build_route_bundles(trip) else None)
+    origin = bundle.origin if bundle else trip.draft.origin_city or trip.draft.destination
+    destination = bundle.destination if bundle else trip.draft.destination or trip.draft.title
+    route_region = bundle.route_region if bundle else _route_region(origin or "", destination or "")
+    weather_snapshot = build_weather_snapshot(trip)
+    weather_alert_ids = [alert.alert_type for alert in weather_snapshot.alerts]
+    provider_id = _local_transport_provider_id(
+        registry,
+        route_region=route_region,
+        preferred_provider_id=preferred_provider_id,
+    )
+    primary_mode = _local_transport_primary_mode(
+        route_region=route_region,
+        travelers=trip.draft.travelers or 1,
+        weather_alert_ids=weather_alert_ids,
+    )
+    primary_option = _transport_mode_option(
+        provider_id=provider_id,
+        mode=primary_mode,
+        origin=origin,
+        destination=destination,
+        route_bundle=bundle,
+        reason=_transport_mode_reason(primary_mode, trip.draft.travelers or 1, weather_alert_ids),
+    )
+    alternative_options = _local_transport_alternatives(
+        primary_mode=primary_mode,
+        route_region=route_region,
+        origin=origin,
+        destination=destination,
+        route_bundle=bundle,
+    )
+    assumptions = [
+        "Provider handoff is prepared from route bundle context; live fare and schedule are not confirmed.",
+        "Manual completion remains available if the traveler uses a different local provider.",
+    ]
+    if weather_alert_ids:
+        assumptions.append("Weather alerts may make taxi or lower-exposure transport preferable.")
+    return LocalTransportPlanResponse(
+        trip_id=trip.trip_id,
+        route_bundle_id=bundle.route_bundle_id if bundle else None,
+        provider_id=provider_id,
+        origin=origin,
+        destination=destination,
+        route_region=route_region,
+        primary_option=primary_option,
+        alternative_options=alternative_options,
+        weather_alert_ids=weather_alert_ids,
+        assumptions=assumptions,
+        manual_completion_allowed=True,
+    )
+
+
+def _local_transport_provider_action(
+    trip: Trip,
+    route_bundle: RouteBundle | None,
+) -> TripProviderAction:
+    plan = build_local_transport_plan(trip, route_bundle=route_bundle)
+    context = {
+        "provider_id": plan.provider_id,
+        "primary_mode": plan.primary_option.mode,
+        "origin": plan.origin or "",
+        "destination": plan.destination or "",
+        "route_region": plan.route_region,
+        "manual_completion_allowed": str(plan.manual_completion_allowed).lower(),
+    }
+    if plan.route_bundle_id:
+        context["route_bundle_id"] = plan.route_bundle_id
+    if plan.weather_alert_ids:
+        context["weather_alert_ids"] = ",".join(plan.weather_alert_ids)
+    primary_launch_url = plan.primary_option.launch_url
+    primary_is_http = bool(
+        primary_launch_url
+        and (
+            primary_launch_url.startswith("http://")
+            or primary_launch_url.startswith("https://")
+        )
+    )
+    return TripProviderAction(
+        action_id="action-transport-booking",
+        action_type="open_transport_booking",
+        label=f"Arrange {plan.primary_option.label}",
+        provider=plan.provider_id,
+        reason=plan.primary_option.reason,
+        url=primary_launch_url if primary_is_http else plan.primary_option.fallback_url,
+        deep_link=primary_launch_url if primary_launch_url and not primary_is_http else None,
+        fallback_url=plan.primary_option.fallback_url,
+        context=context,
+        allowed_launch_channels=[
+            "app",
+            "browser",
+            "fallback_browser",
+            "manual_done",
+            "remind_later",
+        ],
+        data_sensitivity="personal",
+        local_transport_plan=plan,
+        validation_status="ready" if plan.primary_option.launch_url else "needs_fallback",
+        available=bool(plan.destination),
+        unavailable_reason=None if plan.destination else "Destination is required before transport handoff.",
+    )
+
+
+def _local_transport_provider_id(
+    registry: ProviderConnectorRegistry,
+    *,
+    route_region: str,
+    preferred_provider_id: str | None,
+) -> str:
+    if route_region == "china":
+        capability = "taxi_handoff"
+        default_provider = "amap_local_transport"
+        region = "CN"
+    else:
+        capability = "ride_hail_url"
+        default_provider = "uber"
+        region = "US"
+    try:
+        resolution = registry.resolve(
+            domain="local_transport",
+            capability=capability,
+            region=region,
+            preferred_provider_id=preferred_provider_id or default_provider,
+        )
+    except ValueError:
+        return "manual_taxi"
+    return resolution.selected.provider_id
+
+
+def _local_transport_primary_mode(
+    *,
+    route_region: str,
+    travelers: int,
+    weather_alert_ids: list[str],
+) -> str:
+    if route_region != "china":
+        return "taxi"
+    if travelers >= 3 or weather_alert_ids:
+        return "taxi"
+    return "transit"
+
+
+def _transport_mode_reason(mode: str, travelers: int, weather_alert_ids: list[str]) -> str:
+    if mode == "taxi" and weather_alert_ids:
+        return "Taxi or ride-hail is recommended first because weather may make exposed transfers less reliable."
+    if mode == "taxi" and travelers >= 3:
+        return "Taxi or ride-hail is recommended first because the group size may make transfers and luggage easier."
+    if mode == "transit":
+        return "Public transit is recommended first because the route appears city-based and lower friction."
+    return "Local transport handoff is prepared from the best available route context."
+
+
+def _local_transport_alternatives(
+    *,
+    primary_mode: str,
+    route_region: str,
+    origin: str | None,
+    destination: str | None,
+    route_bundle: RouteBundle | None,
+) -> list[TransportModeOption]:
+    options: list[TransportModeOption] = []
+    if primary_mode != "transit":
+        provider_id = "amap_local_transport" if route_region == "china" else "google_maps_transit"
+        options.append(
+            _transport_mode_option(
+                provider_id=provider_id,
+                mode="transit",
+                origin=origin,
+                destination=destination,
+                route_bundle=route_bundle,
+                reason="Transit remains the lower-cost fallback if timing and weather are acceptable.",
+            )
+        )
+    if primary_mode != "walking":
+        options.append(
+            _transport_mode_option(
+                provider_id="google_maps_transit",
+                mode="walking",
+                origin=origin,
+                destination=destination,
+                route_bundle=route_bundle,
+                reason="Walking is only suitable for short, safe, low-weather-risk segments.",
+            )
+        )
+    options.append(
+        TransportModeOption(
+            mode="manual",
+            label="Mark transport handled manually",
+            provider_id="manual_taxi",
+            reason="Use this if the traveler arranges transport outside the prepared providers.",
+            copy_text=destination,
+            estimated_effort="unknown",
+            handoff_ready=True,
+        )
+    )
+    return options[:8]
+
+
+def _transport_mode_option(
+    *,
+    provider_id: str,
+    mode: str,
+    origin: str | None,
+    destination: str | None,
+    route_bundle: RouteBundle | None,
+    reason: str,
+) -> TransportModeOption:
+    launch_url = _local_transport_launch_url(
+        provider_id,
+        mode=mode,
+        origin=origin,
+        destination=destination,
+        route_bundle=route_bundle,
+    )
+    fallback_url = _local_transport_launch_url(
+        "google_maps_transit",
+        mode=mode,
+        origin=origin,
+        destination=destination,
+        route_bundle=route_bundle,
+    )
+    return TransportModeOption(
+        mode=mode,  # type: ignore[arg-type]
+        label=_transport_mode_label(mode),
+        provider_id=provider_id,
+        reason=reason,
+        launch_url=launch_url,
+        fallback_url=fallback_url,
+        copy_text=destination,
+        estimated_effort=_transport_effort(mode),
+        handoff_ready=bool(launch_url),
+    )
+
+
+def _local_transport_launch_url(
+    provider_id: str,
+    *,
+    mode: str,
+    origin: str | None,
+    destination: str | None,
+    route_bundle: RouteBundle | None,
+) -> str | None:
+    if not destination:
+        return None
+    if provider_id == "amap_local_transport":
+        if route_bundle and route_bundle.deep_link_url:
+            return route_bundle.deep_link_url
+        return _route_deep_link(
+            "amap",
+            origin or destination,
+            destination,
+            "android",
+        )
+    if provider_id == "uber":
+        return (
+            "https://m.uber.com/ul/?action=setPickup"
+            f"&pickup=my_location&dropoff[formatted_address]={quote_plus(destination)}"
+        )
+    if provider_id == "google_maps_transit":
+        travelmode = "transit" if mode in {"transit", "rail", "bus"} else "walking"
+        return (
+            "https://www.google.com/maps/dir/?api=1"
+            f"&origin={quote_plus(origin or '')}&destination={quote_plus(destination)}"
+            f"&travelmode={travelmode}"
+        )
+    return f"https://www.google.com/search?q={quote_plus(destination + ' taxi transport')}"
+
+
+def _transport_mode_label(mode: str) -> str:
+    return {
+        "taxi": "taxi / ride-hail",
+        "transit": "metro or public transit",
+        "walking": "walking route",
+        "cycling": "cycling route",
+        "rail": "rail route",
+        "bus": "bus route",
+        "rental_car": "rental car",
+        "manual": "manual transport",
+    }.get(mode, mode)
+
+
+def _transport_effort(mode: str) -> str:
+    if mode == "taxi":
+        return "low"
+    if mode in {"transit", "rail", "bus"}:
+        return "medium"
+    if mode in {"walking", "cycling"}:
+        return "high"
+    return "unknown"
+
+
+def _weather_snapshot_status(
+    *,
+    location: str | None,
+    start_date: Date | None,
+    now: datetime,
+) -> tuple[str, str | None]:
+    if not location:
+        return "provider_unavailable", "Destination is missing."
+    if start_date is None:
+        return "needs_provider_fetch", "Trip date is missing; provider forecast must be checked manually."
+    days_until_trip = (start_date - now.date()).days
+    if days_until_trip > 14:
+        return "forecast_unavailable", "Forecast window is too far in the future."
+    return "needs_provider_fetch", "Live weather has not been fetched yet."
+
+
+def _weather_alerts_from_trip(trip: Trip) -> list[WeatherAlert]:
+    source_text = " ".join(
+        [
+            trip.draft.destination or "",
+            trip.draft.summary,
+            " ".join(trip.draft.warnings),
+            " ".join(milestone.title for milestone in trip.draft.milestones[:20]),
+            " ".join(milestone.description for milestone in trip.draft.milestones[:20]),
+        ]
+    ).lower()
+    city = trip.draft.destination or trip.draft.title
+    alert_specs: list[tuple[str, str, str, str]] = []
+    if _contains_any(source_text, ["雨", "降雨", "暴雨", "rain", "storm", "thunder"]):
+        alert_specs.append(
+            (
+                "rain",
+                "Rain or storm caution",
+                "Pack rain gear, keep outdoor routes flexible, and verify exposed hiking or cycling before departure.",
+                "warning" if _contains_any(source_text, ["暴雨", "storm", "thunder"]) else "watch",
+            )
+        )
+    if _contains_any(source_text, ["高温", "暴晒", "炎热", "heat", "hot"]):
+        alert_specs.append(
+            (
+                "heat",
+                "Heat exposure caution",
+                "Avoid exposed outdoor activity at midday, carry water, and move strenuous walking to morning or late afternoon.",
+                "warning",
+            )
+        )
+    if _contains_any(source_text, ["雪", "冰", "寒潮", "snow", "icy"]):
+        alert_specs.append(
+            (
+                "snow",
+                "Snow or icy-road caution",
+                "Check road status before mountain transfers and keep warm layers accessible.",
+                "warning",
+            )
+        )
+    if _contains_any(source_text, ["大风", "风大", "wind"]):
+        alert_specs.append(
+            (
+                "wind",
+                "Wind caution",
+                "Review cable car, boat, desert, grassland, and exposed-viewpoint conditions before leaving.",
+                "watch",
+            )
+        )
+    if _contains_any(source_text, ["高原", "海拔", "高反", "altitude"]):
+        alert_specs.append(
+            (
+                "altitude",
+                "High-altitude caution",
+                "Keep the first high-altitude day light, avoid alcohol and running, and prepare oxygen or medication if needed.",
+                "warning",
+            )
+        )
+    return [
+        WeatherAlert(
+            alert_id=f"weather-{alert_type}",
+            alert_type=alert_type,  # type: ignore[arg-type]
+            severity=severity,  # type: ignore[arg-type]
+            title=title,
+            instruction=instruction,
+            affected_city=city,
+            source="trip_warning",
+        )
+        for alert_type, title, instruction, severity in alert_specs
+    ][:20]
+
+
+def _weather_task_impacts(alerts: list[WeatherAlert]) -> list[WeatherTaskImpact]:
+    impacts: list[WeatherTaskImpact] = []
+    for alert in alerts:
+        if alert.alert_type in {"rain", "snow", "cold", "wind"}:
+            impacts.append(
+                WeatherTaskImpact(
+                    task_id="task-prepare-packing",
+                    impact_type="packing",
+                    alert_type=alert.alert_type,
+                    recommended_task_update=(
+                        "Add weather-specific packing items such as rain gear, warm layers, waterproof bags, or wind protection."
+                    ),
+                    priority="high" if alert.severity in {"warning", "severe"} else "normal",
+                )
+            )
+        if alert.alert_type in {"rain", "snow", "wind", "storm"}:
+            impacts.append(
+                WeatherTaskImpact(
+                    task_id="task-confirm-departure-route",
+                    impact_type="route_timing",
+                    alert_type=alert.alert_type,
+                    recommended_task_update=(
+                        "Recheck road, walking, ferry, cable car, or exposed-route conditions before departure."
+                    ),
+                    priority="high",
+                )
+            )
+        if alert.alert_type in {"heat", "altitude", "storm"}:
+            impacts.append(
+                WeatherTaskImpact(
+                    task_id="task-review-safety",
+                    impact_type="activity_safety",
+                    alert_type=alert.alert_type,
+                    recommended_task_update=(
+                        "Adjust outdoor intensity, schedule extra rest, and confirm health precautions before activity."
+                    ),
+                    priority="urgent" if alert.alert_type == "altitude" else "high",
+                )
+            )
+    return impacts[:40]
+
+
+def _weather_provider_url(
+    provider_id: str,
+    *,
+    location: str | None,
+    start_date: Date | None,
+) -> str | None:
+    if not location:
+        return None
+    date_text = start_date.isoformat() if start_date else ""
+    if provider_id == "weatherapi":
+        return f"https://www.weatherapi.com/weather/q/{quote_plus(location)}"
+    if provider_id == "openweather":
+        query = " ".join(part for part in (location, date_text, "weather") if part)
+        return f"https://openweathermap.org/find?q={quote_plus(query)}"
+    query = " ".join(part for part in (location, date_text, "weather forecast") if part)
+    return f"https://www.google.com/search?q={quote_plus(query)}"
+
+
+def _contains_any(text: str, needles: list[str]) -> bool:
+    return any(needle.lower() in text for needle in needles)
+
+
+def _resolve_provider_id(
+    registry: ProviderConnectorRegistry,
+    *,
+    domain: str,
+    capability: str,
+    preferred_provider_id: str,
+    fallback_provider_id: str,
+) -> str:
+    try:
+        resolution = registry.resolve(
+            domain=domain,  # type: ignore[arg-type]
+            capability=capability,
+            preferred_provider_id=preferred_provider_id,
+        )
+    except ValueError:
+        return fallback_provider_id
+    return resolution.selected.provider_id
+
+
+def _flight_search_url(
+    provider_id: str,
+    *,
+    origin_city: str | None,
+    destination_city: str | None,
+    departure_date: Date | None,
+    return_date: Date | None,
+    travelers: int,
+    preferred_airline: str | None,
+) -> str | None:
+    if not destination_city:
+        return None
+    origin = origin_city or ""
+    destination = destination_city
+    depart = departure_date.isoformat() if departure_date else ""
+    ret = return_date.isoformat() if return_date else ""
+    airline = preferred_airline or ""
+    if provider_id == "skyscanner":
+        return (
+            "https://www.skyscanner.com/transport/flights/"
+            f"?from={quote_plus(origin)}&to={quote_plus(destination)}"
+            f"&depart={quote_plus(depart)}&return={quote_plus(ret)}"
+            f"&adults={travelers}&airline={quote_plus(airline)}"
+        )
+    query = " ".join(part for part in (origin, "to", destination, depart, ret, airline) if part)
+    return f"https://www.google.com/travel/flights?q={quote_plus(query)}"
+
+
+def _hotel_search_url(
+    provider_id: str,
+    *,
+    destination_city: str | None,
+    lodging_area: str | None,
+    check_in_date: Date | None,
+    check_out_date: Date | None,
+    guest_count: int,
+    budget_level: str | None,
+) -> str | None:
+    if not destination_city:
+        return None
+    stay_area = lodging_area or destination_city
+    checkin = check_in_date.isoformat() if check_in_date else ""
+    checkout = check_out_date.isoformat() if check_out_date else ""
+    budget = budget_level or ""
+    if provider_id == "booking_com":
+        return (
+            "https://www.booking.com/searchresults.html"
+            f"?ss={quote_plus(stay_area)}"
+            f"&checkin={quote_plus(checkin)}&checkout={quote_plus(checkout)}"
+            f"&group_adults={guest_count}&no_rooms=1&selected_currency=CNY"
+        )
+    if provider_id == "expedia":
+        return (
+            "https://www.expedia.com/Hotel-Search"
+            f"?destination={quote_plus(stay_area)}"
+            f"&startDate={quote_plus(checkin)}&endDate={quote_plus(checkout)}"
+            f"&rooms=1&adults={guest_count}"
+        )
+    if provider_id == "trip_com":
+        return (
+            "https://www.trip.com/hotels/list"
+            f"?city={quote_plus(destination_city)}&keyword={quote_plus(stay_area)}"
+            f"&checkin={quote_plus(checkin)}&checkout={quote_plus(checkout)}"
+            f"&adults={guest_count}"
+        )
+    query = " ".join(part for part in (stay_area, destination_city, checkin, checkout, budget) if part)
+    return f"https://www.google.com/travel/hotels?q={quote_plus(query)}"
 
 
 def generate_operational_tasks(trip: Trip) -> list[TripTask]:
@@ -1131,9 +3425,16 @@ def build_reminder_candidates(
     return candidates
 
 
-def build_route_bundles(trip: Trip) -> list[RouteBundle]:
+def build_route_bundles(
+    trip: Trip,
+    *,
+    preferred_provider_id: str | None = None,
+    device_platform: MapDevicePlatform = "web",
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> list[RouteBundle]:
     """Create route bundles that avoid empty map launches."""
 
+    registry = provider_registry or default_provider_registry()
     milestones = [
         milestone
         for milestone in sorted(
@@ -1159,6 +3460,7 @@ def build_route_bundles(trip: Trip) -> list[RouteBundle]:
         ][:12]
         bundle = _create_route_bundle(
             route_id=f"route-day-{day}",
+            trip_id=trip.trip_id,
             label=f"D{day}: {origin} to {destination}",
             origin=origin,
             destination=destination,
@@ -1171,6 +3473,9 @@ def build_route_bundles(trip: Trip) -> list[RouteBundle]:
             related_task_ids=[
                 f"task-activity-{item.milestone_id}" for item in day_milestones
             ],
+            preferred_provider_id=preferred_provider_id,
+            device_platform=device_platform,
+            provider_registry=registry,
         )
         if bundle is not None:
             bundles.append(bundle)
@@ -1184,30 +3489,62 @@ def build_route_bundles(trip: Trip) -> list[RouteBundle]:
             planned_at = _combine_date_time(milestone.date, milestone.start_time)
             bundle = _create_route_bundle(
                 route_id=f"route-{index}",
+                trip_id=trip.trip_id,
                 label=f"{origin} to {destination}",
                 origin=origin,
                 destination=destination,
                 planned_at=planned_at,
                 confidence="medium",
                 related_task_ids=[f"task-activity-{milestone.milestone_id}"],
+                preferred_provider_id=preferred_provider_id,
+                device_platform=device_platform,
+                provider_registry=registry,
             )
             if bundle is not None:
                 bundles.append(bundle)
     if not bundles and trip.draft.destination:
         destination = trip.draft.destination
         provider_urls = _route_provider_urls(destination, destination)
-        fallback_url = provider_urls.get("google_maps")
+        provider_decision = _select_route_provider(
+            destination,
+            destination,
+            preferred_provider_id=preferred_provider_id,
+            device_platform=device_platform,
+            provider_registry=registry,
+        )
+        provider_id = provider_decision.provider_id
+        launch_url = provider_urls.get(provider_id)
+        fallback_url = provider_urls.get("google_maps") or launch_url
         bundles.append(
             RouteBundle(
                 route_id="route-overview",
+                route_bundle_id="route-overview",
+                trip_id=trip.trip_id,
                 label=f"Explore {destination}",
                 mode="mixed",
+                travel_mode="mixed",
                 origin=destination,
                 destination=destination,
-                primary_provider="google_maps",
+                planned_departure_time=None,
+                primary_provider=provider_id,
+                provider_id=provider_id,
+                route_region=provider_decision.route_region,
+                device_platform=device_platform,
+                available_provider_ids=provider_decision.available_provider_ids,
+                preview_provider_id=provider_decision.preview_provider_id,
+                provider_selection_reason=provider_decision.reason,
+                launch_url=launch_url,
+                deep_link_url=_route_deep_link(
+                    provider_id,
+                    destination,
+                    destination,
+                    device_platform=device_platform,
+                ),
                 fallback_url=fallback_url,
                 provider_urls=provider_urls,
                 confidence="low",
+                source="workflow",
+                validation_status="needs_review",
                 handoff_ready=False,
                 unavailable_reason="At least two route points are required before turn-by-turn navigation.",
             )
@@ -1215,13 +3552,38 @@ def build_route_bundles(trip: Trip) -> list[RouteBundle]:
     return bundles
 
 
+def build_navigation_previews(
+    trip: Trip,
+    *,
+    preferred_provider_id: str | None = None,
+    device_platform: MapDevicePlatform = "web",
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> list[NavigationPreview]:
+    """Create mobile-ready route previews before external map handoff."""
+
+    registry = provider_registry or default_provider_registry()
+    return [
+        _navigation_preview_from_route_bundle(bundle, registry=registry)
+        for bundle in build_route_bundles(
+            trip,
+            preferred_provider_id=preferred_provider_id,
+            device_platform=device_platform,
+            provider_registry=registry,
+        )
+    ]
+
+
 def build_calendar_events(
     trip: Trip,
     *,
     timezone: str = "local",
+    provider_id: str = "expo_calendar",
+    fallback_target: CalendarExportTarget | None = "ics",
 ) -> list[CalendarEventPreview]:
     """Create calendar event previews from fixed milestones and task due dates."""
 
+    target_options: list[CalendarExportTarget] = ["device_calendar", "ics"]
+    requires_device_permission = provider_id == "expo_calendar"
     events: list[CalendarEventPreview] = []
     for milestone in trip.draft.milestones:
         starts_at = _combine_date_time(milestone.date, milestone.start_time)
@@ -1240,6 +3602,11 @@ def build_calendar_events(
                 source_kind="milestone",
                 source_milestone_id=milestone.milestone_id,
                 duplicate_key=f"{trip.trip_id}:milestone:{milestone.milestone_id}",
+                provider_id=provider_id,
+                target_options=target_options,
+                fallback_target=fallback_target,
+                requires_device_permission=requires_device_permission,
+                reminder_offsets_minutes=[30],
             )
         )
     for task in trip.tasks:
@@ -1257,6 +3624,11 @@ def build_calendar_events(
                 source_task_id=task.task_id,
                 selected_by_default=task.status not in {"completed", "skipped"},
                 duplicate_key=f"{trip.trip_id}:task:{task.task_id}",
+                provider_id=provider_id,
+                target_options=target_options,
+                fallback_target=fallback_target,
+                requires_device_permission=requires_device_permission,
+                reminder_offsets_minutes=task.reminder_offsets_minutes or [0],
             )
         )
     return events
@@ -1270,8 +3642,18 @@ def export_calendar_events(
 ) -> tuple[Trip, CalendarExportResponse]:
     """Confirm selected calendar events and return export payload."""
 
+    provider_id = _calendar_export_provider_id(request)
+    fallback_target: CalendarExportTarget | None = (
+        "ics" if request.target == "device_calendar" else None
+    )
     events_by_id = {
-        event.event_id: event for event in build_calendar_events(trip, timezone=request.timezone)
+        event.event_id: event
+        for event in build_calendar_events(
+            trip,
+            timezone=request.timezone,
+            provider_id=provider_id,
+            fallback_target=fallback_target,
+        )
     }
     selected_events = [events_by_id[event_id] for event_id in request.event_ids if event_id in events_by_id]
     if len(selected_events) != len(request.event_ids):
@@ -1295,6 +3677,8 @@ def export_calendar_events(
         actor=actor,
         metadata={
             "target": request.target,
+            "provider_id": provider_id,
+            "fallback_target": fallback_target or "",
             "event_ids": ",".join(request.event_ids),
             "timezone": request.timezone,
             "signature": signature,
@@ -1309,6 +3693,9 @@ def export_calendar_events(
         target=request.target,
         exported_event_ids=request.event_ids,
         events=selected_events,
+        provider_id=provider_id,
+        fallback_target=fallback_target,
+        requires_device_permission=provider_id == "expo_calendar",
         ics_content=ics_content,
         ics_filename=f"huaxia-trip-{trip.trip_id}.ics" if request.target == "ics" else None,
         audit_event_id=audit.event_id,
@@ -1363,6 +3750,14 @@ def _calendar_export_signature(
     return "|".join([request.target, request.timezone, ",".join(duplicate_keys)])
 
 
+def _calendar_export_provider_id(request: CalendarExportRequest) -> str:
+    if request.provider_id:
+        return request.provider_id
+    if request.target == "device_calendar":
+        return "expo_calendar"
+    return "ics_file"
+
+
 def _ics_datetime(name: str, value: datetime, timezone: str) -> str:
     if timezone == "UTC":
         return f"{name}:{_ics_utc(value)}"
@@ -1389,15 +3784,17 @@ def build_safety_card(trip: Trip) -> SafetyCardResponse:
 
     destination = trip.draft.destination
     is_international = _looks_international(destination)
-    encoded_destination = quote_plus(destination or trip.draft.title)
-    hospital_search_url = (
-        f"https://www.google.com/maps/search/?api=1&query=hospital+near+{encoded_destination}"
+    medical_provider_id = "google_maps" if is_international else "amap"
+    hospital_search_url = _safety_hospital_search_url(
+        destination or trip.draft.title,
+        provider_id=medical_provider_id,
     )
     emergency_contacts = _safety_emergency_contacts(is_international=is_international)
     emergency_actions = _safety_emergency_actions(
         destination=destination or trip.draft.title,
         hospital_search_url=hospital_search_url,
         is_international=is_international,
+        medical_provider_id=medical_provider_id,
     )
     insurance_references = [
         document.title
@@ -1416,15 +3813,44 @@ def build_safety_card(trip: Trip) -> SafetyCardResponse:
         notes.append("Insurance metadata is attached in the document vault; keep the policy number available offline.")
     notes.extend(trip.draft.warnings[:6])
     embassy = None
+    entry_requirements = None
     if is_international:
+        embassy_search_url = f"https://www.google.com/search?q={quote_plus('embassy consulate ' + (destination or trip.draft.title))}"
         embassy = {
             "label": "Embassy or consulate information",
+            "provider_id": "google_search",
+            "provider_display_name": "Google Search",
             "note": (
                 "Use this handoff to verify the right embassy or consulate for your nationality "
                 "before departure; HuaXia does not infer legal eligibility."
             ),
-            "search_url": f"https://www.google.com/search?q={quote_plus('embassy consulate ' + (destination or trip.draft.title))}",
+            "search_url": embassy_search_url,
+            "stale": True,
         }
+        entry_requirements = SafetyEntryRequirementsReference(
+            source_url="https://www.postman.com/joinsherpa/sherpa-api-official-documentation",
+            note=(
+                "Use Sherpa or another official entry requirement source before departure; "
+                "HuaXia has not fetched live visa, passport, or health rules in this card."
+            ),
+        )
+    risk_advisory = RiskAdvisorySnapshot(
+        summary=(
+            "Destination risk intelligence has not been fetched live. Refresh provider data "
+            "before departure and during disruption-prone travel days."
+        ),
+        stale_reason="Risk advisory provider data has not been fetched for this trip.",
+    )
+    provider_sources = _safety_provider_sources(
+        is_international=is_international,
+        destination=destination or trip.draft.title,
+        hospital_search_url=hospital_search_url,
+        medical_provider_id=medical_provider_id,
+        embassy_search_url=embassy["search_url"] if embassy else None,
+        entry_requirements=entry_requirements,
+        risk_advisory=risk_advisory,
+        insurance_references=insurance_references,
+    )
     return SafetyCardResponse(
         trip_id=trip.trip_id,
         destination=destination,
@@ -1434,6 +3860,9 @@ def build_safety_card(trip: Trip) -> SafetyCardResponse:
         emergency_actions=emergency_actions,
         hospital_search_url=hospital_search_url,
         embassy=embassy,
+        entry_requirements=entry_requirements,
+        risk_advisory=risk_advisory,
+        provider_sources=provider_sources,
         insurance_references=insurance_references,
         safety_notes=notes[:12],
         stale_warning=(
@@ -1445,6 +3874,13 @@ def build_safety_card(trip: Trip) -> SafetyCardResponse:
             "verify destination-specific emergency details through official channels before departure."
         ),
     )
+
+
+def _safety_hospital_search_url(destination: str, *, provider_id: str) -> str:
+    query = quote_plus(f"hospital near {destination}")
+    if provider_id == "amap":
+        return f"https://uri.amap.com/search?query={query}"
+    return f"https://www.google.com/maps/search/?api=1&query={query}"
 
 
 def _looks_international(destination: str | None) -> bool:
@@ -1501,9 +3937,11 @@ def _safety_emergency_actions(
     destination: str,
     hospital_search_url: str,
     is_international: bool,
+    medical_provider_id: str,
 ) -> list[dict[str, object]]:
     """Build mobile-friendly emergency action handoffs."""
 
+    medical_provider_name = "Google Maps" if medical_provider_id == "google_maps" else "Amap"
     actions: list[dict[str, object]] = [
         {
             "action_id": "safety-hospital-search",
@@ -1511,7 +3949,10 @@ def _safety_emergency_actions(
             "action_type": "open_map_search",
             "target": destination,
             "url": hospital_search_url,
+            "provider_id": medical_provider_id,
+            "provider_display_name": medical_provider_name,
             "note": "Map results are provider data and should be verified before travel.",
+            "requires_network": True,
             "available_offline": False,
         },
         {
@@ -1520,7 +3961,10 @@ def _safety_emergency_actions(
             "action_type": "show_note",
             "target": None,
             "url": None,
+            "provider_id": "workflow",
+            "provider_display_name": "HuaXia workflow",
             "note": "For immediate danger, contact local authorities or emergency services first.",
+            "requires_network": False,
             "available_offline": True,
         },
     ]
@@ -1533,7 +3977,10 @@ def _safety_emergency_actions(
                     "action_type": "call",
                     "target": "120",
                     "url": "tel:120",
+                    "provider_id": "workflow",
+                    "provider_display_name": "HuaXia workflow",
                     "note": "Mainland China medical emergency number.",
+                    "requires_network": False,
                     "available_offline": True,
                 },
                 {
@@ -1542,12 +3989,95 @@ def _safety_emergency_actions(
                     "action_type": "call",
                     "target": "110",
                     "url": "tel:110",
+                    "provider_id": "workflow",
+                    "provider_display_name": "HuaXia workflow",
                     "note": "Mainland China public-safety emergency number.",
+                    "requires_network": False,
                     "available_offline": True,
                 },
             ]
         )
     return actions
+
+
+def _safety_provider_sources(
+    *,
+    is_international: bool,
+    destination: str,
+    hospital_search_url: str,
+    medical_provider_id: str,
+    embassy_search_url: str | None,
+    entry_requirements: SafetyEntryRequirementsReference | None,
+    risk_advisory: RiskAdvisorySnapshot,
+    insurance_references: list[str],
+) -> list[dict[str, object]]:
+    medical_display = "Google Maps" if medical_provider_id == "google_maps" else "Amap"
+    sources: list[dict[str, object]] = [
+        {
+            "provider_id": "workflow",
+            "display_name": "HuaXia workflow",
+            "domain": "emergency_numbers",
+            "source_url": None,
+            "stale": False,
+            "stale_reason": None,
+            "offline_available": True,
+        },
+        {
+            "provider_id": medical_provider_id,
+            "display_name": medical_display,
+            "domain": "medical_search",
+            "source_url": hospital_search_url,
+            "stale": True,
+            "stale_reason": "Nearest hospital results require live map-provider data.",
+            "offline_available": False,
+        },
+        {
+            "provider_id": risk_advisory.provider_id,
+            "display_name": risk_advisory.display_name,
+            "domain": "risk_advisory",
+            "source_url": risk_advisory.source_url,
+            "stale": risk_advisory.stale,
+            "stale_reason": risk_advisory.stale_reason,
+            "offline_available": True,
+        },
+    ]
+    if is_international and embassy_search_url:
+        sources.append(
+            {
+                "provider_id": "google_search",
+                "display_name": "Google Search",
+                "domain": "embassy_search",
+                "source_url": embassy_search_url,
+                "stale": True,
+                "stale_reason": "Embassy and consulate assignments require live verification.",
+                "offline_available": True,
+            }
+        )
+    if entry_requirements:
+        sources.append(
+            {
+                "provider_id": entry_requirements.provider_id,
+                "display_name": entry_requirements.display_name,
+                "domain": "entry_requirements",
+                "source_url": entry_requirements.source_url,
+                "stale": entry_requirements.stale,
+                "stale_reason": "Entry requirements require live provider or official-source verification.",
+                "offline_available": True,
+            }
+        )
+    if insurance_references:
+        sources.append(
+            {
+                "provider_id": "document_vault",
+                "display_name": "HuaXia document vault",
+                "domain": "insurance_reference",
+                "source_url": None,
+                "stale": False,
+                "stale_reason": None,
+                "offline_available": True,
+            }
+        )
+    return sources
 
 
 def add_trip_document(
@@ -1576,6 +4106,12 @@ def add_trip_document(
                 "sensitive": str(document.sensitive).lower(),
                 "llm_prompt_excluded": "true",
                 "task_ids": ",".join(document.task_ids),
+                "parser_provider_id": (
+                    document.parser_metadata.provider_id if document.parser_metadata else ""
+                ),
+                "parse_status": (
+                    document.parser_metadata.parse_status if document.parser_metadata else ""
+                ),
             },
         )
     )
@@ -1617,6 +4153,12 @@ def patch_trip_document(
                     "sensitive": str(updated.sensitive).lower(),
                     "llm_prompt_excluded": "true",
                     "task_ids": ",".join(updated.task_ids),
+                    "parser_provider_id": (
+                        updated.parser_metadata.provider_id if updated.parser_metadata else ""
+                    ),
+                    "parse_status": (
+                        updated.parser_metadata.parse_status if updated.parser_metadata else ""
+                    ),
                 },
             )
         )
@@ -1705,6 +4247,7 @@ def add_trip_booking(
     """Attach booking metadata."""
 
     _validate_task_ids(trip, request.task_ids)
+    _validate_source_document_id(trip, request.source_document_id)
     booking = TripBooking(booking_id=str(uuid4()), **request.model_dump())
     trip.bookings.append(booking)
     trip.updated_at = datetime.now(UTC)
@@ -1717,6 +4260,13 @@ def add_trip_booking(
                 "booking_id": booking.booking_id,
                 "category": booking.category,
                 "task_ids": ",".join(booking.task_ids),
+                "source_document_id": booking.source_document_id or "",
+                "parser_provider_id": (
+                    booking.parser_metadata.provider_id if booking.parser_metadata else ""
+                ),
+                "parse_status": (
+                    booking.parser_metadata.parse_status if booking.parser_metadata else ""
+                ),
             },
         )
     )
@@ -1736,6 +4286,8 @@ def patch_trip_booking(
     if "task_ids" in updates:
         updates["task_ids"] = updates["task_ids"] or []
         _validate_task_ids(trip, updates["task_ids"])
+    if "source_document_id" in updates:
+        _validate_source_document_id(trip, updates["source_document_id"])
     for index, booking in enumerate(trip.bookings):
         if booking.booking_id != booking_id:
             continue
@@ -1756,6 +4308,13 @@ def patch_trip_booking(
                     "booking_id": updated.booking_id,
                     "category": updated.category,
                     "task_ids": ",".join(updated.task_ids),
+                    "source_document_id": updated.source_document_id or "",
+                    "parser_provider_id": (
+                        updated.parser_metadata.provider_id if updated.parser_metadata else ""
+                    ),
+                    "parse_status": (
+                        updated.parser_metadata.parse_status if updated.parser_metadata else ""
+                    ),
                 },
             )
         )
@@ -1818,6 +4377,16 @@ def _validate_task_ids(trip: Trip, task_ids: list[str]) -> None:
     for task_id in task_ids:
         if task_id not in known_ids:
             raise TripWorkflowError(f"task not found: {task_id}")
+
+
+def _validate_source_document_id(trip: Trip, document_id: str | None) -> None:
+    """Ensure imported booking metadata links only to an attached document."""
+
+    if document_id is None:
+        return
+    known_ids = {document.document_id for document in trip.documents}
+    if document_id not in known_ids:
+        raise TripWorkflowError("source document not found")
 
 
 def _attach_tasks_to_phases(trip: Trip) -> Trip:
@@ -2004,6 +4573,7 @@ def _reminder_body(task: TripTask) -> str:
 def _create_route_bundle(
     *,
     route_id: str,
+    trip_id: str,
     label: str,
     origin: str | None,
     destination: str | None,
@@ -2011,6 +4581,9 @@ def _create_route_bundle(
     planned_at: datetime | None = None,
     confidence: Literal["high", "medium", "low"] = "medium",
     related_task_ids: list[str] | None = None,
+    preferred_provider_id: str | None = None,
+    device_platform: MapDevicePlatform = "web",
+    provider_registry: ProviderConnectorRegistry | None = None,
 ) -> RouteBundle | None:
     """Create a route bundle only when navigation has concrete endpoints."""
 
@@ -2021,24 +4594,153 @@ def _create_route_bundle(
         for waypoint in (waypoints or [])
         if waypoint and waypoint not in {origin, destination}
     ][:12]
+    registry = provider_registry or default_provider_registry()
     provider_urls = _route_provider_urls(origin, destination, cleaned_waypoints)
-    fallback_url = provider_urls.get("google_maps")
+    provider_decision = _select_route_provider(
+        origin,
+        destination,
+        waypoints=cleaned_waypoints,
+        preferred_provider_id=preferred_provider_id,
+        device_platform=device_platform,
+        provider_registry=registry,
+    )
+    provider_id = provider_decision.provider_id
+    launch_url = provider_urls.get(provider_id)
+    fallback_url = provider_urls.get("google_maps") or launch_url
+    related_tasks = related_task_ids or []
     return RouteBundle(
         route_id=route_id,
+        route_bundle_id=route_id,
+        trip_id=trip_id,
+        task_id=related_tasks[-1] if related_tasks else None,
         label=label,
         mode="driving",
+        travel_mode="driving",
         origin=origin,
         destination=destination,
         waypoints=cleaned_waypoints,
+        coordinates=[],
         planned_at=planned_at,
-        primary_provider="google_maps",
+        planned_departure_time=planned_at,
+        primary_provider=provider_id,
+        provider_id=provider_id,
+        route_region=provider_decision.route_region,
+        device_platform=device_platform,
+        available_provider_ids=provider_decision.available_provider_ids,
+        preview_provider_id=provider_decision.preview_provider_id,
+        provider_selection_reason=provider_decision.reason,
+        launch_url=launch_url,
+        deep_link_url=_route_deep_link(
+            provider_id,
+            origin,
+            destination,
+            cleaned_waypoints,
+            device_platform=device_platform,
+        ),
         fallback_url=fallback_url,
         provider_urls=provider_urls,
         confidence=confidence,
+        source="workflow",
+        validation_status="ready" if fallback_url else "unavailable",
         handoff_ready=bool(fallback_url),
         unavailable_reason=None if fallback_url else "No usable map provider URL could be generated.",
-        related_task_ids=related_task_ids or [],
+        related_task_ids=related_tasks,
     )
+
+
+def _navigation_preview_from_route_bundle(
+    bundle: RouteBundle,
+    *,
+    registry: ProviderConnectorRegistry,
+) -> NavigationPreview:
+    provider = registry.get(bundle.provider_id)
+    provider_display_name = provider.display_name if provider else bundle.provider_id
+    route_summary = _route_summary(bundle.origin, bundle.destination, bundle.waypoints)
+    requires_correction = bundle.validation_status != "ready" or bundle.confidence == "low"
+    correction_prompt = (
+        "Confirm a concrete origin and destination before launching turn-by-turn navigation."
+        if requires_correction
+        else None
+    )
+    primary_channel: Literal["app", "browser"] = (
+        "app" if bundle.deep_link_url and bundle.validation_status == "ready" else "browser"
+    )
+    primary_target = bundle.deep_link_url if primary_channel == "app" else bundle.launch_url
+    fallback_target = bundle.fallback_url or bundle.launch_url or bundle.deep_link_url
+
+    return NavigationPreview(
+        trip_id=bundle.trip_id or "",
+        route_bundle_id=bundle.route_bundle_id,
+        task_id=bundle.task_id,
+        origin=bundle.origin,
+        destination=bundle.destination,
+        waypoints=bundle.waypoints,
+        travel_mode=bundle.travel_mode,
+        planned_departure_time=bundle.planned_departure_time,
+        provider_id=bundle.provider_id,
+        provider_display_name=provider_display_name,
+        route_summary=route_summary,
+        estimated_distance_text=bundle.estimated_distance_text,
+        estimated_duration_text=bundle.estimated_duration_text,
+        confidence=bundle.confidence,
+        validation_status=bundle.validation_status,
+        provider_selection_reason=bundle.provider_selection_reason,
+        launch_url=bundle.launch_url,
+        deep_link_url=bundle.deep_link_url,
+        fallback_url=bundle.fallback_url,
+        requires_correction=requires_correction,
+        correction_prompt=correction_prompt,
+        primary_action=NavigationPreviewAction(
+            label="Open in app" if primary_channel == "app" else "Open in browser",
+            launch_channel=primary_channel,
+            target_url=primary_target,
+            provider_id=bundle.provider_id,
+        ),
+        browser_fallback_action=NavigationPreviewAction(
+            label="Open in browser fallback",
+            launch_channel="fallback_browser",
+            target_url=fallback_target,
+            provider_id=bundle.provider_id,
+        ),
+        copy_destination_action=NavigationPreviewAction(
+            label="Copy destination",
+            value=bundle.destination,
+            provider_id=bundle.provider_id,
+        ),
+        manual_completion_action=NavigationPreviewAction(
+            label="I already handled this",
+            launch_channel="manual_done",
+            provider_id=bundle.provider_id,
+        ),
+        remind_later_action=NavigationPreviewAction(
+            label="Remind me later",
+            launch_channel="remind_later",
+            provider_id=bundle.provider_id,
+        ),
+        manual_search_action=(
+            NavigationPreviewAction(
+                label="Search manually",
+                launch_channel="browser",
+                target_url=_route_search_url(bundle.provider_id, bundle.destination),
+                provider_id=bundle.provider_id,
+            )
+            if requires_correction
+            else None
+        ),
+    )
+
+
+def _route_summary(origin: str, destination: str, waypoints: list[str] | None = None) -> str:
+    return " -> ".join([origin, *(waypoints or []), destination])
+
+
+def _route_search_url(provider_id: str, destination: str) -> str:
+    encoded_destination = quote_plus(destination)
+    if provider_id == "amap":
+        return f"https://uri.amap.com/search?query={encoded_destination}"
+    if provider_id == "apple_maps":
+        return f"https://maps.apple.com/?q={encoded_destination}"
+    return f"https://www.google.com/maps/search/?api=1&query={encoded_destination}"
 
 
 def _route_provider_urls(
@@ -2056,7 +4758,13 @@ def _route_provider_urls(
         f"&q={quote_plus(' via '.join(waypoints or []))}" if waypoints else ""
     )
     mapbox_query = quote_plus(" to ".join([origin, *(waypoints or []), destination]))
+    amap_waypoints = ";".join(quote_plus(waypoint) for waypoint in waypoints or [])
     return {
+        "amap": (
+            "https://uri.amap.com/navigation"
+            f"?from={encoded_origin}&to={encoded_destination}&mode=car"
+            + (f"&via={amap_waypoints}" if amap_waypoints else "")
+        ),
         "google_maps": (
             "https://www.google.com/maps/dir/?api=1"
             f"&origin={encoded_origin}&destination={encoded_destination}{google_waypoints}"
@@ -2071,6 +4779,149 @@ def _route_provider_urls(
             + (f"&proximity={encoded_waypoints[0]}" if encoded_waypoints else "")
         ),
     }
+
+
+def _select_route_provider(
+    origin: str,
+    destination: str,
+    *,
+    waypoints: list[str] | None = None,
+    preferred_provider_id: str | None = None,
+    device_platform: MapDevicePlatform = "web",
+    provider_registry: ProviderConnectorRegistry | None = None,
+) -> RouteProviderDecision:
+    """Select a map provider using region, preference, device, and provider health."""
+
+    registry = provider_registry or default_provider_registry()
+    route_region = _route_region(origin, destination, waypoints)
+    registry_region = "CN" if route_region == "china" else "GLOBAL"
+    effective_preference = preferred_provider_id
+    reason_override: str | None = None
+
+    if preferred_provider_id == "mapbox":
+        effective_preference = None
+        reason_override = "Mapbox reserved for preview; Google Maps selected for execution"
+    elif preferred_provider_id == "apple_maps" and device_platform != "ios":
+        effective_preference = None
+        reason_override = "Apple Maps preference requires iOS; default provider selected"
+
+    resolution = registry.resolve(
+        domain="navigation",
+        capability="route",
+        region=registry_region,
+        preferred_provider_id=effective_preference,
+    )
+    selected_id = resolution.selected.provider_id
+    if selected_id == "mapbox":
+        selected_id = _first_available_execution_provider(
+            [candidate.provider_id for candidate in resolution.candidates],
+            route_region=route_region,
+            device_platform=device_platform,
+        )
+        reason_override = "Mapbox reserved for preview; fallback execution provider selected"
+
+    available_provider_ids = _available_map_provider_ids(
+        [candidate.provider_id for candidate in resolution.candidates],
+        device_platform=device_platform,
+    )
+    preview_provider_id = "mapbox" if "mapbox" in available_provider_ids else None
+
+    if route_region == "china" and selected_id == "amap" and preferred_provider_id != "amap":
+        reason = "regional reliability requires Amap for China routes"
+    else:
+        reason = reason_override or resolution.reason
+
+    return RouteProviderDecision(
+        provider_id=selected_id,
+        route_region=route_region,
+        available_provider_ids=available_provider_ids,
+        preview_provider_id=preview_provider_id,
+        reason=reason,
+    )
+
+
+def _first_available_execution_provider(
+    provider_ids: list[str],
+    *,
+    route_region: RouteRegion,
+    device_platform: MapDevicePlatform,
+) -> RouteProviderId:
+    preferred_order: list[RouteProviderId]
+    if route_region == "china":
+        preferred_order = ["amap", "google_maps", "apple_maps"]
+    elif device_platform == "ios":
+        preferred_order = ["google_maps", "apple_maps", "amap"]
+    else:
+        preferred_order = ["google_maps", "amap"]
+    for provider_id in preferred_order:
+        if provider_id in provider_ids:
+            return provider_id
+    return "google_maps"
+
+
+def _available_map_provider_ids(
+    provider_ids: list[str],
+    *,
+    device_platform: MapDevicePlatform,
+) -> list[str]:
+    available: list[str] = []
+    for provider_id in provider_ids:
+        if provider_id == "apple_maps" and device_platform == "android":
+            continue
+        if provider_id not in available:
+            available.append(provider_id)
+    return available
+
+
+def _route_provider_id(origin: str, destination: str) -> RouteProviderId:
+    return _select_route_provider(origin, destination).provider_id
+
+
+def _route_region(
+    origin: str,
+    destination: str,
+    waypoints: list[str] | None = None,
+) -> RouteRegion:
+    values = [origin, destination, *(waypoints or [])]
+    if any(_contains_cjk(value) for value in values):
+        return "china"
+    if origin and destination:
+        return "international"
+    return "unknown"
+
+
+def _contains_cjk(value: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in value)
+
+
+def _route_deep_link(
+    provider_id: str,
+    origin: str,
+    destination: str,
+    waypoints: list[str] | None = None,
+    *,
+    device_platform: MapDevicePlatform = "web",
+) -> str | None:
+    if provider_id == "amap":
+        via = "|".join(waypoints or [])
+        encoded_origin = quote_plus(origin)
+        encoded_destination = quote_plus(destination)
+        scheme = "iosamap" if device_platform == "ios" else "androidamap"
+        return (
+            f"{scheme}://route?sourceApplication=huaxia"
+            f"&sname={encoded_origin}&dname={encoded_destination}&dev=0&t=0"
+            + (f"&via={quote_plus(via)}" if via else "")
+        )
+    if provider_id == "apple_maps":
+        if device_platform != "ios":
+            return _route_provider_urls(origin, destination, waypoints).get("apple_maps")
+        return (
+            f"maps://?saddr={quote_plus(origin)}"
+            f"&daddr={quote_plus(destination)}"
+        )
+    if provider_id == "google_maps":
+        return _route_provider_urls(origin, destination, waypoints).get("google_maps")
+    return None
 
 
 def _derive_title_from_answer(answer: TravelAnswer) -> str:

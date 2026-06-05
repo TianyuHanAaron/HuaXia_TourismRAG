@@ -9,6 +9,7 @@ export type UserPreferencePatchRequestMapProvider = typeof UserPreferencePatchRe
 
 
 export const UserPreferencePatchRequestMapProvider = {
+  amap: 'amap',
   google_maps: 'google_maps',
   apple_maps: 'apple_maps',
   mapbox: 'mapbox',

@@ -12,4 +12,5 @@ export const SupportAuditEventResourceType = {
   user: 'user',
   job: 'job',
   subscription: 'subscription',
+  provider_action: 'provider_action',
 } as const;

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 from huaxia_tourismrag.schemas.jobs import TravelJobStatusResponse
 
 
-MapProvider = Literal["google_maps", "apple_maps", "mapbox"]
+MapProvider = Literal["amap", "google_maps", "apple_maps", "mapbox"]
 HotelPlatform = Literal["booking", "agoda", "expedia", "hotel_website"]
 FlightPlatform = Literal["skyscanner", "airline_direct", "google_flights"]
 CalendarProvider = Literal["device_calendar", "ics"]
@@ -29,6 +29,7 @@ SupportAuditAction = Literal[
     "job_recovery_bundle_viewed",
     "job_retry_created",
     "subscription_refreshed",
+    "provider_action_debug_viewed",
 ]
 RolloutGateStatus = Literal["ready", "monitoring", "blocked"]
 RolloutLaunchMode = Literal["controlled_beta", "closed_beta", "full_launch", "rollback"]
@@ -83,9 +84,18 @@ AnalyticsEventType = Literal[
     "task_skipped",
     "custom_task_added",
     "first_task_completed",
+    "provider_action_viewed",
+    "provider_action_validation_failed",
+    "provider_action_launch_attempted",
     "provider_action_launched",
+    "provider_action_fallback_used",
+    "provider_action_returned",
     "provider_action_succeeded",
     "provider_action_failed",
+    "provider_action_manual_completed",
+    "booking_reference_attached",
+    "reminder_deferred",
+    "support_recovery_used",
     "notification_permission_prompted",
     "notification_opted_in",
     "notification_opted_out",
@@ -113,6 +123,13 @@ SENSITIVE_ANALYTICS_KEYS = {
     "confirmation_code",
     "raw_private_note",
     "document_text",
+    "target_url",
+    "provider_url",
+    "fallback_url",
+    "deep_link",
+    "webview_url",
+    "booking_reference",
+    "payment_reference",
 }
 
 
@@ -407,7 +424,7 @@ class SupportAuditEvent(BaseModel):
     actor_user_id: str
     target_user_id: str
     action: SupportAuditAction
-    resource_type: Literal["user", "job", "subscription"]
+    resource_type: Literal["user", "job", "subscription", "provider_action"]
     resource_id: str | None = None
     metadata: dict[str, str] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -428,6 +445,46 @@ class SupportUserRecoverySummaryResponse(BaseModel):
     trip_count: int = Field(ge=0)
     trips: list[dict[str, Any]] = Field(default_factory=list)
     analytics_events: list[AnalyticsEventRequest] = Field(default_factory=list)
+    support_audit_event_id: str
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class SupportProviderActionDebugRecord(BaseModel):
+    """Sanitized provider action diagnostic record for support/admin views."""
+
+    trip_id: str
+    action_id: str
+    provider_id: str
+    action_type: str
+    label: str
+    task_ids: list[str] = Field(default_factory=list)
+    validation_status: str
+    validation_errors: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    data_sensitivity: str
+    webview_policy: str
+    recovery_status: str
+    recovery_options: list[str] = Field(default_factory=list)
+    last_launch_channel: str | None = None
+    last_launch_result: str | None = None
+    last_target_url: str | None = None
+    target_url_redacted: bool = False
+    fallback_used: bool = False
+    unavailable_reason: str | None = None
+    failure_reason: str | None = None
+    launched_at: datetime | None = None
+    handled_at: datetime | None = None
+    follow_up_prompt_at: datetime | None = None
+    audit_events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SupportProviderActionDebugResponse(BaseModel):
+    """Consent-gated provider action search/debug response."""
+
+    target_user_id: str
+    filters: dict[str, str | None] = Field(default_factory=dict)
+    record_count: int = Field(ge=0)
+    records: list[SupportProviderActionDebugRecord] = Field(default_factory=list)
     support_audit_event_id: str
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -508,6 +565,39 @@ class RolloutReadinessResponse(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class V3ProviderRolloutPhase(BaseModel):
+    """One V3 provider integration rollout phase."""
+
+    phase_key: str
+    title: str
+    status: RolloutGateStatus
+    provider_domains: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    blocking_reason: str | None = None
+
+
+class V4ReliabilityBridge(BaseModel):
+    """Bridge from V3 provider handoff maturity to V4 reliability work."""
+
+    focus: Literal["scale_and_reliability"] = "scale_and_reliability"
+    next_capabilities: list[str] = Field(default_factory=list)
+    promotion_criteria: list[str] = Field(default_factory=list)
+
+
+class V3ProviderReadinessResponse(BaseModel):
+    """Decision-oriented V3 provider rollout readiness snapshot."""
+
+    version: Literal["v3_provider_integrations"] = "v3_provider_integrations"
+    launch_mode: RolloutLaunchMode = "controlled_beta"
+    safe_to_expand_provider_rollout: bool
+    phases: list[V3ProviderRolloutPhase] = Field(default_factory=list)
+    provider_metric_events: dict[str, bool] = Field(default_factory=dict)
+    required_provider_metric_events: dict[str, AnalyticsEventType] = Field(default_factory=dict)
+    scenario_tests: list[str] = Field(default_factory=list)
+    v4_bridge: V4ReliabilityBridge
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class MobileBetaFeatureConfigResponse(BaseModel):
     """Mobile client feature surfaces enabled for V2 beta."""
 
@@ -528,12 +618,38 @@ class AnalyticsEventCount(BaseModel):
     count: int = Field(ge=0)
 
 
+class ProviderActionFunnelBreakdown(BaseModel):
+    """Provider action quality summary for V3 provider decisions."""
+
+    provider_id: str = Field(min_length=1, max_length=80)
+    domain: str = Field(min_length=1, max_length=80)
+    region: str = Field(min_length=1, max_length=80)
+    task_type: str = Field(min_length=1, max_length=80)
+    viewed_count: int = Field(default=0, ge=0)
+    validation_failed_count: int = Field(default=0, ge=0)
+    launch_attempted_count: int = Field(default=0, ge=0)
+    launched_count: int = Field(default=0, ge=0)
+    fallback_used_count: int = Field(default=0, ge=0)
+    returned_count: int = Field(default=0, ge=0)
+    succeeded_count: int = Field(default=0, ge=0)
+    failed_count: int = Field(default=0, ge=0)
+    manual_completed_count: int = Field(default=0, ge=0)
+    booking_reference_attached_count: int = Field(default=0, ge=0)
+    reminder_deferred_count: int = Field(default=0, ge=0)
+    support_recovery_used_count: int = Field(default=0, ge=0)
+    offline_event_count: int = Field(default=0, ge=0)
+    failure_reasons: dict[str, int] = Field(default_factory=dict)
+    last_event_at: datetime | None = None
+
+
 class AnalyticsFunnelResponse(BaseModel):
     """Privacy-safe launch funnel summary for product decisions."""
 
     user_id: str
     event_counts: list[AnalyticsEventCount] = Field(default_factory=list)
     source_counts: dict[AnalyticsEventSource, int] = Field(default_factory=dict)
+    provider_action_funnel: list[ProviderActionFunnelBreakdown] = Field(default_factory=list)
+    provider_action_totals: dict[str, int] = Field(default_factory=dict)
     approved_trip_count: int = Field(ge=0)
     first_task_completed_trip_count: int = Field(ge=0)
     subscription_started_count: int = Field(ge=0)

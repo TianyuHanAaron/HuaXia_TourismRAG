@@ -14,8 +14,13 @@ export interface SafetyEmbassyInfo {
      * @maxLength 120
      */
   label: string;
+  /** @maxLength 80 */
+  provider_id?: string;
+  /** @maxLength 120 */
+  provider_display_name?: string;
   /** @maxLength 800 */
   note?: string;
   /** @maxLength 2000 */
   search_url: string;
+  stale?: boolean;
 }

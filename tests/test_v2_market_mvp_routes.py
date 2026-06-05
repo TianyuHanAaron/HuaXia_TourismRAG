@@ -92,6 +92,36 @@ def test_analytics_rejects_sensitive_metadata_keys():
     assert rejected.status_code == 422
 
 
+def test_step20_analytics_rejects_provider_url_and_deep_link_metadata():
+    client = make_v2_client()
+
+    rejected_url = client.post(
+        "/analytics/events",
+        json={
+            "event_type": "provider_action_launched",
+            "trip_id": "trip-1",
+            "metadata": {
+                "provider_id": "amap",
+                "target_url": "https://uri.amap.com/search?query=user+home+address",
+            },
+        },
+    )
+    rejected_deep_link = client.post(
+        "/analytics/events",
+        json={
+            "event_type": "provider_action_launch_attempted",
+            "trip_id": "trip-1",
+            "metadata": {
+                "provider_id": "google_maps",
+                "deep_link": "comgooglemaps://?q=user@example.com",
+            },
+        },
+    )
+
+    assert rejected_url.status_code == 422
+    assert rejected_deep_link.status_code == 422
+
+
 def test_step01_kpi_tree_exposes_market_success_metrics():
     client = make_v2_client()
 
@@ -214,6 +244,112 @@ def test_step19_analytics_funnel_summarizes_market_mvp_value_moments():
     assert body["subscription_started_count"] == 1
     assert body["offline_event_count"] == 0
     assert body["source_counts"]["mobile"] == 7
+
+
+def test_step19_provider_funnel_breaks_down_provider_quality_signals():
+    client = make_v2_client()
+    events = [
+        (
+            "provider_action_viewed",
+            {
+                "provider_id": "amap",
+                "domain": "navigation",
+                "region": "china",
+                "task_type": "transport",
+            },
+        ),
+        (
+            "provider_action_launch_attempted",
+            {
+                "provider_id": "amap",
+                "domain": "navigation",
+                "region": "china",
+                "task_type": "transport",
+            },
+        ),
+        (
+            "provider_action_launched",
+            {
+                "provider_id": "amap",
+                "domain": "navigation",
+                "region": "china",
+                "task_type": "transport",
+                "launch_surface": "native_app",
+            },
+        ),
+        (
+            "provider_action_fallback_used",
+            {
+                "provider_id": "amap",
+                "domain": "navigation",
+                "region": "china",
+                "task_type": "transport",
+                "failure_reason": "native_app_unavailable",
+            },
+        ),
+        (
+            "provider_action_failed",
+            {
+                "provider_id": "amap",
+                "domain": "navigation",
+                "region": "china",
+                "task_type": "transport",
+                "failure_reason": "missing_destination",
+            },
+        ),
+        (
+            "provider_action_succeeded",
+            {
+                "provider_id": "amap",
+                "domain": "navigation",
+                "region": "china",
+                "task_type": "transport",
+            },
+        ),
+        (
+            "booking_reference_attached",
+            {
+                "provider_id": "booking_com",
+                "domain": "hotel",
+                "region": "global",
+                "task_type": "lodging",
+            },
+        ),
+    ]
+    for index, (event_type, metadata) in enumerate(events):
+        response = client.post(
+            "/analytics/events",
+            json={
+                "event_type": event_type,
+                "client_event_id": f"provider-funnel-{index}",
+                "trip_id": "trip-provider-funnel",
+                "source": "mobile",
+                "metadata": metadata,
+            },
+        )
+        assert response.status_code == 202
+
+    funnel = client.get("/analytics/funnel")
+
+    assert funnel.status_code == 200
+    body = funnel.json()
+    amap = next(
+        item
+        for item in body["provider_action_funnel"]
+        if item["provider_id"] == "amap" and item["domain"] == "navigation"
+    )
+    assert amap["region"] == "china"
+    assert amap["task_type"] == "transport"
+    assert amap["viewed_count"] == 1
+    assert amap["launch_attempted_count"] == 1
+    assert amap["launched_count"] == 1
+    assert amap["fallback_used_count"] == 1
+    assert amap["failed_count"] == 1
+    assert amap["succeeded_count"] == 1
+    assert amap["failure_reasons"]["missing_destination"] == 1
+    assert amap["failure_reasons"]["native_app_unavailable"] == 1
+    assert body["provider_action_totals"]["viewed"] == 1
+    assert body["provider_action_totals"]["booking_reference_attached"] == 1
 
 
 def test_step20_privacy_settings_support_consent_and_redacted_export():
@@ -370,6 +506,65 @@ def test_step21_support_admin_can_retry_failed_job_and_audit_recovery_actions():
     assert "job_retry_created" in actions
 
 
+def test_step21_support_admin_provider_debug_search_returns_sanitized_diagnostics():
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+    client.patch("/users/me/privacy", json={"support_access_consent": True})
+    launch = client.post(
+        f"/trips/{trip_id}/provider-actions/action-hotel-search/launch",
+        json={"launch_channel": "browser", "client_event_id": "debug-launch-1"},
+    )
+    assert launch.status_code == 200
+    follow_up = client.post(
+        f"/trips/{trip_id}/provider-actions/action-hotel-search/follow-up",
+        json={
+            "outcome": "failed",
+            "failure_reason": "Provider app showed missing date",
+            "client_event_id": "debug-fail-1",
+        },
+    )
+    assert follow_up.status_code == 200
+
+    response = client.get(
+        (
+            f"/support/users/u_123/provider-actions/debug?trip_id={trip_id}"
+            "&provider_id=booking_com&failure_reason=missing+date"
+        ),
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["target_user_id"] == "u_123"
+    assert body["filters"]["trip_id"] == trip_id
+    assert body["filters"]["provider_id"] == "booking_com"
+    assert body["filters"]["failure_reason"] == "missing date"
+    assert body["support_audit_event_id"].startswith("support_")
+    assert body["record_count"] == 1
+    record = body["records"][0]
+    assert record["trip_id"] == trip_id
+    assert record["action_id"] == "action-hotel-search"
+    assert record["provider_id"] == "booking_com"
+    assert record["recovery_status"] == "retry_available"
+    assert record["last_launch_channel"] == "browser"
+    assert record["last_launch_result"] == "failed"
+    assert record["failure_reason"] == "Provider app showed missing date"
+    assert record["task_ids"]
+    assert {"try_another", "remind_later", "completed"}.issubset(
+        set(record["recovery_options"])
+    )
+    assert record["audit_events"][-1]["failure_reason"] == "Provider app showed missing date"
+    assert "confirmation_code" not in str(body)
+    assert "document_text" not in str(body)
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+    actions = [event["action"] for event in audit.json()["events"]]
+    assert "provider_action_debug_viewed" in actions
+
+
 def test_step21_user_and_support_admin_can_refresh_subscription_state():
     client = make_v2_client()
 
@@ -493,6 +688,71 @@ def test_step22_mobile_beta_config_lists_launchable_mvp_surfaces():
         "subscription_paywall",
     }.issubset(set(body["enabled_surfaces"]))
     assert body["primary_mobile_surface"] == "trip_home"
+
+
+def test_step22_v3_provider_rollout_readiness_bridges_to_v4_reliability():
+    client = make_v2_client()
+    events = [
+        "provider_action_viewed",
+        "provider_action_validation_failed",
+        "provider_action_launch_attempted",
+        "provider_action_launched",
+        "provider_action_fallback_used",
+        "provider_action_returned",
+        "provider_action_succeeded",
+        "provider_action_failed",
+        "booking_reference_attached",
+        "support_recovery_used",
+    ]
+    for index, event_type in enumerate(events):
+        response = client.post(
+            "/analytics/events",
+            json={
+                "event_type": event_type,
+                "client_event_id": f"v3-rollout-event-{index}",
+                "trip_id": "trip-v3-rollout",
+                "source": "mobile",
+                "metadata": {
+                    "provider_id": "amap" if index % 2 == 0 else "google_maps",
+                    "domain": "navigation",
+                    "region": "china" if index % 2 == 0 else "global",
+                    "task_type": "transport",
+                    "failure_reason": "test_failure" if "failed" in event_type else "",
+                },
+            },
+        )
+        assert response.status_code == 202
+
+    response = client.get("/rollout/v3/provider-readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v3_provider_integrations"
+    assert body["safe_to_expand_provider_rollout"] is True
+    assert body["v4_bridge"]["focus"] == "scale_and_reliability"
+    assert "provider_health_monitoring" in body["v4_bridge"]["next_capabilities"]
+    assert {
+        "provider_registry",
+        "route_bundles",
+        "map_navigation",
+        "weather_alerts",
+        "calendar_export",
+        "ticket_handoff",
+        "hotel_flight_handoff",
+        "document_import",
+        "validation_audit",
+        "analytics_support_debugging",
+    }.issubset({phase["phase_key"] for phase in body["phases"]})
+    assert body["provider_metric_events"]["provider_viewed"] is True
+    assert body["provider_metric_events"]["provider_launch_attempted"] is True
+    assert body["provider_metric_events"]["provider_succeeded"] is True
+    assert body["scenario_tests"] == [
+        "domestic_china_city_trip",
+        "domestic_china_regional_trip",
+        "international_city_trip",
+        "outdoor_nature_trip",
+        "long_multistop_trip",
+    ]
 
 
 def test_step02_paywall_config_frames_trip_command_center_and_paid_value():
@@ -934,7 +1194,11 @@ def test_trip_summary_route_bundles_calendar_safety_and_offline_snapshot():
     assert route_body["route_bundles"][0]["origin"] == "北京"
     assert route_body["route_bundles"][0]["destination"] == "八达岭长城"
     assert route_body["route_bundles"][0]["waypoints"] == ["故宫博物院"]
-    assert route_body["route_bundles"][0]["primary_provider"] == "google_maps"
+    assert route_body["route_bundles"][0]["primary_provider"] == "amap"
+    assert route_body["route_bundles"][0]["provider_id"] == "amap"
+    assert route_body["route_bundles"][0]["launch_url"].startswith(
+        "https://uri.amap.com/navigation"
+    )
     assert route_body["route_bundles"][0]["fallback_url"].startswith(
         "https://www.google.com/maps/dir/?api=1"
     )
@@ -947,6 +1211,25 @@ def test_trip_summary_route_bundles_calendar_safety_and_offline_snapshot():
     )
     assert "apple_maps" in route_body["route_bundles"][0]["provider_urls"]
     assert "mapbox" in route_body["route_bundles"][0]["provider_urls"]
+
+    navigation_previews = client.get(
+        f"/trips/{trip_id}/navigation-previews",
+        params={"preferred_provider_id": "google_maps", "device_platform": "ios"},
+    )
+    assert navigation_previews.status_code == 200
+    preview_body = navigation_previews.json()
+    preview = preview_body["previews"][0]
+    assert preview["route_bundle_id"] == "route-day-1"
+    assert preview["provider_id"] == "amap"
+    assert preview["provider_display_name"] == "Amap / 高德地图"
+    assert preview["route_summary"] == "北京 -> 故宫博物院 -> 八达岭长城"
+    assert preview["primary_action"]["launch_channel"] == "app"
+    assert preview["primary_action"]["target_url"].startswith("iosamap://")
+    assert preview["browser_fallback_action"]["target_url"].startswith(
+        "https://www.google.com/maps/dir/?api=1"
+    )
+    assert preview["copy_destination_action"]["value"] == "八达岭长城"
+    assert preview["requires_correction"] is False
 
     calendar = client.get(f"/trips/{trip_id}/calendar-events")
     assert calendar.status_code == 200
@@ -1083,7 +1366,8 @@ def test_step17_safety_card_includes_emergency_actions_and_international_guidanc
     assert domestic_body["is_international"] is False
     assert any(contact["phone"] == "120" for contact in domestic_body["emergency_contacts"])
     assert any(action["action_type"] == "open_map_search" for action in domestic_body["emergency_actions"])
-    assert domestic_body["hospital_search_url"].startswith("https://www.google.com/maps/search/")
+    assert domestic_body["hospital_search_url"].startswith("https://uri.amap.com/search")
+    assert any(action["provider_id"] == "amap" for action in domestic_body["emergency_actions"])
     assert domestic_body["embassy"] is None
 
     international_client = make_v2_client()
@@ -1167,6 +1451,87 @@ def test_trip_document_and_booking_metadata_are_attached_without_llm_prompt_use(
         event["event_type"] == "booking_added"
         for event in booking.json()["trip"]["audit_events"]
     )
+
+
+def test_document_import_parser_metadata_links_booking_without_raw_content_storage():
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+    client.app.state.market_store._subscriptions["u_123"] = SubscriptionState(
+        user_id="u_123",
+        tier="plus",
+        status="active",
+        source="app_store",
+        entitlements=["document_vault"],
+    )
+
+    document = client.post(
+        f"/trips/{trip_id}/documents",
+        json={
+            "category": "hotel",
+            "title": "酒店确认邮件截图",
+            "file_name": "hotel-confirmation.png",
+            "content_type": "image/png",
+            "task_ids": ["task-book-lodging"],
+            "sensitive": True,
+            "raw_text": "guest name and card details must never be stored",
+            "parser_metadata": {
+                "provider_id": "local_document_parser",
+                "parse_status": "needs_review",
+                "confidence": "medium",
+                "metadata_only": True,
+                "prompt_excluded": True,
+                "extracted_fields": {
+                    "confirmation_code": "HTL123",
+                    "provider": "Booking.com",
+                    "check_in": "2035-05-02",
+                },
+                "redacted_fields": ["guest_name", "payment_card"],
+            },
+        },
+    )
+
+    assert document.status_code == 201
+    stored_document = document.json()["trip"]["documents"][0]
+    assert "raw_text" not in stored_document
+    assert stored_document["prompt_excluded"] is True
+    assert stored_document["parser_metadata"]["provider_id"] == "local_document_parser"
+    assert stored_document["parser_metadata"]["parse_status"] == "needs_review"
+    assert stored_document["parser_metadata"]["metadata_only"] is True
+    assert stored_document["parser_metadata"]["prompt_excluded"] is True
+    assert "payment_card" in stored_document["parser_metadata"]["redacted_fields"]
+
+    booking = client.post(
+        f"/trips/{trip_id}/bookings",
+        json={
+            "category": "hotel",
+            "title": "北京王府井酒店",
+            "confirmation_code": "HTL123",
+            "provider": "Booking.com",
+            "source_document_id": stored_document["document_id"],
+            "task_ids": ["task-book-lodging"],
+            "parser_metadata": {
+                "provider_id": "local_document_parser",
+                "parse_status": "needs_review",
+                "confidence": "medium",
+                "metadata_only": True,
+                "prompt_excluded": True,
+                "extracted_fields": {
+                    "confirmation_code": "HTL123",
+                    "provider": "Booking.com",
+                },
+                "redacted_fields": ["guest_name"],
+            },
+        },
+    )
+
+    assert booking.status_code == 201
+    stored_booking = booking.json()["trip"]["bookings"][0]
+    assert stored_booking["source_document_id"] == stored_document["document_id"]
+    assert stored_booking["parser_metadata"]["provider_id"] == "local_document_parser"
+    assert stored_booking["parser_metadata"]["prompt_excluded"] is True
+    booking_event = booking.json()["trip"]["audit_events"][-1]
+    assert booking_event["metadata"]["source_document_id"] == stored_document["document_id"]
+    assert booking_event["metadata"]["parser_provider_id"] == "local_document_parser"
 
 
 def test_step16_vault_metadata_can_update_delete_attach_tasks_and_exclude_prompt_content():

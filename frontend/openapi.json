@@ -2724,6 +2724,38 @@
             }
           },
           {
+            "name": "preferred_provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preferred Provider Id"
+            }
+          },
+          {
+            "name": "device_platform",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "web",
+                "ios",
+                "android",
+                "unknown"
+              ],
+              "type": "string",
+              "default": "web",
+              "title": "Device Platform"
+            }
+          },
+          {
             "name": "X-Huaxia-User-Id",
             "in": "header",
             "required": false,
@@ -2816,6 +2848,276 @@
         }
       }
     },
+    "/trips/{trip_id}/navigation-previews": {
+      "get": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Get Trip Navigation Previews",
+        "description": "Return mobile-ready navigation preview bottom-sheet data.",
+        "operationId": "get_trip_navigation_previews_trips__trip_id__navigation_previews_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "preferred_provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preferred Provider Id"
+            }
+          },
+          {
+            "name": "device_platform",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "web",
+                "ios",
+                "android",
+                "unknown"
+              ],
+              "type": "string",
+              "default": "web",
+              "title": "Device Platform"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NavigationPreviewListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trips/{trip_id}/local-transport-plan": {
+      "get": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Get Trip Local Transport Plan",
+        "description": "Return mode-aware local transport and taxi handoff options.",
+        "operationId": "get_trip_local_transport_plan_trips__trip_id__local_transport_plan_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "preferred_provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preferred Provider Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalTransportPlanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/trips/{trip_id}/calendar-events": {
       "get": {
         "tags": [
@@ -2832,6 +3134,26 @@
             "schema": {
               "type": "string",
               "title": "Trip Id"
+            }
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "local",
+              "title": "Timezone"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "expo_calendar",
+              "title": "Provider Id"
             }
           },
           {
@@ -3031,6 +3353,127 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CalendarExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trips/{trip_id}/weather-snapshot": {
+      "get": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Get Trip Weather Snapshot",
+        "description": "Return provider-aware weather alerts and operational task impacts.",
+        "operationId": "get_trip_weather_snapshot_trips__trip_id__weather_snapshot_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "weatherapi",
+              "title": "Provider Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherSnapshotResponse"
                 }
               }
             }
@@ -3253,6 +3696,127 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OfflineTripSnapshotResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trips/{trip_id}/offline-task-updates": {
+      "post": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Sync Trip Offline Task Updates",
+        "description": "Reconcile mobile-local queued task mutations after connectivity returns.",
+        "operationId": "sync_trip_offline_task_updates_trips__trip_id__offline_task_updates_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineTaskUpdateSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineTaskUpdateSyncResponse"
                 }
               }
             }
@@ -4110,6 +4674,186 @@
         }
       }
     },
+    "/trips/provider-connectors": {
+      "get": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "List Provider Connectors",
+        "description": "Return V3 provider connector registry information.",
+        "operationId": "list_provider_connectors_trips_provider_connectors_get",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "navigation",
+                    "calendar",
+                    "weather",
+                    "local_transport",
+                    "document_import",
+                    "activity_ticket",
+                    "flight",
+                    "hotel",
+                    "entry_requirements",
+                    "safety_risk",
+                    "web_evidence",
+                    "automation"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Domain"
+            }
+          },
+          {
+            "name": "capability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Capability"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "name": "preferred_provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preferred Provider Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConnectorListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/trips/{trip_id}": {
       "get": {
         "tags": [
@@ -4813,6 +5557,142 @@
         }
       }
     },
+    "/trips/{trip_id}/provider-actions/{action_id}/mobile-sheet": {
+      "get": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Get Trip Provider Action Mobile Sheet",
+        "description": "Return Expo-ready provider action bottom-sheet data.",
+        "operationId": "get_trip_provider_action_mobile_sheet_trips__trip_id__provider_actions__action_id__mobile_sheet_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Action Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobileProviderActionSheetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/trips/{trip_id}/provider-actions/{action_id}/launch": {
       "post": {
         "tags": [
@@ -4933,6 +5813,247 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TripResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trips/{trip_id}/provider-actions/{action_id}/follow-up": {
+      "post": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Follow Up Trip Provider Action",
+        "description": "Record user follow-up after returning from a provider handoff.",
+        "operationId": "follow_up_trip_provider_action_trips__trip_id__provider_actions__action_id__follow_up_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Action Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TripProviderActionFollowUpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trips/{trip_id}/provider-recovery": {
+      "get": {
+        "tags": [
+          "trip-command-center"
+        ],
+        "summary": "Get Trip Provider Recovery",
+        "description": "Return support-safe provider launch and recovery state.",
+        "operationId": "get_trip_provider_recovery_trips__trip_id__provider_recovery_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRecoveryStateResponse"
                 }
               }
             }
@@ -7292,6 +8413,202 @@
         }
       }
     },
+    "/support/users/{target_user_id}/provider-actions/debug": {
+      "get": {
+        "tags": [
+          "support-admin"
+        ],
+        "summary": "Get Support Provider Action Debug",
+        "description": "Return sanitized provider action diagnostics for support/admin users.",
+        "operationId": "get_support_provider_action_debug_support_users__target_user_id__provider_actions_debug_get",
+        "parameters": [
+          {
+            "name": "target_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target User Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "action_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider Id"
+            }
+          },
+          {
+            "name": "failure_reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Failure Reason"
+            }
+          },
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportProviderActionDebugResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/support/jobs/{job_id}/recovery-bundle": {
       "get": {
         "tags": [
@@ -7833,6 +9150,108 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RolloutReadinessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rollout/v3/provider-readiness": {
+      "get": {
+        "tags": [
+          "rollout"
+        ],
+        "summary": "Get V3 Provider Rollout Readiness",
+        "description": "Return V3 provider-integration rollout readiness and V4 bridge.",
+        "operationId": "get_v3_provider_rollout_readiness_rollout_v3_provider_readiness_get",
+        "parameters": [
+          {
+            "name": "X-Huaxia-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-User-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Tenant-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Huaxia-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Role"
+            }
+          },
+          {
+            "name": "X-Huaxia-Account-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "guest",
+                    "registered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Huaxia-Account-Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V3ProviderReadinessResponse"
                 }
               }
             }
@@ -8455,9 +9874,18 @@
               "task_skipped",
               "custom_task_added",
               "first_task_completed",
+              "provider_action_viewed",
+              "provider_action_validation_failed",
+              "provider_action_launch_attempted",
               "provider_action_launched",
+              "provider_action_fallback_used",
+              "provider_action_returned",
               "provider_action_succeeded",
               "provider_action_failed",
+              "provider_action_manual_completed",
+              "booking_reference_attached",
+              "reminder_deferred",
+              "support_recovery_used",
               "notification_permission_prompted",
               "notification_opted_in",
               "notification_opted_out",
@@ -8537,9 +9965,18 @@
               "task_skipped",
               "custom_task_added",
               "first_task_completed",
+              "provider_action_viewed",
+              "provider_action_validation_failed",
+              "provider_action_launch_attempted",
               "provider_action_launched",
+              "provider_action_fallback_used",
+              "provider_action_returned",
               "provider_action_succeeded",
               "provider_action_failed",
+              "provider_action_manual_completed",
+              "booking_reference_attached",
+              "reminder_deferred",
+              "support_recovery_used",
               "notification_permission_prompted",
               "notification_opted_in",
               "notification_opted_out",
@@ -8685,6 +10122,20 @@
             },
             "type": "object",
             "title": "Source Counts"
+          },
+          "provider_action_funnel": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderActionFunnelBreakdown"
+            },
+            "type": "array",
+            "title": "Provider Action Funnel"
+          },
+          "provider_action_totals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Provider Action Totals"
           },
           "approved_trip_count": {
             "type": "integer",
@@ -9052,6 +10503,53 @@
               }
             ],
             "title": "Duplicate Key"
+          },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "expo_calendar"
+          },
+          "target_options": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "device_calendar",
+                "ics"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Target Options"
+          },
+          "fallback_target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "device_calendar",
+                  "ics"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Target",
+            "default": "ics"
+          },
+          "requires_device_permission": {
+            "type": "boolean",
+            "title": "Requires Device Permission",
+            "default": true
+          },
+          "reminder_offsets_minutes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Reminder Offsets Minutes"
           }
         },
         "type": "object",
@@ -9075,6 +10573,49 @@
             },
             "type": "array",
             "title": "Events"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id",
+            "default": "expo_calendar"
+          },
+          "target_options": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "device_calendar",
+                "ics"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Target Options"
+          },
+          "fallback_target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "device_calendar",
+                  "ics"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Target",
+            "default": "ics"
+          },
+          "requires_user_confirmation": {
+            "type": "boolean",
+            "title": "Requires User Confirmation",
+            "default": true
+          },
+          "requires_device_permission": {
+            "type": "boolean",
+            "title": "Requires Device Permission",
+            "default": true
           }
         },
         "type": "object",
@@ -9084,6 +10625,68 @@
         ],
         "title": "CalendarEventPreviewResponse",
         "description": "Calendar preview response."
+      },
+      "CalendarExportContext": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "expo_calendar"
+          },
+          "target_options": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "device_calendar",
+                "ics"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Target Options"
+          },
+          "fallback_target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "device_calendar",
+                  "ics"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Target",
+            "default": "ics"
+          },
+          "requires_user_confirmation": {
+            "type": "boolean",
+            "title": "Requires User Confirmation",
+            "default": true
+          },
+          "requires_device_permission": {
+            "type": "boolean",
+            "title": "Requires Device Permission",
+            "default": true
+          },
+          "duplicate_detection_enabled": {
+            "type": "boolean",
+            "title": "Duplicate Detection Enabled",
+            "default": true
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Timezone",
+            "default": "local"
+          }
+        },
+        "type": "object",
+        "title": "CalendarExportContext",
+        "description": "Provider-aware calendar export context for explicit user confirmation."
       },
       "CalendarExportRequest": {
         "properties": {
@@ -9110,6 +10713,18 @@
             "maxLength": 80,
             "title": "Timezone",
             "default": "local"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
           },
           "client_event_id": {
             "anyOf": [
@@ -9158,6 +10773,31 @@
             },
             "type": "array",
             "title": "Events"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id",
+            "default": "ics_file"
+          },
+          "fallback_target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "device_calendar",
+                  "ics"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Target"
+          },
+          "requires_device_permission": {
+            "type": "boolean",
+            "title": "Requires Device Permission",
+            "default": false
           },
           "ics_content": {
             "anyOf": [
@@ -9310,6 +10950,64 @@
           "activities"
         ],
         "title": "DailyPlan"
+      },
+      "DocumentImportContext": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "local_document_parser"
+          },
+          "fallback_provider_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Fallback Provider Ids"
+          },
+          "accepted_categories": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "flight_train",
+                "hotel",
+                "ticket",
+                "id_passport",
+                "insurance",
+                "visa",
+                "custom"
+              ]
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Accepted Categories"
+          },
+          "metadata_only_default": {
+            "type": "boolean",
+            "title": "Metadata Only Default",
+            "default": true
+          },
+          "prompt_excluded_by_default": {
+            "type": "boolean",
+            "title": "Prompt Excluded By Default",
+            "default": true
+          },
+          "manual_confirmation_required": {
+            "type": "boolean",
+            "title": "Manual Confirmation Required",
+            "default": true
+          },
+          "raw_content_storage_allowed": {
+            "type": "boolean",
+            "title": "Raw Content Storage Allowed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "DocumentImportContext",
+        "description": "Provider-action context for metadata-only document import."
       },
       "EngagementBatch": {
         "properties": {
@@ -9555,6 +11253,139 @@
         "title": "EntitlementCheckResponse",
         "description": "Result of checking a V2 feature entitlement."
       },
+      "FlightSearchContext": {
+        "properties": {
+          "origin_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin City"
+          },
+          "destination_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination City"
+          },
+          "departure_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departure Date"
+          },
+          "return_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Date"
+          },
+          "travelers": {
+            "type": "integer",
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Travelers",
+            "default": 1
+          },
+          "preferred_airline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Airline"
+          },
+          "preferred_provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Preferred Provider Id",
+            "default": "skyscanner"
+          },
+          "api_provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Api Provider Id",
+            "default": "amadeus"
+          },
+          "flexible_dates": {
+            "type": "boolean",
+            "title": "Flexible Dates",
+            "default": false
+          },
+          "search_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Url"
+          },
+          "fallback_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Url"
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_review",
+              "unavailable"
+            ],
+            "title": "Validation Status",
+            "default": "needs_review"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Missing Fields"
+          }
+        },
+        "type": "object",
+        "title": "FlightSearchContext",
+        "description": "Prepared flight search handoff context without in-app ticketing."
+      },
       "FreshWebEvidence": {
         "properties": {
           "provider": {
@@ -9727,6 +11558,142 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HotelSearchContext": {
+        "properties": {
+          "destination_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination City"
+          },
+          "recommended_area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LodgingAreaRecommendation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "check_in_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Date"
+          },
+          "check_out_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Out Date"
+          },
+          "guest_count": {
+            "type": "integer",
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Guest Count",
+            "default": 1
+          },
+          "room_count": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Room Count",
+            "default": 1
+          },
+          "budget_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "budget",
+                  "mid_range",
+                  "luxury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Level"
+          },
+          "preferred_provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Preferred Provider Id",
+            "default": "booking_com"
+          },
+          "search_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Url"
+          },
+          "fallback_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Url"
+          },
+          "availability_confirmed": {
+            "type": "boolean",
+            "title": "Availability Confirmed",
+            "default": false
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_review",
+              "unavailable"
+            ],
+            "title": "Validation Status",
+            "default": "needs_review"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Missing Fields"
+          }
+        },
+        "type": "object",
+        "title": "HotelSearchContext",
+        "description": "Prepared hotel search handoff context without availability claims."
+      },
       "KPIMetricDefinition": {
         "properties": {
           "metric_key": {
@@ -9757,9 +11724,18 @@
               "task_skipped",
               "custom_task_added",
               "first_task_completed",
+              "provider_action_viewed",
+              "provider_action_validation_failed",
+              "provider_action_launch_attempted",
               "provider_action_launched",
+              "provider_action_fallback_used",
+              "provider_action_returned",
               "provider_action_succeeded",
               "provider_action_failed",
+              "provider_action_manual_completed",
+              "booking_reference_attached",
+              "reminder_deferred",
+              "support_recovery_used",
               "notification_permission_prompted",
               "notification_opted_in",
               "notification_opted_out",
@@ -9822,6 +11798,154 @@
         "title": "KPITreeResponse",
         "description": "V2 market success KPI tree."
       },
+      "LocalTransportPlanResponse": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "route_bundle_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Bundle Id"
+          },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "manual_taxi"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "route_region": {
+            "type": "string",
+            "enum": [
+              "china",
+              "international",
+              "unknown"
+            ],
+            "title": "Route Region",
+            "default": "unknown"
+          },
+          "primary_option": {
+            "$ref": "#/components/schemas/TransportModeOption"
+          },
+          "alternative_options": {
+            "items": {
+              "$ref": "#/components/schemas/TransportModeOption"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Alternative Options"
+          },
+          "weather_alert_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Weather Alert Ids"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Assumptions"
+          },
+          "manual_completion_allowed": {
+            "type": "boolean",
+            "title": "Manual Completion Allowed",
+            "default": true
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "primary_option"
+        ],
+        "title": "LocalTransportPlanResponse",
+        "description": "Mode-aware local transport handoff plan."
+      },
+      "LodgingAreaRecommendation": {
+        "properties": {
+          "area_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Area Name"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Rationale",
+            "default": ""
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "workflow",
+              "provider"
+            ],
+            "title": "Source",
+            "default": "workflow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "area_name"
+        ],
+        "title": "LodgingAreaRecommendation",
+        "description": "Recommended stay area for hotel handoff and review."
+      },
       "MobileBetaFeatureConfigResponse": {
         "properties": {
           "version": {
@@ -9877,6 +12001,994 @@
         "title": "MobileBetaFeatureConfigResponse",
         "description": "Mobile client feature surfaces enabled for V2 beta."
       },
+      "MobileProviderActionSheetContextRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "warning",
+              "missing"
+            ],
+            "title": "Status",
+            "default": "normal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "value"
+        ],
+        "title": "MobileProviderActionSheetContextRow",
+        "description": "Compact context row for the Expo provider action bottom sheet."
+      },
+      "MobileProviderActionSheetOption": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Option Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "launch_channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "browser",
+                  "in_app_browser",
+                  "fallback_browser",
+                  "copy_only",
+                  "manual_instruction",
+                  "manual_done",
+                  "remind_later"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Channel"
+          },
+          "launch_surface": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "native_app",
+                  "external_browser",
+                  "in_app_browser",
+                  "copy_only",
+                  "manual_instruction"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Surface"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "Disabled",
+            "default": false
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option_id",
+          "label"
+        ],
+        "title": "MobileProviderActionSheetOption",
+        "description": "One launch or recovery option rendered in the mobile bottom sheet."
+      },
+      "MobileProviderActionSheetResponse": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "action_id": {
+            "type": "string",
+            "title": "Action Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Explanation"
+          },
+          "recommended_provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Recommended Provider Id"
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_fallback",
+              "unavailable"
+            ],
+            "title": "Validation Status"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "requires_correction": {
+            "type": "boolean",
+            "title": "Requires Correction",
+            "default": false
+          },
+          "correction_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Prompt"
+          },
+          "latest_audit_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Audit Event Id"
+          },
+          "context_rows": {
+            "items": {
+              "$ref": "#/components/schemas/MobileProviderActionSheetContextRow"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "title": "Context Rows"
+          },
+          "primary_action": {
+            "$ref": "#/components/schemas/MobileProviderActionSheetOption"
+          },
+          "alternative_actions": {
+            "items": {
+              "$ref": "#/components/schemas/MobileProviderActionSheetOption"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Alternative Actions"
+          },
+          "recovery_actions": {
+            "items": {
+              "$ref": "#/components/schemas/MobileProviderActionSheetOption"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Recovery Actions"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "action_id",
+          "title",
+          "explanation",
+          "recommended_provider_id",
+          "validation_status",
+          "available",
+          "primary_action"
+        ],
+        "title": "MobileProviderActionSheetResponse",
+        "description": "Mobile-ready provider action sheet payload."
+      },
+      "NavigationPreview": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "route_bundle_id": {
+            "type": "string",
+            "title": "Route Bundle Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "origin": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Destination"
+          },
+          "waypoints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Waypoints"
+          },
+          "travel_mode": {
+            "type": "string",
+            "enum": [
+              "walking",
+              "driving",
+              "transit",
+              "mixed"
+            ],
+            "title": "Travel Mode",
+            "default": "driving"
+          },
+          "planned_departure_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Departure Time"
+          },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Id"
+          },
+          "provider_display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Provider Display Name"
+          },
+          "route_summary": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Route Summary"
+          },
+          "estimated_distance_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Distance Text"
+          },
+          "estimated_duration_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Duration Text"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Confidence",
+            "default": "medium"
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_review",
+              "unavailable"
+            ],
+            "title": "Validation Status",
+            "default": "ready"
+          },
+          "provider_selection_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Selection Reason"
+          },
+          "launch_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Url"
+          },
+          "deep_link_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link Url"
+          },
+          "fallback_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Url"
+          },
+          "requires_correction": {
+            "type": "boolean",
+            "title": "Requires Correction",
+            "default": false
+          },
+          "correction_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Prompt"
+          },
+          "primary_action": {
+            "$ref": "#/components/schemas/NavigationPreviewAction"
+          },
+          "browser_fallback_action": {
+            "$ref": "#/components/schemas/NavigationPreviewAction"
+          },
+          "copy_destination_action": {
+            "$ref": "#/components/schemas/NavigationPreviewAction"
+          },
+          "manual_completion_action": {
+            "$ref": "#/components/schemas/NavigationPreviewAction"
+          },
+          "remind_later_action": {
+            "$ref": "#/components/schemas/NavigationPreviewAction"
+          },
+          "manual_search_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NavigationPreviewAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "route_bundle_id",
+          "origin",
+          "destination",
+          "provider_id",
+          "provider_display_name",
+          "route_summary",
+          "primary_action",
+          "browser_fallback_action",
+          "copy_destination_action",
+          "manual_completion_action",
+          "remind_later_action"
+        ],
+        "title": "NavigationPreview",
+        "description": "Mobile-ready route preview before external navigation handoff."
+      },
+      "NavigationPreviewAction": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "launch_channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "browser",
+                  "in_app_browser",
+                  "fallback_browser",
+                  "copy_only",
+                  "manual_instruction",
+                  "manual_done",
+                  "remind_later"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Channel"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "NavigationPreviewAction",
+        "description": "One mobile action shown in the navigation preview bottom sheet."
+      },
+      "NavigationPreviewListResponse": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/NavigationPreview"
+            },
+            "type": "array",
+            "title": "Previews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "previews"
+        ],
+        "title": "NavigationPreviewListResponse",
+        "description": "Navigation previews for route handoff bottom sheets."
+      },
+      "OfficialAttractionLink": {
+        "properties": {
+          "attraction_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Attraction Name"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Url"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "rag_evidence",
+              "provider"
+            ],
+            "title": "Source",
+            "default": "user"
+          },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "official_attraction"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "requires_mobile_app": {
+            "type": "boolean",
+            "title": "Requires Mobile App",
+            "default": false
+          },
+          "time_slot_required": {
+            "type": "boolean",
+            "title": "Time Slot Required",
+            "default": false
+          },
+          "identity_document_required": {
+            "type": "boolean",
+            "title": "Identity Document Required",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "attraction_name",
+          "url"
+        ],
+        "title": "OfficialAttractionLink",
+        "description": "Known official or high-confidence attraction ticket link."
+      },
+      "OfflineProviderCacheEntry": {
+        "properties": {
+          "cache_id": {
+            "type": "string",
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Cache Id"
+          },
+          "entry_type": {
+            "type": "string",
+            "enum": [
+              "route_summary",
+              "provider_action",
+              "weather_snapshot",
+              "safety_card",
+              "calendar_event",
+              "booking_reference",
+              "document_metadata"
+            ],
+            "title": "Entry Type"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 1200,
+            "title": "Summary",
+            "default": ""
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "action_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Id"
+          },
+          "route_bundle_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Bundle Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "booking_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Id"
+          },
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Task Ids"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "requires_network": {
+            "type": "boolean",
+            "title": "Requires Network",
+            "default": false
+          },
+          "available_offline": {
+            "type": "boolean",
+            "title": "Available Offline",
+            "default": true
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "sensitive": {
+            "type": "boolean",
+            "title": "Sensitive",
+            "default": false
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cache_id",
+          "entry_type",
+          "title"
+        ],
+        "title": "OfflineProviderCacheEntry",
+        "description": "One provider-context item safe for mobile offline storage."
+      },
+      "OfflineQueuedMutationResult": {
+        "properties": {
+          "mutation_id": {
+            "type": "string",
+            "title": "Mutation Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "conflict",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mutation_id",
+          "task_id",
+          "status"
+        ],
+        "title": "OfflineQueuedMutationResult",
+        "description": "Per-mutation reconciliation result."
+      },
+      "OfflineQueuedTaskMutation": {
+        "properties": {
+          "mutation_id": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Mutation Id"
+          },
+          "task_id": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Task Id"
+          },
+          "patch": {
+            "$ref": "#/components/schemas/TripTaskPatchRequest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mutation_id",
+          "task_id",
+          "patch"
+        ],
+        "title": "OfflineQueuedTaskMutation",
+        "description": "One locally queued task mutation submitted for reconciliation."
+      },
+      "OfflineTaskUpdateSyncRequest": {
+        "properties": {
+          "mutations": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineQueuedTaskMutation"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Mutations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mutations"
+        ],
+        "title": "OfflineTaskUpdateSyncRequest",
+        "description": "Batch of mobile-local queued task mutations."
+      },
+      "OfflineTaskUpdateSyncResponse": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "sync_token": {
+            "type": "string",
+            "title": "Sync Token"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineQueuedMutationResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "applied_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Applied Count"
+          },
+          "conflict_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Conflict Count"
+          },
+          "failed_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Failed Count"
+          },
+          "trip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trip"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "sync_token",
+          "results",
+          "applied_count",
+          "conflict_count",
+          "failed_count"
+        ],
+        "title": "OfflineTaskUpdateSyncResponse",
+        "description": "Result of reconciling queued offline task mutations."
+      },
       "OfflineTripSnapshotResponse": {
         "properties": {
           "trip": {
@@ -9898,6 +13010,29 @@
           },
           "safety_card": {
             "$ref": "#/components/schemas/SafetyCardResponse"
+          },
+          "provider_cache_entries": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineProviderCacheEntry"
+            },
+            "type": "array",
+            "title": "Provider Cache Entries"
+          },
+          "stale_banners": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Stale Banners"
+          },
+          "sensitive_document_ids_excluded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Sensitive Document Ids Excluded"
           },
           "cache_key": {
             "type": "string",
@@ -9929,6 +13064,7 @@
                 "read_documents",
                 "read_safety_card",
                 "read_provider_actions",
+                "read_provider_cache",
                 "queue_task_status"
               ]
             },
@@ -10122,6 +13258,84 @@
         "type": "object",
         "title": "OnboardingUpdateRequest",
         "description": "Patch mobile onboarding state without requiring platform permissions."
+      },
+      "ParsedBookingMetadata": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "local_document_parser"
+          },
+          "parse_status": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "metadata_only",
+              "needs_review",
+              "confirmed",
+              "failed"
+            ],
+            "title": "Parse Status",
+            "default": "metadata_only"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "unknown"
+            ],
+            "title": "Confidence",
+            "default": "unknown"
+          },
+          "metadata_only": {
+            "type": "boolean",
+            "title": "Metadata Only",
+            "default": true
+          },
+          "prompt_excluded": {
+            "type": "boolean",
+            "title": "Prompt Excluded",
+            "default": true
+          },
+          "extracted_fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Extracted Fields"
+          },
+          "redacted_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Redacted Fields"
+          },
+          "parser_notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parser Notes"
+          },
+          "reviewed_by_user": {
+            "type": "boolean",
+            "title": "Reviewed By User",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ParsedBookingMetadata",
+        "description": "Metadata extracted from an imported booking/document asset after user review."
       },
       "PaywallConfigResponse": {
         "properties": {
@@ -10541,6 +13755,707 @@
         "title": "ProductPositioning",
         "description": "Consumer-facing V2 positioning copy."
       },
+      "ProviderActionAuditEvent": {
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "trip_created",
+              "draft_updated",
+              "trip_status_changed",
+              "trip_ownership_transferred",
+              "task_added",
+              "task_updated",
+              "provider_action_launched",
+              "provider_action_failed",
+              "provider_action_recovered",
+              "calendar_exported",
+              "document_added",
+              "document_updated",
+              "document_removed",
+              "booking_added",
+              "booking_updated",
+              "booking_removed"
+            ],
+            "title": "Event Type"
+          },
+          "action_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Id"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "launch_channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "browser",
+                  "in_app_browser",
+                  "fallback_browser",
+                  "copy_only",
+                  "manual_instruction",
+                  "manual_done",
+                  "remind_later"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Channel"
+          },
+          "validation_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "needs_fallback",
+                  "unavailable"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Status"
+          },
+          "fallback_used": {
+            "type": "boolean",
+            "title": "Fallback Used",
+            "default": false
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url"
+          },
+          "follow_up_outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "failed",
+                  "try_another",
+                  "remind_later",
+                  "attach_confirmation"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Outcome"
+          },
+          "recovery_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "needs_follow_up",
+                  "retry_available",
+                  "completed",
+                  "remind_later"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Status"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "client_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type",
+          "created_at"
+        ],
+        "title": "ProviderActionAuditEvent",
+        "description": "Support-safe provider launch/follow-up audit event."
+      },
+      "ProviderActionFunnelBreakdown": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Id"
+          },
+          "domain": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Domain"
+          },
+          "region": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Region"
+          },
+          "task_type": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Task Type"
+          },
+          "viewed_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Viewed Count",
+            "default": 0
+          },
+          "validation_failed_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Validation Failed Count",
+            "default": 0
+          },
+          "launch_attempted_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Launch Attempted Count",
+            "default": 0
+          },
+          "launched_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Launched Count",
+            "default": 0
+          },
+          "fallback_used_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Fallback Used Count",
+            "default": 0
+          },
+          "returned_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Returned Count",
+            "default": 0
+          },
+          "succeeded_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Succeeded Count",
+            "default": 0
+          },
+          "failed_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Failed Count",
+            "default": 0
+          },
+          "manual_completed_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Manual Completed Count",
+            "default": 0
+          },
+          "booking_reference_attached_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Booking Reference Attached Count",
+            "default": 0
+          },
+          "reminder_deferred_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Reminder Deferred Count",
+            "default": 0
+          },
+          "support_recovery_used_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Support Recovery Used Count",
+            "default": 0
+          },
+          "offline_event_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Offline Event Count",
+            "default": 0
+          },
+          "failure_reasons": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Failure Reasons"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_id",
+          "domain",
+          "region",
+          "task_type"
+        ],
+        "title": "ProviderActionFunnelBreakdown",
+        "description": "Provider action quality summary for V3 provider decisions."
+      },
+      "ProviderConnector": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Id"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "navigation",
+              "calendar",
+              "weather",
+              "local_transport",
+              "document_import",
+              "activity_ticket",
+              "flight",
+              "hotel",
+              "entry_requirements",
+              "safety_risk",
+              "web_evidence",
+              "automation"
+            ],
+            "title": "Domain"
+          },
+          "region_scope": {
+            "type": "string",
+            "enum": [
+              "global",
+              "china",
+              "international",
+              "device"
+            ],
+            "title": "Region Scope",
+            "default": "global"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Capabilities"
+          },
+          "auth_type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "api_key",
+              "oauth",
+              "partner",
+              "mcp",
+              "device_permission"
+            ],
+            "title": "Auth Type",
+            "default": "none"
+          },
+          "launch_modes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "native_app",
+                "external_browser",
+                "in_app_browser",
+                "api",
+                "mcp",
+                "copy"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Launch Modes"
+          },
+          "health_status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "disabled"
+            ],
+            "title": "Health Status",
+            "default": "healthy"
+          },
+          "fallback_provider_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Fallback Provider Ids"
+          },
+          "requires_user_account": {
+            "type": "boolean",
+            "title": "Requires User Account",
+            "default": false
+          },
+          "data_sensitivity": {
+            "type": "string",
+            "enum": [
+              "public",
+              "personal",
+              "sensitive"
+            ],
+            "title": "Data Sensitivity",
+            "default": "public"
+          },
+          "docs_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docs Url"
+          },
+          "display_priority": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Display Priority",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_id",
+          "display_name",
+          "domain"
+        ],
+        "title": "ProviderConnector",
+        "description": "One configured provider and its execution capabilities."
+      },
+      "ProviderConnectorListResponse": {
+        "properties": {
+          "connectors": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderConnector"
+            },
+            "type": "array",
+            "title": "Connectors"
+          },
+          "selected_provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Provider Id"
+          },
+          "fallback_provider_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fallback Provider Ids"
+          },
+          "selection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection Reason"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connectors"
+        ],
+        "title": "ProviderConnectorListResponse",
+        "description": "Public read-only provider registry response."
+      },
+      "ProviderRecoveryState": {
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "title": "Action Id"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "recovery_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "needs_follow_up",
+              "retry_available",
+              "completed",
+              "remind_later"
+            ],
+            "title": "Recovery Status"
+          },
+          "last_launch_result": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "launched",
+                  "failed",
+                  "completed",
+                  "manual_completed",
+                  "remind_later",
+                  "returned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Launch Result"
+          },
+          "last_launch_channel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "browser",
+                  "in_app_browser",
+                  "fallback_browser",
+                  "copy_only",
+                  "manual_instruction",
+                  "manual_done",
+                  "remind_later"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Launch Channel"
+          },
+          "last_launch_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Launch At"
+          },
+          "handled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handled At"
+          },
+          "remind_later_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Later At"
+          },
+          "follow_up_prompt_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Prompt At"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_fallback",
+              "unavailable"
+            ],
+            "title": "Validation Status"
+          },
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Task Ids"
+          },
+          "recovery_options": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "failed",
+                "try_another",
+                "remind_later",
+                "attach_confirmation"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Recovery Options"
+          },
+          "audit_events": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderActionAuditEvent"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Audit Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "provider_id",
+          "label",
+          "recovery_status",
+          "validation_status"
+        ],
+        "title": "ProviderRecoveryState",
+        "description": "Current recovery state for one provider action."
+      },
+      "ProviderRecoveryStateResponse": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRecoveryState"
+            },
+            "type": "array",
+            "title": "States"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id"
+        ],
+        "title": "ProviderRecoveryStateResponse",
+        "description": "Support-safe provider action recovery state list."
+      },
       "QuickReplyOption": {
         "properties": {
           "label": {
@@ -10584,6 +14499,88 @@
         ],
         "title": "QuickReplyOption",
         "description": "A typed UI quick reply for pending multi-hop checkpoints."
+      },
+      "RiskAdvisorySnapshot": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "riskline"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Display Name",
+            "default": "Riskline"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "needs_provider_fetch",
+              "ready",
+              "stale",
+              "not_configured"
+            ],
+            "title": "Status",
+            "default": "needs_provider_fetch"
+          },
+          "risk_level": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Risk Level",
+            "default": "unknown"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Summary",
+            "default": ""
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url",
+            "default": "https://riskline.com/"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": true
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "title": "RiskAdvisorySnapshot",
+        "description": "Provider-backed destination risk placeholder without live disruption claims."
       },
       "RolloutFlagPatchRequest": {
         "properties": {
@@ -10813,9 +14810,18 @@
                 "task_skipped",
                 "custom_task_added",
                 "first_task_completed",
+                "provider_action_viewed",
+                "provider_action_validation_failed",
+                "provider_action_launch_attempted",
                 "provider_action_launched",
+                "provider_action_fallback_used",
+                "provider_action_returned",
                 "provider_action_succeeded",
                 "provider_action_failed",
+                "provider_action_manual_completed",
+                "booking_reference_attached",
+                "reminder_deferred",
+                "support_recovery_used",
                 "notification_permission_prompted",
                 "notification_opted_in",
                 "notification_opted_out",
@@ -10872,6 +14878,32 @@
             "type": "string",
             "title": "Route Id"
           },
+          "route_bundle_id": {
+            "type": "string",
+            "title": "Route Bundle Id"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
           "label": {
             "type": "string",
             "maxLength": 160,
@@ -10887,6 +14919,17 @@
               "mixed"
             ],
             "title": "Mode",
+            "default": "driving"
+          },
+          "travel_mode": {
+            "type": "string",
+            "enum": [
+              "walking",
+              "driving",
+              "transit",
+              "mixed"
+            ],
+            "title": "Travel Mode",
             "default": "driving"
           },
           "origin": {
@@ -10909,6 +14952,14 @@
             "maxItems": 12,
             "title": "Waypoints"
           },
+          "coordinates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Coordinates"
+          },
           "planned_at": {
             "anyOf": [
               {
@@ -10921,15 +14972,134 @@
             ],
             "title": "Planned At"
           },
+          "planned_departure_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Departure Time"
+          },
           "primary_provider": {
             "type": "string",
             "enum": [
+              "amap",
               "google_maps",
               "apple_maps",
               "mapbox"
             ],
             "title": "Primary Provider",
             "default": "google_maps"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id",
+            "default": "google_maps"
+          },
+          "route_region": {
+            "type": "string",
+            "enum": [
+              "china",
+              "international",
+              "unknown"
+            ],
+            "title": "Route Region",
+            "default": "unknown"
+          },
+          "device_platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "ios",
+              "android",
+              "unknown"
+            ],
+            "title": "Device Platform",
+            "default": "web"
+          },
+          "available_provider_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Available Provider Ids"
+          },
+          "preview_provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Provider Id"
+          },
+          "provider_selection_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Selection Reason"
+          },
+          "estimated_distance_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Distance Text"
+          },
+          "estimated_duration_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Duration Text"
+          },
+          "launch_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Url"
+          },
+          "deep_link_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link Url"
           },
           "fallback_url": {
             "anyOf": [
@@ -10960,6 +15130,26 @@
             "title": "Confidence",
             "default": "medium"
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "provider",
+              "user"
+            ],
+            "title": "Source",
+            "default": "workflow"
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_review",
+              "unavailable"
+            ],
+            "title": "Validation Status",
+            "default": "ready"
+          },
           "handoff_ready": {
             "type": "boolean",
             "title": "Handoff Ready",
@@ -10989,6 +15179,7 @@
         "type": "object",
         "required": [
           "route_id",
+          "route_bundle_id",
           "label",
           "origin",
           "destination"
@@ -11222,6 +15413,27 @@
               }
             ]
           },
+          "entry_requirements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SafetyEntryRequirementsReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_advisory": {
+            "$ref": "#/components/schemas/RiskAdvisorySnapshot"
+          },
+          "provider_sources": {
+            "items": {
+              "$ref": "#/components/schemas/SafetyProviderReference"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Provider Sources"
+          },
           "insurance_references": {
             "items": {
               "type": "string"
@@ -11274,6 +15486,18 @@
             "minLength": 1,
             "title": "Label"
           },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "google_search"
+          },
+          "provider_display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Provider Display Name",
+            "default": "Google Search"
+          },
           "note": {
             "type": "string",
             "maxLength": 800,
@@ -11284,6 +15508,11 @@
             "type": "string",
             "maxLength": 2000,
             "title": "Search Url"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": true
           }
         },
         "type": "object",
@@ -11340,11 +15569,40 @@
             ],
             "title": "Url"
           },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "provider_display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Display Name"
+          },
           "note": {
             "type": "string",
             "maxLength": 500,
             "title": "Note",
             "default": ""
+          },
+          "requires_network": {
+            "type": "boolean",
+            "title": "Requires Network",
+            "default": false
           },
           "available_offline": {
             "type": "boolean",
@@ -11399,6 +15657,136 @@
         ],
         "title": "SafetyEmergencyContact",
         "description": "Offline-safe emergency contact entry."
+      },
+      "SafetyEntryRequirementsReference": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "sherpa"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Display Name",
+            "default": "Sherpa Requirements API"
+          },
+          "source_url": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Source Url"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_applicable",
+              "needs_provider_fetch",
+              "ready"
+            ],
+            "title": "Status",
+            "default": "needs_provider_fetch"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": true
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 800,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_url"
+        ],
+        "title": "SafetyEntryRequirementsReference",
+        "description": "Entry requirement provider handoff for international trips."
+      },
+      "SafetyProviderReference": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Id"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "emergency_numbers",
+              "medical_search",
+              "embassy_search",
+              "entry_requirements",
+              "risk_advisory",
+              "insurance_reference"
+            ],
+            "title": "Domain"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "offline_available": {
+            "type": "boolean",
+            "title": "Offline Available",
+            "default": true
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_id",
+          "display_name",
+          "domain"
+        ],
+        "title": "SafetyProviderReference",
+        "description": "Source label for safety-card provider data."
       },
       "SalesHandoffRequest": {
         "properties": {
@@ -11835,7 +16223,8 @@
               "user_recovery_summary_viewed",
               "job_recovery_bundle_viewed",
               "job_retry_created",
-              "subscription_refreshed"
+              "subscription_refreshed",
+              "provider_action_debug_viewed"
             ],
             "title": "Action"
           },
@@ -11844,7 +16233,8 @@
             "enum": [
               "user",
               "job",
-              "subscription"
+              "subscription",
+              "provider_action"
             ],
             "title": "Resource Type"
           },
@@ -11987,6 +16377,248 @@
         "title": "SupportJobRecoveryResponse",
         "description": "Result of a support recovery action."
       },
+      "SupportProviderActionDebugRecord": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "action_id": {
+            "type": "string",
+            "title": "Action Id"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "task_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Task Ids"
+          },
+          "validation_status": {
+            "type": "string",
+            "title": "Validation Status"
+          },
+          "validation_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Validation Errors"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Fields"
+          },
+          "data_sensitivity": {
+            "type": "string",
+            "title": "Data Sensitivity"
+          },
+          "webview_policy": {
+            "type": "string",
+            "title": "Webview Policy"
+          },
+          "recovery_status": {
+            "type": "string",
+            "title": "Recovery Status"
+          },
+          "recovery_options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recovery Options"
+          },
+          "last_launch_channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Launch Channel"
+          },
+          "last_launch_result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Launch Result"
+          },
+          "last_target_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Target Url"
+          },
+          "target_url_redacted": {
+            "type": "boolean",
+            "title": "Target Url Redacted",
+            "default": false
+          },
+          "fallback_used": {
+            "type": "boolean",
+            "title": "Fallback Used",
+            "default": false
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "launched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launched At"
+          },
+          "handled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handled At"
+          },
+          "follow_up_prompt_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Prompt At"
+          },
+          "audit_events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Audit Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "action_id",
+          "provider_id",
+          "action_type",
+          "label",
+          "validation_status",
+          "data_sensitivity",
+          "webview_policy",
+          "recovery_status"
+        ],
+        "title": "SupportProviderActionDebugRecord",
+        "description": "Sanitized provider action diagnostic record for support/admin views."
+      },
+      "SupportProviderActionDebugResponse": {
+        "properties": {
+          "target_user_id": {
+            "type": "string",
+            "title": "Target User Id"
+          },
+          "filters": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Filters"
+          },
+          "record_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Record Count"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/SupportProviderActionDebugRecord"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "support_audit_event_id": {
+            "type": "string",
+            "title": "Support Audit Event Id"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_user_id",
+          "record_count",
+          "support_audit_event_id"
+        ],
+        "title": "SupportProviderActionDebugResponse",
+        "description": "Consent-gated provider action search/debug response."
+      },
       "SupportUserRecoverySummaryResponse": {
         "properties": {
           "target_user_id": {
@@ -12039,6 +16671,146 @@
         ],
         "title": "SupportUserRecoverySummaryResponse",
         "description": "Support-safe user recovery snapshot."
+      },
+      "TicketRequirement": {
+        "properties": {
+          "attraction_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attraction Name"
+          },
+          "destination_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination City"
+          },
+          "visit_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Date"
+          },
+          "visit_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Time"
+          },
+          "visitor_count": {
+            "type": "integer",
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Visitor Count",
+            "default": 1
+          },
+          "time_slot_required": {
+            "type": "boolean",
+            "title": "Time Slot Required",
+            "default": false
+          },
+          "identity_document_required": {
+            "type": "boolean",
+            "title": "Identity Document Required",
+            "default": false
+          },
+          "official_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfficialAttractionLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferred_provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Preferred Provider Id",
+            "default": "official_attraction"
+          },
+          "search_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Url"
+          },
+          "fallback_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Url"
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_review",
+              "unavailable"
+            ],
+            "title": "Validation Status",
+            "default": "needs_review"
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Missing Fields"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "exact_official_link",
+              "provider_search",
+              "destination_search"
+            ],
+            "title": "Confidence",
+            "default": "destination_search"
+          }
+        },
+        "type": "object",
+        "title": "TicketRequirement",
+        "description": "Prepared attraction ticket/reservation handoff context."
       },
       "TopicRecommendation": {
         "properties": {
@@ -12219,6 +16991,102 @@
         ],
         "title": "TourismCapabilitiesResponse",
         "description": "Public API capability description."
+      },
+      "TransportModeOption": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "taxi",
+              "transit",
+              "walking",
+              "cycling",
+              "rail",
+              "bus",
+              "rental_car",
+              "manual"
+            ],
+            "title": "Mode"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Reason",
+            "default": ""
+          },
+          "launch_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Url"
+          },
+          "fallback_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Url"
+          },
+          "copy_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Copy Text"
+          },
+          "estimated_effort": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "unknown"
+            ],
+            "title": "Estimated Effort",
+            "default": "unknown"
+          },
+          "handoff_ready": {
+            "type": "boolean",
+            "title": "Handoff Ready",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "label",
+          "provider_id"
+        ],
+        "title": "TransportModeOption",
+        "description": "One local movement option shown in mobile provider action sheets."
       },
       "TravelAnswer": {
         "properties": {
@@ -13323,6 +18191,8 @@
               "task_added",
               "task_updated",
               "provider_action_launched",
+              "provider_action_failed",
+              "provider_action_recovered",
               "calendar_exported",
               "document_added",
               "document_updated",
@@ -13414,6 +18284,28 @@
               }
             ],
             "title": "Provider"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "parser_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParsedBookingMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "starts_at": {
             "anyOf": [
@@ -13522,6 +18414,28 @@
               }
             ],
             "title": "Provider"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "parser_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParsedBookingMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "starts_at": {
             "anyOf": [
@@ -13633,6 +18547,28 @@
               }
             ],
             "title": "Provider"
+          },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "parser_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParsedBookingMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "starts_at": {
             "anyOf": [
@@ -13800,6 +18736,16 @@
             "title": "Prompt Excluded",
             "default": true
           },
+          "parser_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParsedBookingMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -13901,6 +18847,16 @@
             "type": "boolean",
             "title": "Sensitive",
             "default": true
+          },
+          "parser_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParsedBookingMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -14019,6 +18975,16 @@
               }
             ],
             "title": "Sensitive"
+          },
+          "parser_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParsedBookingMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -14039,6 +19005,18 @@
             "title": "Summary",
             "default": ""
           },
+          "origin_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin City"
+          },
           "destination": {
             "anyOf": [
               {
@@ -14050,6 +19028,18 @@
               }
             ],
             "title": "Destination"
+          },
+          "return_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return City"
           },
           "start_date": {
             "anyOf": [
@@ -14087,6 +19077,78 @@
               }
             ],
             "title": "Travelers"
+          },
+          "budget_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "budget",
+                  "mid_range",
+                  "luxury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Level"
+          },
+          "preferred_airline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Airline"
+          },
+          "lodging_area": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lodging Area"
+          },
+          "preferred_hotel_platform": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Hotel Platform"
+          },
+          "preferred_activity_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Activity Provider"
+          },
+          "official_attraction_links": {
+            "items": {
+              "$ref": "#/components/schemas/OfficialAttractionLink"
+            },
+            "type": "array",
+            "maxItems": 80,
+            "title": "Official Attraction Links"
           },
           "milestones": {
             "items": {
@@ -14698,6 +19760,18 @@
             ],
             "title": "Summary"
           },
+          "origin_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin City"
+          },
           "destination": {
             "anyOf": [
               {
@@ -14709,6 +19783,18 @@
               }
             ],
             "title": "Destination"
+          },
+          "return_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return City"
           },
           "start_date": {
             "anyOf": [
@@ -14746,6 +19832,85 @@
               }
             ],
             "title": "Travelers"
+          },
+          "budget_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "budget",
+                  "mid_range",
+                  "luxury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Level"
+          },
+          "preferred_airline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Airline"
+          },
+          "lodging_area": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lodging Area"
+          },
+          "preferred_hotel_platform": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Hotel Platform"
+          },
+          "preferred_activity_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Activity Provider"
+          },
+          "official_attraction_links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OfficialAttractionLink"
+                },
+                "type": "array",
+                "maxItems": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Attraction Links"
           },
           "warnings": {
             "anyOf": [
@@ -14933,6 +20098,222 @@
             "title": "Requires External Target",
             "default": true
           },
+          "required_context": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Required Context"
+          },
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Context"
+          },
+          "allowed_launch_channels": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "app",
+                "browser",
+                "in_app_browser",
+                "fallback_browser",
+                "copy_only",
+                "manual_instruction",
+                "manual_done",
+                "remind_later"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Allowed Launch Channels"
+          },
+          "data_sensitivity": {
+            "type": "string",
+            "enum": [
+              "public",
+              "personal",
+              "sensitive"
+            ],
+            "title": "Data Sensitivity",
+            "default": "public"
+          },
+          "webview_policy": {
+            "type": "string",
+            "enum": [
+              "allowed",
+              "external_only",
+              "blocked"
+            ],
+            "title": "Webview Policy",
+            "default": "external_only"
+          },
+          "webview_policy_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webview Policy Reason"
+          },
+          "route_bundle_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Bundle Id"
+          },
+          "route_origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Origin"
+          },
+          "route_destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Destination"
+          },
+          "route_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "walking",
+                  "driving",
+                  "transit",
+                  "mixed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Mode"
+          },
+          "route_confidence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Confidence"
+          },
+          "route_provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Provider Id"
+          },
+          "flight_search_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlightSearchContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hotel_search_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HotelSearchContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ticket_requirement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TicketRequirement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calendar_export_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarExportContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weather_snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeatherSnapshotResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "local_transport_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalTransportPlanResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_import_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentImportContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "available": {
             "type": "boolean",
             "title": "Available",
@@ -14959,6 +20340,14 @@
             ],
             "title": "Validation Status",
             "default": "ready"
+          },
+          "validation_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Validation Errors"
           },
           "launched_at": {
             "anyOf": [
@@ -15003,7 +20392,10 @@
                 "enum": [
                   "app",
                   "browser",
+                  "in_app_browser",
                   "fallback_browser",
+                  "copy_only",
+                  "manual_instruction",
                   "manual_done",
                   "remind_later"
                 ]
@@ -15025,6 +20417,61 @@
               }
             ],
             "title": "Last Target Url"
+          },
+          "last_launch_result": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "launched",
+                  "failed",
+                  "completed",
+                  "manual_completed",
+                  "remind_later",
+                  "returned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Launch Result"
+          },
+          "recovery_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "needs_follow_up",
+              "retry_available",
+              "completed",
+              "remind_later"
+            ],
+            "title": "Recovery Status",
+            "default": "none"
+          },
+          "follow_up_prompt_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Prompt At"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
           }
         },
         "type": "object",
@@ -15036,6 +20483,63 @@
         "title": "TripProviderAction",
         "description": "Typed provider handoff rendered by web and mobile clients."
       },
+      "TripProviderActionFollowUpRequest": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed",
+              "try_another",
+              "remind_later",
+              "attach_confirmation"
+            ],
+            "title": "Outcome"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "client_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Event Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome"
+        ],
+        "title": "TripProviderActionFollowUpRequest",
+        "description": "User follow-up after returning from a provider handoff."
+      },
       "TripProviderActionLaunchRequest": {
         "properties": {
           "launch_channel": {
@@ -15043,7 +20547,10 @@
             "enum": [
               "app",
               "browser",
+              "in_app_browser",
               "fallback_browser",
+              "copy_only",
+              "manual_instruction",
               "manual_done",
               "remind_later"
             ],
@@ -15782,6 +21289,7 @@
               {
                 "type": "string",
                 "enum": [
+                  "amap",
                   "google_maps",
                   "apple_maps",
                   "mapbox"
@@ -15922,6 +21430,7 @@
           "map_provider": {
             "type": "string",
             "enum": [
+              "amap",
               "google_maps",
               "apple_maps",
               "mapbox"
@@ -16021,6 +21530,200 @@
         "title": "UserPreferenceProfile",
         "description": "User defaults for provider actions and mobile execution."
       },
+      "V3ProviderReadinessResponse": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "v3_provider_integrations",
+            "title": "Version",
+            "default": "v3_provider_integrations"
+          },
+          "launch_mode": {
+            "type": "string",
+            "enum": [
+              "controlled_beta",
+              "closed_beta",
+              "full_launch",
+              "rollback"
+            ],
+            "title": "Launch Mode",
+            "default": "controlled_beta"
+          },
+          "safe_to_expand_provider_rollout": {
+            "type": "boolean",
+            "title": "Safe To Expand Provider Rollout"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/V3ProviderRolloutPhase"
+            },
+            "type": "array",
+            "title": "Phases"
+          },
+          "provider_metric_events": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Provider Metric Events"
+          },
+          "required_provider_metric_events": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "app_opened",
+                "app_opened_d1",
+                "app_opened_d7",
+                "onboarding_started",
+                "onboarding_completed",
+                "trip_intake_started",
+                "trip_intake_submitted",
+                "planning_job_created",
+                "planning_job_completed",
+                "planning_job_failed",
+                "trip_created",
+                "trip_draft_reviewed",
+                "trip_approved",
+                "task_completed",
+                "task_skipped",
+                "custom_task_added",
+                "first_task_completed",
+                "provider_action_viewed",
+                "provider_action_validation_failed",
+                "provider_action_launch_attempted",
+                "provider_action_launched",
+                "provider_action_fallback_used",
+                "provider_action_returned",
+                "provider_action_succeeded",
+                "provider_action_failed",
+                "provider_action_manual_completed",
+                "booking_reference_attached",
+                "reminder_deferred",
+                "support_recovery_used",
+                "notification_permission_prompted",
+                "notification_opted_in",
+                "notification_opted_out",
+                "reminder_opened",
+                "document_attached",
+                "calendar_exported",
+                "route_bundle_opened",
+                "paywall_viewed",
+                "subscription_started",
+                "subscription_cancelled",
+                "subscription_renewal_failed",
+                "churn_warning_detected",
+                "support_recovery_started",
+                "support_recovery_completed"
+              ]
+            },
+            "type": "object",
+            "title": "Required Provider Metric Events"
+          },
+          "scenario_tests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scenario Tests"
+          },
+          "v4_bridge": {
+            "$ref": "#/components/schemas/V4ReliabilityBridge"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "safe_to_expand_provider_rollout",
+          "v4_bridge"
+        ],
+        "title": "V3ProviderReadinessResponse",
+        "description": "Decision-oriented V3 provider rollout readiness snapshot."
+      },
+      "V3ProviderRolloutPhase": {
+        "properties": {
+          "phase_key": {
+            "type": "string",
+            "title": "Phase Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "monitoring",
+              "blocked"
+            ],
+            "title": "Status"
+          },
+          "provider_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Provider Domains"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "blocking_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocking Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "phase_key",
+          "title",
+          "status"
+        ],
+        "title": "V3ProviderRolloutPhase",
+        "description": "One V3 provider integration rollout phase."
+      },
+      "V4ReliabilityBridge": {
+        "properties": {
+          "focus": {
+            "type": "string",
+            "const": "scale_and_reliability",
+            "title": "Focus",
+            "default": "scale_and_reliability"
+          },
+          "next_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Capabilities"
+          },
+          "promotion_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Promotion Criteria"
+          }
+        },
+        "type": "object",
+        "title": "V4ReliabilityBridge",
+        "description": "Bridge from V3 provider handoff maturity to V4 reliability work."
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -16074,6 +21777,95 @@
         ],
         "title": "VoiceTranscriptionResponse",
         "description": "Text extracted from a browser-recorded audio clip."
+      },
+      "WeatherAlert": {
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "title": "Alert Id"
+          },
+          "alert_type": {
+            "type": "string",
+            "enum": [
+              "rain",
+              "heat",
+              "cold",
+              "snow",
+              "wind",
+              "altitude",
+              "storm",
+              "forecast_unavailable"
+            ],
+            "title": "Alert Type"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "watch",
+              "warning",
+              "severe"
+            ],
+            "title": "Severity",
+            "default": "watch"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "instruction": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Instruction"
+          },
+          "affected_day": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 90.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Affected Day"
+          },
+          "affected_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Affected City"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "trip_warning",
+              "workflow"
+            ],
+            "title": "Source",
+            "default": "workflow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alert_id",
+          "alert_type",
+          "title",
+          "instruction"
+        ],
+        "title": "WeatherAlert",
+        "description": "Operational weather alert used to adjust trip execution."
       },
       "WeatherImpact": {
         "properties": {
@@ -16154,6 +21946,238 @@
         ],
         "title": "WeatherImpact",
         "description": "Weather impact for a city/day from a typed service provider."
+      },
+      "WeatherProviderSource": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Provider Id",
+            "default": "weatherapi"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Display Name",
+            "default": "WeatherAPI.com"
+          },
+          "fallback_provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Provider Id",
+            "default": "openweather"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "type": "object",
+        "title": "WeatherProviderSource",
+        "description": "Weather provider source metadata for support and mobile display."
+      },
+      "WeatherSnapshotResponse": {
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "title": "Trip Id"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/WeatherProviderSource"
+          },
+          "fallback_provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Provider Id",
+            "default": "openweather"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs_provider_fetch",
+              "forecast_unavailable",
+              "provider_unavailable"
+            ],
+            "title": "Status",
+            "default": "needs_provider_fetch"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": true
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherAlert"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Alerts"
+          },
+          "task_impacts": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherTaskImpact"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Task Impacts"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trip_id",
+          "provider"
+        ],
+        "title": "WeatherSnapshotResponse",
+        "description": "Provider-aware weather snapshot and operational impact response."
+      },
+      "WeatherTaskImpact": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Task Id"
+          },
+          "impact_type": {
+            "type": "string",
+            "enum": [
+              "packing",
+              "route_timing",
+              "activity_safety",
+              "reminder"
+            ],
+            "title": "Impact Type"
+          },
+          "alert_type": {
+            "type": "string",
+            "enum": [
+              "rain",
+              "heat",
+              "cold",
+              "snow",
+              "wind",
+              "altitude",
+              "storm",
+              "forecast_unavailable"
+            ],
+            "title": "Alert Type"
+          },
+          "recommended_task_update": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Recommended Task Update"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "title": "Priority",
+            "default": "normal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "impact_type",
+          "alert_type",
+          "recommended_task_update"
+        ],
+        "title": "WeatherTaskImpact",
+        "description": "Weather-derived task adjustment recommendation."
       }
     }
   }

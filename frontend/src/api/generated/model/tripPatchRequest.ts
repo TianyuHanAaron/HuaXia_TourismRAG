@@ -4,6 +4,8 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { OfficialAttractionLink } from './officialAttractionLink';
+import type { TripPatchRequestBudgetLevel } from './tripPatchRequestBudgetLevel';
 
 /**
  * Patch editable trip draft fields.
@@ -11,9 +13,17 @@
 export interface TripPatchRequest {
   title?: string | null;
   summary?: string | null;
+  origin_city?: string | null;
   destination?: string | null;
+  return_city?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   travelers?: number | null;
+  budget_level?: TripPatchRequestBudgetLevel;
+  preferred_airline?: string | null;
+  lodging_area?: string | null;
+  preferred_hotel_platform?: string | null;
+  preferred_activity_provider?: string | null;
+  official_attraction_links?: OfficialAttractionLink[] | null;
   warnings?: string[] | null;
 }

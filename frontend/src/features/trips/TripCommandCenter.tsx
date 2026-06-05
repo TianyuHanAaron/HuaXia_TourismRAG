@@ -221,7 +221,7 @@ function TripCard({ trip, language }: { trip: Trip; language: 'zh-CN' | 'en' }) 
       onSuccess: () => queryClient.invalidateQueries({ queryKey: listKey }),
     },
   });
-  const calendarQuery = useGetTripCalendarEventsTripsTripIdCalendarEventsGet(trip.trip_id, {
+  const calendarQuery = useGetTripCalendarEventsTripsTripIdCalendarEventsGet(trip.trip_id, undefined, {
     query: { enabled: calendarEnabled },
   });
   const safetyQuery = useGetTripSafetyCardTripsTripIdSafetyCardGet(trip.trip_id);

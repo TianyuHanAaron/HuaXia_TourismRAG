@@ -75,17 +75,27 @@ from huaxia_tourismrag.schemas.market import (
     SupportJobRecoveryBundleResponse,
     SupportJobRecoveryRequest,
     SupportJobRecoveryResponse,
+    SupportProviderActionDebugRecord,
+    SupportProviderActionDebugResponse,
     SupportUserRecoverySummaryResponse,
     UserPreferencePatchRequest,
     UserPreferenceProfile,
+    V3ProviderReadinessResponse,
 )
+from huaxia_tourismrag.schemas.providers import ProviderConnectorListResponse, ProviderDomain
 from huaxia_tourismrag.schemas.sales import SalesHandoffRequest, SalesHandoffResponse
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.schemas.trips import (
     CalendarExportRequest,
     CalendarExportResponse,
     CalendarEventPreviewResponse,
+    LocalTransportPlanResponse,
+    MobileProviderActionSheetResponse,
+    OfflineTaskUpdateSyncRequest,
+    OfflineTaskUpdateSyncResponse,
+    OfflineQueuedMutationResult,
     OfflineTripSnapshotResponse,
+    ProviderRecoveryStateResponse,
     RouteBundleListResponse,
     SafetyCardResponse,
     TripDayReorderRequest,
@@ -97,7 +107,9 @@ from huaxia_tourismrag.schemas.trips import (
     TripListResponse,
     TripMilestoneCreateRequest,
     TripMilestonePatchRequest,
+    NavigationPreviewListResponse,
     TripPatchRequest,
+    TripProviderActionFollowUpRequest,
     TripProviderActionLaunchRequest,
     TripReminderCandidateResponse,
     TripResponse,
@@ -105,6 +117,7 @@ from huaxia_tourismrag.schemas.trips import (
     TripTaskCommandResponse,
     TripTaskCreateRequest,
     TripTaskPatchRequest,
+    WeatherSnapshotResponse,
 )
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.job_errors import public_job_error
@@ -115,6 +128,7 @@ from huaxia_tourismrag.services.qa_service import TourismQAService
 from huaxia_tourismrag.services.sales_handoff import SalesHandoffStore
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import SessionNotFoundError
+from huaxia_tourismrag.services.provider_registry import default_provider_registry
 from huaxia_tourismrag.services.trip_store import (
     TripNotFoundError,
     TripStore,
@@ -123,13 +137,20 @@ from huaxia_tourismrag.services.trip_store import (
 from huaxia_tourismrag.services.trip_workflow import (
     build_calendar_events,
     build_draft_review,
+    build_local_transport_plan,
+    build_mobile_provider_action_sheet,
+    build_navigation_previews,
+    build_offline_provider_cache_entries,
+    build_provider_recovery_states,
     build_route_bundles,
     build_reminder_candidates,
     build_safety_card,
     build_sample_trip_draft,
     build_task_command_screen,
+    build_weather_snapshot,
     draft_from_travel_answer,
     summarize_trip,
+    TripWorkflowError,
 )
 
 router = APIRouter(prefix="/tourism", tags=["tourism-rag"])
@@ -710,6 +731,109 @@ async def _require_support_access_consent(
     return privacy
 
 
+def _support_provider_debug_records(
+    trips: list[Any],
+    *,
+    trip_id: str | None = None,
+    action_id: str | None = None,
+    task_id: str | None = None,
+    provider_id: str | None = None,
+    failure_reason: str | None = None,
+) -> list[SupportProviderActionDebugRecord]:
+    records: list[SupportProviderActionDebugRecord] = []
+    failure_filter = failure_reason.lower().strip() if failure_reason else None
+    for trip in trips:
+        if trip_id and trip.trip_id != trip_id:
+            continue
+        recovery_by_action = {
+            state.action_id: state for state in build_provider_recovery_states(trip).states
+        }
+        for action in trip.provider_actions:
+            if action_id and action.action_id != action_id:
+                continue
+            if provider_id and action.provider != provider_id:
+                continue
+            task_ids = [
+                task.task_id
+                for task in trip.tasks
+                if action.action_id in task.provider_action_ids
+            ]
+            if task_id and task_id not in task_ids:
+                continue
+            state = recovery_by_action.get(action.action_id)
+            audit_events = state.audit_events if state else []
+            failure_text = _support_provider_failure_text(action, audit_events)
+            if failure_filter and failure_filter not in failure_text.lower():
+                continue
+            target_url, target_url_redacted = _support_provider_target_url(
+                action,
+                audit_events,
+            )
+            records.append(
+                SupportProviderActionDebugRecord(
+                    trip_id=trip.trip_id,
+                    action_id=action.action_id,
+                    provider_id=action.provider,
+                    action_type=action.action_type,
+                    label=action.label,
+                    task_ids=task_ids,
+                    validation_status=action.validation_status,
+                    validation_errors=list(action.validation_errors),
+                    missing_fields=_support_provider_missing_fields(action.validation_errors),
+                    data_sensitivity=action.data_sensitivity,
+                    webview_policy=action.webview_policy,
+                    recovery_status=state.recovery_status if state else action.recovery_status,
+                    recovery_options=list(state.recovery_options) if state else [],
+                    last_launch_channel=(
+                        state.last_launch_channel if state else action.last_launch_channel
+                    ),
+                    last_launch_result=(
+                        state.last_launch_result if state else action.last_launch_result
+                    ),
+                    last_target_url=target_url,
+                    target_url_redacted=target_url_redacted,
+                    fallback_used=any(event.fallback_used for event in audit_events),
+                    unavailable_reason=action.unavailable_reason,
+                    failure_reason=action.failure_reason,
+                    launched_at=action.launched_at,
+                    handled_at=action.handled_at,
+                    follow_up_prompt_at=action.follow_up_prompt_at,
+                    audit_events=[
+                        event.model_dump(mode="json") for event in audit_events
+                    ],
+                )
+            )
+    return records
+
+
+def _support_provider_missing_fields(validation_errors: list[str]) -> list[str]:
+    return [
+        error.removeprefix("missing_context:")
+        for error in validation_errors
+        if error.startswith("missing_context:")
+    ]
+
+
+def _support_provider_failure_text(action: Any, audit_events: list[Any]) -> str:
+    parts = [action.failure_reason or ""]
+    parts.extend(event.failure_reason or "" for event in audit_events)
+    return " ".join(part for part in parts if part)
+
+
+def _support_provider_target_url(
+    action: Any,
+    audit_events: list[Any],
+) -> tuple[str | None, bool]:
+    for event in reversed(audit_events):
+        if event.target_url:
+            return event.target_url, event.target_url.startswith("[redacted:")
+    if not action.last_target_url:
+        return None, False
+    if action.data_sensitivity != "public":
+        return "[redacted:sensitive_provider_url]", True
+    return action.last_target_url, False
+
+
 @support_router.get(
     "/users/{target_user_id}/recovery-summary",
     response_model=SupportUserRecoverySummaryResponse,
@@ -742,6 +866,63 @@ async def get_support_user_recovery_summary(
         trip_count=len(trips),
         trips=[_sanitize_trip_for_privacy_export(trip) for trip in trips],
         analytics_events=await market_store.list_events(target_user_id),
+        support_audit_event_id=audit.event_id,
+    )
+
+
+@support_router.get(
+    "/users/{target_user_id}/provider-actions/debug",
+    response_model=SupportProviderActionDebugResponse,
+)
+async def get_support_provider_action_debug(
+    target_user_id: str,
+    response: Response,
+    trip_id: str | None = Query(default=None, max_length=160),
+    action_id: str | None = Query(default=None, max_length=160),
+    task_id: str | None = Query(default=None, max_length=160),
+    provider_id: str | None = Query(default=None, max_length=80),
+    failure_reason: str | None = Query(default=None, max_length=500),
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> SupportProviderActionDebugResponse:
+    """Return sanitized provider action diagnostics for support/admin users."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    await _require_support_access_consent(market_store, target_user_id)
+    trips = await trip_store.list(user.tenant_id, target_user_id)
+    filters = {
+        "trip_id": trip_id,
+        "action_id": action_id,
+        "task_id": task_id,
+        "provider_id": provider_id,
+        "failure_reason": failure_reason,
+    }
+    records = _support_provider_debug_records(
+        trips,
+        trip_id=trip_id,
+        action_id=action_id,
+        task_id=task_id,
+        provider_id=provider_id,
+        failure_reason=failure_reason,
+    )
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id=target_user_id,
+        action="provider_action_debug_viewed",
+        resource_type="provider_action",
+        resource_id=trip_id or action_id or target_user_id,
+        metadata={
+            "record_count": str(len(records)),
+            **{key: value for key, value in filters.items() if value is not None},
+        },
+    )
+    return SupportProviderActionDebugResponse(
+        target_user_id=target_user_id,
+        filters=filters,
+        record_count=len(records),
+        records=records,
         support_audit_event_id=audit.event_id,
     )
 
@@ -966,6 +1147,22 @@ async def get_v2_rollout_readiness(
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
     return await market_store.get_rollout_readiness(user.user_id)
+
+
+@rollout_router.get(
+    "/v3/provider-readiness",
+    response_model=V3ProviderReadinessResponse,
+)
+async def get_v3_provider_rollout_readiness(
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+) -> V3ProviderReadinessResponse:
+    """Return V3 provider-integration rollout readiness and V4 bridge."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return await market_store.get_v3_provider_readiness(user.user_id)
 
 
 @rollout_router.get("/v2/flags", response_model=RolloutFlagResponse)
@@ -1302,6 +1499,8 @@ async def get_trip_reminder_candidates(
 async def get_trip_route_bundles(
     trip_id: str,
     response: Response,
+    preferred_provider_id: str | None = Query(default=None),
+    device_platform: Literal["web", "ios", "android", "unknown"] = Query(default="web"),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
 ) -> RouteBundleListResponse:
@@ -1315,14 +1514,66 @@ async def get_trip_route_bundles(
         raise HTTPException(status_code=404, detail="trip not found") from exc
     return RouteBundleListResponse(
         trip_id=trip.trip_id,
-        route_bundles=build_route_bundles(trip),
+        route_bundles=build_route_bundles(
+            trip,
+            preferred_provider_id=preferred_provider_id,
+            device_platform=device_platform,
+        ),
     )
+
+
+@trip_router.get("/{trip_id}/navigation-previews", response_model=NavigationPreviewListResponse)
+async def get_trip_navigation_previews(
+    trip_id: str,
+    response: Response,
+    preferred_provider_id: str | None = Query(default=None),
+    device_platform: Literal["web", "ios", "android", "unknown"] = Query(default="web"),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> NavigationPreviewListResponse:
+    """Return mobile-ready navigation preview bottom-sheet data."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return NavigationPreviewListResponse(
+        trip_id=trip.trip_id,
+        previews=build_navigation_previews(
+            trip,
+            preferred_provider_id=preferred_provider_id,
+            device_platform=device_platform,
+        ),
+    )
+
+
+@trip_router.get("/{trip_id}/local-transport-plan", response_model=LocalTransportPlanResponse)
+async def get_trip_local_transport_plan(
+    trip_id: str,
+    response: Response,
+    preferred_provider_id: str | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> LocalTransportPlanResponse:
+    """Return mode-aware local transport and taxi handoff options."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return build_local_transport_plan(trip, preferred_provider_id=preferred_provider_id)
 
 
 @trip_router.get("/{trip_id}/calendar-events", response_model=CalendarEventPreviewResponse)
 async def get_trip_calendar_events(
     trip_id: str,
     response: Response,
+    timezone: str = Query(default="local"),
+    provider_id: str = Query(default="expo_calendar"),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
 ) -> CalendarEventPreviewResponse:
@@ -1336,7 +1587,16 @@ async def get_trip_calendar_events(
         raise HTTPException(status_code=404, detail="trip not found") from exc
     return CalendarEventPreviewResponse(
         trip_id=trip.trip_id,
-        events=build_calendar_events(trip),
+        events=build_calendar_events(
+            trip,
+            timezone=timezone,
+            provider_id=provider_id,
+            fallback_target="ics",
+        ),
+        provider_id=provider_id,
+        fallback_target="ics",
+        requires_user_confirmation=True,
+        requires_device_permission=provider_id == "expo_calendar",
     )
 
 
@@ -1362,6 +1622,25 @@ async def export_trip_calendar_events(
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+
+@trip_router.get("/{trip_id}/weather-snapshot", response_model=WeatherSnapshotResponse)
+async def get_trip_weather_snapshot(
+    trip_id: str,
+    response: Response,
+    provider_id: str = Query(default="weatherapi"),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> WeatherSnapshotResponse:
+    """Return provider-aware weather alerts and operational task impacts."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return build_weather_snapshot(trip, provider_id=provider_id)
 
 
 @trip_router.get("/{trip_id}/safety-card", response_model=SafetyCardResponse)
@@ -1397,11 +1676,17 @@ async def get_trip_offline_snapshot(
         trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail="trip not found") from exc
+    provider_cache_entries, stale_banners, excluded_document_ids = (
+        build_offline_provider_cache_entries(trip)
+    )
     return OfflineTripSnapshotResponse(
         trip=trip,
         route_bundles=build_route_bundles(trip),
         calendar_events=build_calendar_events(trip),
         safety_card=build_safety_card(trip),
+        provider_cache_entries=provider_cache_entries,
+        stale_banners=stale_banners,
+        sensitive_document_ids_excluded=excluded_document_ids,
         cache_key=f"trip:{trip.trip_id}:offline",
         sync_token=trip.updated_at.isoformat(),
         offline_capabilities=[
@@ -1411,9 +1696,79 @@ async def get_trip_offline_snapshot(
             "read_documents",
             "read_safety_card",
             "read_provider_actions",
+            "read_provider_cache",
             "queue_task_status",
         ],
         queued_mutation_endpoint_template=f"/trips/{trip.trip_id}/tasks/{{task_id}}",
+    )
+
+
+@trip_router.post(
+    "/{trip_id}/offline-task-updates",
+    response_model=OfflineTaskUpdateSyncResponse,
+)
+async def sync_trip_offline_task_updates(
+    trip_id: str,
+    body: OfflineTaskUpdateSyncRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> OfflineTaskUpdateSyncResponse:
+    """Reconcile mobile-local queued task mutations after connectivity returns."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        latest_trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+
+    results: list[OfflineQueuedMutationResult] = []
+    for mutation in body.mutations:
+        try:
+            latest_trip = await trip_store.patch_task(
+                trip_id,
+                user.tenant_id,
+                mutation.task_id,
+                mutation.patch,
+                owner_user_id=user.user_id,
+            )
+            updated_task = next(
+                task for task in latest_trip.tasks if task.task_id == mutation.task_id
+            )
+            results.append(
+                OfflineQueuedMutationResult(
+                    mutation_id=mutation.mutation_id,
+                    task_id=mutation.task_id,
+                    status="applied",
+                    updated_at=updated_task.updated_at,
+                )
+            )
+        except Exception as exc:
+            message = str(exc)
+            result_status = "conflict" if "conflict" in message.lower() else "failed"
+            results.append(
+                OfflineQueuedMutationResult(
+                    mutation_id=mutation.mutation_id,
+                    task_id=mutation.task_id,
+                    status=result_status,
+                    error=message,
+                )
+            )
+
+    try:
+        latest_trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+
+    return OfflineTaskUpdateSyncResponse(
+        trip_id=trip_id,
+        sync_token=latest_trip.updated_at.isoformat(),
+        results=results,
+        applied_count=sum(1 for result in results if result.status == "applied"),
+        conflict_count=sum(1 for result in results if result.status == "conflict"),
+        failed_count=sum(1 for result in results if result.status == "failed"),
+        trip=latest_trip,
     )
 
 
@@ -1627,6 +1982,47 @@ async def list_trips(
     return TripListResponse(trips=trips)
 
 
+@trip_router.get("/provider-connectors", response_model=ProviderConnectorListResponse)
+async def list_provider_connectors(
+    response: Response,
+    domain: ProviderDomain | None = Query(default=None),
+    capability: str | None = Query(default=None),
+    region: str | None = Query(default=None),
+    preferred_provider_id: str | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+) -> ProviderConnectorListResponse:
+    """Return V3 provider connector registry information."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    registry = default_provider_registry()
+    connectors = registry.list(domain=domain)
+    selected_provider_id: str | None = None
+    fallback_provider_ids: list[str] = []
+    selection_reason: str | None = None
+
+    if domain is not None and capability:
+        try:
+            resolution = registry.resolve(
+                domain=domain,
+                capability=capability,
+                region=region,
+                preferred_provider_id=preferred_provider_id,
+            )
+            selected_provider_id = resolution.selected.provider_id
+            fallback_provider_ids = resolution.fallback_provider_ids
+            selection_reason = resolution.reason
+        except ValueError as exc:
+            selection_reason = str(exc)
+
+    return ProviderConnectorListResponse(
+        connectors=connectors,
+        selected_provider_id=selected_provider_id,
+        fallback_provider_ids=fallback_provider_ids,
+        selection_reason=selection_reason,
+    )
+
+
 @trip_router.get("/{trip_id}", response_model=TripResponse)
 async def get_trip(
     trip_id: str,
@@ -1768,6 +2164,33 @@ async def patch_trip_task(
     return TripResponse(trip=trip)
 
 
+@trip_router.get(
+    "/{trip_id}/provider-actions/{action_id}/mobile-sheet",
+    response_model=MobileProviderActionSheetResponse,
+)
+async def get_trip_provider_action_mobile_sheet(
+    trip_id: str,
+    action_id: str,
+    response: Response,
+    task_id: str | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> MobileProviderActionSheetResponse:
+    """Return Expo-ready provider action bottom-sheet data."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+        return build_mobile_provider_action_sheet(trip, action_id, task_id=task_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    except TripWorkflowError as exc:
+        if str(exc) == "provider action not found":
+            raise HTTPException(status_code=404, detail="provider action not found") from exc
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @trip_router.post(
     "/{trip_id}/provider-actions/{action_id}/launch",
     response_model=TripResponse,
@@ -1796,6 +2219,55 @@ async def launch_trip_provider_action(
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     return TripResponse(trip=trip)
+
+
+@trip_router.post(
+    "/{trip_id}/provider-actions/{action_id}/follow-up",
+    response_model=TripResponse,
+)
+async def follow_up_trip_provider_action(
+    trip_id: str,
+    action_id: str,
+    body: TripProviderActionFollowUpRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> TripResponse:
+    """Record user follow-up after returning from a provider handoff."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.follow_up_provider_action(
+            trip_id,
+            user.tenant_id,
+            action_id,
+            body,
+            owner_user_id=user.user_id,
+        )
+    except Exception as exc:
+        status = trip_store_error_status(exc)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return TripResponse(trip=trip)
+
+
+@trip_router.get("/{trip_id}/provider-recovery", response_model=ProviderRecoveryStateResponse)
+async def get_trip_provider_recovery(
+    trip_id: str,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> ProviderRecoveryStateResponse:
+    """Return support-safe provider launch and recovery state."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except Exception as exc:
+        status = trip_store_error_status(exc)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return build_provider_recovery_states(trip)
 
 
 @trip_router.get("/{trip_id}/events")
@@ -2539,6 +3011,8 @@ def _trip_execution_event_name(trip: Any) -> str:
         "task_added": "task_updated",
         "task_updated": "task_updated",
         "provider_action_launched": "provider_action_launched",
+        "provider_action_failed": "provider_action_recovered",
+        "provider_action_recovered": "provider_action_recovered",
         "document_added": "document_added",
         "document_updated": "document_added",
         "document_removed": "document_added",

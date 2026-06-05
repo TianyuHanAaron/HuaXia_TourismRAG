@@ -16,6 +16,8 @@ export const TripAuditEventEventType = {
   task_added: 'task_added',
   task_updated: 'task_updated',
   provider_action_launched: 'provider_action_launched',
+  provider_action_failed: 'provider_action_failed',
+  provider_action_recovered: 'provider_action_recovered',
   calendar_exported: 'calendar_exported',
   document_added: 'document_added',
   document_updated: 'document_updated',

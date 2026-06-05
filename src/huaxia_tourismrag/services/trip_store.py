@@ -20,6 +20,7 @@ from huaxia_tourismrag.schemas.trips import (
     TripMilestonePatchRequest,
     TripOwnerAccountMode,
     TripPatchRequest,
+    TripProviderActionFollowUpRequest,
     TripProviderActionLaunchRequest,
     TripTaskCreateRequest,
     TripTaskPatchRequest,
@@ -45,6 +46,7 @@ from huaxia_tourismrag.services.trip_workflow import (
     patch_trip_document,
     reorder_draft_days,
     mark_provider_action_launched,
+    record_provider_action_follow_up,
     transition_trip,
     update_task,
 )
@@ -187,6 +189,17 @@ class TripStore(Protocol):
         request: TripProviderActionLaunchRequest | None = None,
     ) -> Trip:
         """Record provider action launch."""
+
+    async def follow_up_provider_action(
+        self,
+        trip_id: str,
+        tenant_id: str,
+        action_id: str,
+        request: TripProviderActionFollowUpRequest,
+        *,
+        owner_user_id: str | None = None,
+    ) -> Trip:
+        """Record provider action follow-up."""
 
     async def export_calendar_events(
         self,
@@ -453,6 +466,20 @@ class InMemoryTripStore:
     ) -> Trip:
         trip = await self.get(trip_id, tenant_id, owner_user_id)
         trip = mark_provider_action_launched(trip, action_id, request=request)
+        self._trips[trip.trip_id] = trip
+        return trip
+
+    async def follow_up_provider_action(
+        self,
+        trip_id: str,
+        tenant_id: str,
+        action_id: str,
+        request: TripProviderActionFollowUpRequest,
+        *,
+        owner_user_id: str | None = None,
+    ) -> Trip:
+        trip = await self.get(trip_id, tenant_id, owner_user_id)
+        trip = record_provider_action_follow_up(trip, action_id, request)
         self._trips[trip.trip_id] = trip
         return trip
 
@@ -775,6 +802,20 @@ class RedisTripStore:
     ) -> Trip:
         trip = await self.get(trip_id, tenant_id, owner_user_id)
         trip = mark_provider_action_launched(trip, action_id, request=request)
+        await self._save(trip)
+        return trip
+
+    async def follow_up_provider_action(
+        self,
+        trip_id: str,
+        tenant_id: str,
+        action_id: str,
+        request: TripProviderActionFollowUpRequest,
+        *,
+        owner_user_id: str | None = None,
+    ) -> Trip:
+        trip = await self.get(trip_id, tenant_id, owner_user_id)
+        trip = record_provider_action_follow_up(trip, action_id, request)
         await self._save(trip)
         return trip
 

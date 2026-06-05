@@ -4,9 +4,24 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarExportContext } from './calendarExportContext';
+import type { DocumentImportContext } from './documentImportContext';
+import type { FlightSearchContext } from './flightSearchContext';
+import type { HotelSearchContext } from './hotelSearchContext';
+import type { LocalTransportPlanResponse } from './localTransportPlanResponse';
+import type { TicketRequirement } from './ticketRequirement';
 import type { TripProviderActionActionType } from './tripProviderActionActionType';
+import type { TripProviderActionAllowedLaunchChannelsItem } from './tripProviderActionAllowedLaunchChannelsItem';
+import type { TripProviderActionContext } from './tripProviderActionContext';
+import type { TripProviderActionDataSensitivity } from './tripProviderActionDataSensitivity';
 import type { TripProviderActionLastLaunchChannel } from './tripProviderActionLastLaunchChannel';
+import type { TripProviderActionLastLaunchResult } from './tripProviderActionLastLaunchResult';
+import type { TripProviderActionRecoveryStatus } from './tripProviderActionRecoveryStatus';
+import type { TripProviderActionRouteConfidence } from './tripProviderActionRouteConfidence';
+import type { TripProviderActionRouteMode } from './tripProviderActionRouteMode';
 import type { TripProviderActionValidationStatus } from './tripProviderActionValidationStatus';
+import type { TripProviderActionWebviewPolicy } from './tripProviderActionWebviewPolicy';
+import type { WeatherSnapshotResponse } from './weatherSnapshotResponse';
 
 /**
  * Typed provider handoff rendered by web and mobile clients.
@@ -26,12 +41,39 @@ export interface TripProviderAction {
   deep_link?: string | null;
   fallback_url?: string | null;
   requires_external_target?: boolean;
+  /** @maxItems 20 */
+  required_context?: string[];
+  context?: TripProviderActionContext;
+  /** @maxItems 8 */
+  allowed_launch_channels?: TripProviderActionAllowedLaunchChannelsItem[];
+  data_sensitivity?: TripProviderActionDataSensitivity;
+  webview_policy?: TripProviderActionWebviewPolicy;
+  webview_policy_reason?: string | null;
+  route_bundle_id?: string | null;
+  route_origin?: string | null;
+  route_destination?: string | null;
+  route_mode?: TripProviderActionRouteMode;
+  route_confidence?: TripProviderActionRouteConfidence;
+  route_provider_id?: string | null;
+  flight_search_context?: FlightSearchContext | null;
+  hotel_search_context?: HotelSearchContext | null;
+  ticket_requirement?: TicketRequirement | null;
+  calendar_export_context?: CalendarExportContext | null;
+  weather_snapshot?: WeatherSnapshotResponse | null;
+  local_transport_plan?: LocalTransportPlanResponse | null;
+  document_import_context?: DocumentImportContext | null;
   available?: boolean;
   unavailable_reason?: string | null;
   validation_status?: TripProviderActionValidationStatus;
+  /** @maxItems 20 */
+  validation_errors?: string[];
   launched_at?: string | null;
   handled_at?: string | null;
   remind_later_at?: string | null;
   last_launch_channel?: TripProviderActionLastLaunchChannel;
   last_target_url?: string | null;
+  last_launch_result?: TripProviderActionLastLaunchResult;
+  recovery_status?: TripProviderActionRecoveryStatus;
+  follow_up_prompt_at?: string | null;
+  failure_reason?: string | null;
 }

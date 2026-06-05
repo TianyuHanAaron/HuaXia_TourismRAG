@@ -5,21 +5,30 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { RouteBundleConfidence } from './routeBundleConfidence';
+import type { RouteBundleDevicePlatform } from './routeBundleDevicePlatform';
 import type { RouteBundleMode } from './routeBundleMode';
 import type { RouteBundlePrimaryProvider } from './routeBundlePrimaryProvider';
 import type { RouteBundleProviderUrls } from './routeBundleProviderUrls';
+import type { RouteBundleRouteRegion } from './routeBundleRouteRegion';
+import type { RouteBundleSource } from './routeBundleSource';
+import type { RouteBundleTravelMode } from './routeBundleTravelMode';
+import type { RouteBundleValidationStatus } from './routeBundleValidationStatus';
 
 /**
  * Prepared route handoff with provider URLs.
  */
 export interface RouteBundle {
   route_id: string;
+  route_bundle_id: string;
+  trip_id?: string | null;
+  task_id?: string | null;
   /**
      * @minLength 1
      * @maxLength 160
      */
   label: string;
   mode?: RouteBundleMode;
+  travel_mode?: RouteBundleTravelMode;
   /**
      * @minLength 1
      * @maxLength 160
@@ -32,11 +41,27 @@ export interface RouteBundle {
   destination: string;
   /** @maxItems 12 */
   waypoints?: string[];
+  /** @maxItems 20 */
+  coordinates?: string[];
   planned_at?: string | null;
+  planned_departure_time?: string | null;
   primary_provider?: RouteBundlePrimaryProvider;
+  provider_id?: string;
+  route_region?: RouteBundleRouteRegion;
+  device_platform?: RouteBundleDevicePlatform;
+  /** @maxItems 12 */
+  available_provider_ids?: string[];
+  preview_provider_id?: string | null;
+  provider_selection_reason?: string | null;
+  estimated_distance_text?: string | null;
+  estimated_duration_text?: string | null;
+  launch_url?: string | null;
+  deep_link_url?: string | null;
   fallback_url?: string | null;
   provider_urls?: RouteBundleProviderUrls;
   confidence?: RouteBundleConfidence;
+  source?: RouteBundleSource;
+  validation_status?: RouteBundleValidationStatus;
   handoff_ready?: boolean;
   unavailable_reason?: string | null;
   /** @maxItems 20 */

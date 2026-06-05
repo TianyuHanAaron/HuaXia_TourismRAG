@@ -15,5 +15,6 @@ export const OfflineTripSnapshotResponseOfflineCapabilitiesItem = {
   read_documents: 'read_documents',
   read_safety_card: 'read_safety_card',
   read_provider_actions: 'read_provider_actions',
+  read_provider_cache: 'read_provider_cache',
   queue_task_status: 'queue_task_status',
 } as const;

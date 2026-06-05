@@ -9,6 +9,7 @@ export type RouteBundlePrimaryProvider = typeof RouteBundlePrimaryProvider[keyof
 
 
 export const RouteBundlePrimaryProvider = {
+  amap: 'amap',
   google_maps: 'google_maps',
   apple_maps: 'apple_maps',
   mapbox: 'mapbox',

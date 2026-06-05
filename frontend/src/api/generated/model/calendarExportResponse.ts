@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CalendarEventPreview } from './calendarEventPreview';
+import type { CalendarExportResponseFallbackTarget } from './calendarExportResponseFallbackTarget';
 import type { CalendarExportResponseTarget } from './calendarExportResponseTarget';
 
 /**
@@ -15,6 +16,9 @@ export interface CalendarExportResponse {
   target: CalendarExportResponseTarget;
   exported_event_ids: string[];
   events: CalendarEventPreview[];
+  provider_id?: string;
+  fallback_target?: CalendarExportResponseFallbackTarget;
+  requires_device_permission?: boolean;
   ics_content?: string | null;
   ics_filename?: string | null;
   audit_event_id?: string | null;

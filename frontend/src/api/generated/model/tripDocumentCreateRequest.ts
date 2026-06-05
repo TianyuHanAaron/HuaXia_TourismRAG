@@ -4,6 +4,7 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { ParsedBookingMetadata } from './parsedBookingMetadata';
 import type { TripDocumentCreateRequestCategory } from './tripDocumentCreateRequestCategory';
 
 /**
@@ -23,4 +24,5 @@ export interface TripDocumentCreateRequest {
   /** @maxItems 20 */
   task_ids?: string[];
   sensitive?: boolean;
+  parser_metadata?: ParsedBookingMetadata | null;
 }

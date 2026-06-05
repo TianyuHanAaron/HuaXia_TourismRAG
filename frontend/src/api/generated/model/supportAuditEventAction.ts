@@ -13,4 +13,5 @@ export const SupportAuditEventAction = {
   job_recovery_bundle_viewed: 'job_recovery_bundle_viewed',
   job_retry_created: 'job_retry_created',
   subscription_refreshed: 'subscription_refreshed',
+  provider_action_debug_viewed: 'provider_action_debug_viewed',
 } as const;

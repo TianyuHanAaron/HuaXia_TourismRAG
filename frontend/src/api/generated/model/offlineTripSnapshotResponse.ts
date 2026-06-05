@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CalendarEventPreview } from './calendarEventPreview';
+import type { OfflineProviderCacheEntry } from './offlineProviderCacheEntry';
 import type { OfflineTripSnapshotResponseOfflineCapabilitiesItem } from './offlineTripSnapshotResponseOfflineCapabilitiesItem';
 import type { RouteBundle } from './routeBundle';
 import type { SafetyCardResponse } from './safetyCardResponse';
@@ -18,6 +19,11 @@ export interface OfflineTripSnapshotResponse {
   route_bundles: RouteBundle[];
   calendar_events: CalendarEventPreview[];
   safety_card: SafetyCardResponse;
+  provider_cache_entries?: OfflineProviderCacheEntry[];
+  /** @maxItems 20 */
+  stale_banners?: string[];
+  /** @maxItems 200 */
+  sensitive_document_ids_excluded?: string[];
   cache_key: string;
   sync_token: string;
   snapshot_version?: number;

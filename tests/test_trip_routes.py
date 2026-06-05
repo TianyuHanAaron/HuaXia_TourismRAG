@@ -128,6 +128,104 @@ def test_draft_milestone_edit_add_delete_and_day_reorder_persist_until_approval(
     assert approved.json()["trip"]["tasks"]
 
 
+def test_trip_patch_flight_preferences_feed_provider_action_context():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+
+    patched = client.patch(
+        f"/trips/{trip_id}",
+        json={
+            "origin_city": "天津",
+            "return_city": "天津",
+            "travelers": 3,
+            "preferred_airline": "中国国际航空",
+        },
+    )
+    assert patched.status_code == 200
+
+    approved = client.post(f"/trips/{trip_id}/approve")
+    assert approved.status_code == 200
+    flight_action = next(
+        action
+        for action in approved.json()["trip"]["provider_actions"]
+        if action["action_id"] == "action-flight-search"
+    )
+
+    assert flight_action["provider"] == "skyscanner"
+    assert flight_action["flight_search_context"]["origin_city"] == "天津"
+    assert flight_action["flight_search_context"]["destination_city"] == "北京"
+    assert flight_action["flight_search_context"]["travelers"] == 3
+    assert flight_action["flight_search_context"]["preferred_airline"] == "中国国际航空"
+    assert flight_action["flight_search_context"]["validation_status"] == "ready"
+
+
+def test_trip_patch_hotel_preferences_feed_provider_action_context():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+
+    patched = client.patch(
+        f"/trips/{trip_id}",
+        json={
+            "lodging_area": "王府井/东单",
+            "travelers": 3,
+            "budget_level": "mid_range",
+            "preferred_hotel_platform": "booking_com",
+        },
+    )
+    assert patched.status_code == 200
+
+    approved = client.post(f"/trips/{trip_id}/approve")
+    assert approved.status_code == 200
+    hotel_action = next(
+        action
+        for action in approved.json()["trip"]["provider_actions"]
+        if action["action_id"] == "action-hotel-search"
+    )
+
+    assert hotel_action["provider"] == "booking_com"
+    assert hotel_action["hotel_search_context"]["destination_city"] == "北京"
+    assert hotel_action["hotel_search_context"]["recommended_area"]["area_name"] == "王府井/东单"
+    assert hotel_action["hotel_search_context"]["guest_count"] == 3
+    assert hotel_action["hotel_search_context"]["budget_level"] == "mid_range"
+    assert hotel_action["hotel_search_context"]["validation_status"] == "ready"
+
+
+def test_trip_patch_official_attraction_link_feeds_ticket_provider_action():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+
+    patched = client.patch(
+        f"/trips/{trip_id}",
+        json={
+            "official_attraction_links": [
+                {
+                    "attraction_name": "故宫博物院",
+                    "url": "https://www.dpm.org.cn/Home.html",
+                    "source": "user",
+                    "time_slot_required": True,
+                    "identity_document_required": True,
+                }
+            ]
+        },
+    )
+    assert patched.status_code == 200
+
+    approved = client.post(f"/trips/{trip_id}/approve")
+    assert approved.status_code == 200
+    ticket_action = next(
+        action
+        for action in approved.json()["trip"]["provider_actions"]
+        if action["action_id"] == "action-ticket-site"
+    )
+
+    assert ticket_action["provider"] == "official_attraction"
+    assert ticket_action["ticket_requirement"]["attraction_name"] == "故宫博物院"
+    assert ticket_action["ticket_requirement"]["time_slot_required"] is True
+    assert ticket_action["ticket_requirement"]["identity_document_required"] is True
+    assert ticket_action["url"] == "https://www.dpm.org.cn/Home.html"
+    assert ticket_action["validation_status"] == "ready"
+
+
 def test_trip_task_patch_provider_launch_and_archive_flow():
     client = make_trip_client()
     trip_id = create_draft_trip(client)
@@ -200,6 +298,107 @@ def test_trip_task_patch_provider_launch_and_archive_flow():
     assert archived.json()["trip"]["status"] == "archived"
     listed = client.get("/trips")
     assert all(trip["trip_id"] != trip_id for trip in listed.json()["trips"])
+
+
+def test_provider_action_follow_up_endpoint_recovers_launch_and_updates_task():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    action_id = "action-hotel-search"
+    task_id = next(
+        task["task_id"]
+        for task in approved["tasks"]
+        if action_id in task["provider_action_ids"]
+    )
+
+    launched = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/launch",
+        json={"launch_channel": "browser", "client_event_id": "launch-web-1"},
+    )
+    assert launched.status_code == 200
+
+    recovery = client.get(f"/trips/{trip_id}/provider-recovery")
+    assert recovery.status_code == 200
+    state = next(state for state in recovery.json()["states"] if state["action_id"] == action_id)
+    assert state["recovery_status"] == "needs_follow_up"
+    assert state["last_launch_channel"] == "browser"
+    assert state["audit_events"][-1]["client_event_id"] == "launch-web-1"
+
+    follow_up = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/follow-up",
+        json={
+            "outcome": "completed",
+            "task_id": task_id,
+            "client_event_id": "follow-up-web-1",
+        },
+    )
+    assert follow_up.status_code == 200
+    body = follow_up.json()["trip"]
+    action = next(action for action in body["provider_actions"] if action["action_id"] == action_id)
+    task = next(task for task in body["tasks"] if task["task_id"] == task_id)
+    event = body["audit_events"][-1]
+    assert action["recovery_status"] == "completed"
+    assert task["status"] == "completed"
+    assert event["event_type"] == "provider_action_recovered"
+    assert event["metadata"]["follow_up_outcome"] == "completed"
+    assert event["metadata"]["client_event_id"] == "follow-up-web-1"
+
+
+def test_provider_recovery_endpoint_exposes_failed_action_without_sensitive_documents():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+    action_id = "action-ticket-site"
+    client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/launch",
+        json={"launch_channel": "fallback_browser"},
+    )
+    failed = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/follow-up",
+        json={"outcome": "failed", "failure_reason": "provider checkout unavailable"},
+    )
+    assert failed.status_code == 200
+
+    recovery = client.get(f"/trips/{trip_id}/provider-recovery")
+
+    assert recovery.status_code == 200
+    state = next(state for state in recovery.json()["states"] if state["action_id"] == action_id)
+    assert state["recovery_status"] == "retry_available"
+    assert state["failure_reason"] == "provider checkout unavailable"
+    assert "try_another" in state["recovery_options"]
+    assert "document" not in state
+
+
+def test_mobile_provider_action_sheet_endpoint_returns_compact_payload():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    client.patch(
+        f"/trips/{trip_id}",
+        json={"preferred_hotel_platform": "booking_com", "lodging_area": "王府井/东单"},
+    )
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.get(f"/trips/{trip_id}/provider-actions/action-hotel-search/mobile-sheet")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "Search lodging"
+    assert body["recommended_provider_id"] == "booking_com"
+    assert body["primary_action"]["launch_channel"] == "browser"
+    assert body["primary_action"]["disabled"] is False
+    assert any(action["launch_channel"] == "fallback_browser" for action in body["alternative_actions"])
+    assert any(action["launch_channel"] == "manual_done" for action in body["recovery_actions"])
+    assert any(row["key"] == "recommended_area" and "王府井" in row["value"] for row in body["context_rows"])
+
+
+def test_mobile_provider_action_sheet_endpoint_returns_404_for_unknown_action():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.get(f"/trips/{trip_id}/provider-actions/missing-action/mobile-sheet")
+
+    assert response.status_code == 404
 
 
 def test_task_engine_routes_support_skip_edit_custom_tasks_and_grouping():
@@ -370,6 +569,26 @@ def test_task_command_exposes_provider_actions_and_caps_completed_group():
     assert len(capped.json()["completed"]) == 3
 
 
+def test_provider_connector_registry_endpoint_selects_region_aware_provider():
+    client = make_trip_client()
+
+    response = client.get(
+        "/trips/provider-connectors",
+        params={
+            "domain": "navigation",
+            "capability": "route",
+            "region": "CN",
+            "preferred_provider_id": "google_maps",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["selected_provider_id"] == "amap"
+    assert body["selection_reason"] == "preferred provider is not compatible with this request"
+    assert any(connector["provider_id"] == "amap" for connector in body["connectors"])
+
+
 def test_calendar_export_requires_selection_returns_ics_and_records_audit_event():
     client = make_trip_client()
     trip_id = create_dated_draft_trip(client)
@@ -403,6 +622,9 @@ def test_calendar_export_requires_selection_returns_ics_and_records_audit_event(
     assert "TZID=Asia/Shanghai" in body["ics_content"]
     assert "故宫博物院" in body["ics_content"]
     assert body["events"][0]["timezone"] == "Asia/Shanghai"
+    assert body["provider_id"] == "ics_file"
+    assert body["fallback_target"] is None
+    assert body["requires_device_permission"] is False
     assert body["audit_event_id"]
     assert body["duplicate_export"] is False
 
@@ -424,6 +646,174 @@ def test_calendar_export_requires_selection_returns_ics_and_records_audit_event(
         if event["event_type"] == "calendar_exported"
     ]
     assert calendar_events[-1]["metadata"]["event_ids"] == ",".join(selected)
+
+
+def test_calendar_events_preview_exposes_expo_provider_and_ics_fallback():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+
+    preview = client.get(f"/trips/{trip_id}/calendar-events", params={"timezone": "Asia/Shanghai"})
+
+    assert preview.status_code == 200
+    body = preview.json()
+    assert body["provider_id"] == "expo_calendar"
+    assert body["fallback_target"] == "ics"
+    assert body["requires_user_confirmation"] is True
+    assert body["requires_device_permission"] is True
+    assert body["events"][0]["provider_id"] == "expo_calendar"
+    assert body["events"][0]["fallback_target"] == "ics"
+    assert body["events"][0]["timezone"] == "Asia/Shanghai"
+    assert body["events"][0]["reminder_offsets_minutes"] == [30]
+
+
+def test_weather_snapshot_endpoint_returns_provider_alerts_and_task_impacts():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    patched = client.patch(
+        f"/trips/{trip_id}",
+        json={"warnings": ["午后可能降雨，户外活动需带雨具。"]},
+    )
+    assert patched.status_code == 200
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.get(
+        f"/trips/{trip_id}/weather-snapshot",
+        params={"provider_id": "weatherapi"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provider"]["provider_id"] == "weatherapi"
+    assert body["fallback_provider_id"] == "openweather"
+    assert body["location"] == "北京"
+    assert body["status"] in {"needs_provider_fetch", "forecast_unavailable"}
+    assert any(alert["alert_type"] == "rain" for alert in body["alerts"])
+    assert any(impact["task_id"] == "task-prepare-packing" for impact in body["task_impacts"])
+
+
+def test_safety_card_endpoint_exposes_provider_sources_and_risk_metadata():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    client.patch(f"/trips/{trip_id}", json={"destination": "Tokyo, Japan"})
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.get(f"/trips/{trip_id}/safety-card")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_international"] is True
+    assert body["embassy"]["provider_id"] == "google_search"
+    assert body["entry_requirements"]["provider_id"] == "sherpa"
+    assert body["risk_advisory"]["provider_id"] == "riskline"
+    assert body["risk_advisory"]["stale"] is True
+    assert any(source["domain"] == "entry_requirements" for source in body["provider_sources"])
+    assert any(action["provider_id"] == "google_maps" for action in body["emergency_actions"])
+
+
+def test_offline_snapshot_exposes_provider_cache_entries_and_stale_banners():
+    client = make_trip_client()
+    trip_id = create_structured_draft_trip(client)
+    client.patch(
+        f"/trips/{trip_id}",
+        json={"warnings": ["午后可能降雨，户外活动需带雨具。"]},
+    )
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.get(f"/trips/{trip_id}/offline-snapshot")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["cache_key"] == f"trip:{trip_id}:offline"
+    assert body["provider_cache_entries"]
+    route_entry = next(
+        entry for entry in body["provider_cache_entries"] if entry["entry_type"] == "route_summary"
+    )
+    weather_entry = next(
+        entry for entry in body["provider_cache_entries"] if entry["entry_type"] == "weather_snapshot"
+    )
+    assert route_entry["available_offline"] is True
+    assert route_entry["requires_network"] is False
+    assert weather_entry["stale"] is True
+    assert body["stale_banners"]
+    assert "queue_task_status" in body["offline_capabilities"]
+
+
+def test_offline_task_updates_apply_valid_mutations_and_report_conflicts():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    valid_task = approved["tasks"][0]
+    stale_task = approved["tasks"][1]
+
+    response = client.post(
+        f"/trips/{trip_id}/offline-task-updates",
+        json={
+            "mutations": [
+                {
+                    "mutation_id": "offline-1",
+                    "task_id": valid_task["task_id"],
+                    "patch": {
+                        "status": "completed",
+                        "expected_updated_at": valid_task["updated_at"],
+                        "client_mutation_id": "offline-1",
+                        "offline_queued": True,
+                    },
+                },
+                {
+                    "mutation_id": "offline-2",
+                    "task_id": stale_task["task_id"],
+                    "patch": {
+                        "status": "completed",
+                        "expected_updated_at": "2000-01-01T00:00:00Z",
+                        "client_mutation_id": "offline-2",
+                        "offline_queued": True,
+                    },
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied_count"] == 1
+    assert body["conflict_count"] == 1
+    assert body["results"][0]["status"] == "applied"
+    assert body["results"][1]["status"] == "conflict"
+    trip = client.get(f"/trips/{trip_id}").json()["trip"]
+    completed_task = next(task for task in trip["tasks"] if task["task_id"] == valid_task["task_id"])
+    unchanged_task = next(task for task in trip["tasks"] if task["task_id"] == stale_task["task_id"])
+    assert completed_task["status"] == "completed"
+    assert unchanged_task["status"] == "pending"
+    task_events = [
+        event for event in trip["audit_events"] if event["metadata"].get("client_mutation_id") == "offline-1"
+    ]
+    assert task_events[-1]["metadata"]["offline_queued"] == "true"
+
+
+def test_local_transport_plan_endpoint_returns_mode_aware_provider_options():
+    client = make_trip_client()
+    trip_id = create_structured_draft_trip(client)
+    patched = client.patch(
+        f"/trips/{trip_id}",
+        json={
+            "travelers": 4,
+            "warnings": ["午后可能降雨，建议准备出租车或网约车备选。"],
+        },
+    )
+    assert patched.status_code == 200
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.get(f"/trips/{trip_id}/local-transport-plan")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provider_id"] == "amap_local_transport"
+    assert body["primary_option"]["mode"] == "taxi"
+    assert body["primary_option"]["launch_url"].startswith("androidamap://")
+    assert any(option["mode"] == "transit" for option in body["alternative_options"])
+    assert "rain" in body["weather_alert_ids"]
+    assert body["manual_completion_allowed"] is True
 
 
 def test_trip_home_summary_exposes_next_action_counts_and_urgency():

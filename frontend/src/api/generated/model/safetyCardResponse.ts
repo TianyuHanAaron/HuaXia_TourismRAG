@@ -4,9 +4,12 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { RiskAdvisorySnapshot } from './riskAdvisorySnapshot';
 import type { SafetyEmbassyInfo } from './safetyEmbassyInfo';
 import type { SafetyEmergencyAction } from './safetyEmergencyAction';
 import type { SafetyEmergencyContact } from './safetyEmergencyContact';
+import type { SafetyEntryRequirementsReference } from './safetyEntryRequirementsReference';
+import type { SafetyProviderReference } from './safetyProviderReference';
 
 /**
  * Offline-safe trip safety card.
@@ -23,6 +26,10 @@ export interface SafetyCardResponse {
   emergency_actions?: SafetyEmergencyAction[];
   hospital_search_url?: string | null;
   embassy?: SafetyEmbassyInfo | null;
+  entry_requirements?: SafetyEntryRequirementsReference | null;
+  risk_advisory?: RiskAdvisorySnapshot;
+  /** @maxItems 20 */
+  provider_sources?: SafetyProviderReference[];
   /** @maxItems 12 */
   insurance_references?: string[];
   /** @maxItems 12 */

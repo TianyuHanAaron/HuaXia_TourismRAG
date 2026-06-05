@@ -19,7 +19,10 @@ export interface SafetyEmergencyAction {
   action_type: SafetyEmergencyActionActionType;
   target?: string | null;
   url?: string | null;
+  provider_id?: string | null;
+  provider_display_name?: string | null;
   /** @maxLength 500 */
   note?: string;
+  requires_network?: boolean;
   available_offline?: boolean;
 }

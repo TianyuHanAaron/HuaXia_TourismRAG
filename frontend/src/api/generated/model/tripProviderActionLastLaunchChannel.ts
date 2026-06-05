@@ -11,7 +11,10 @@ export type TripProviderActionLastLaunchChannel = typeof TripProviderActionLastL
 export const TripProviderActionLastLaunchChannel = {
   app: 'app',
   browser: 'browser',
+  in_app_browser: 'in_app_browser',
   fallback_browser: 'fallback_browser',
+  copy_only: 'copy_only',
+  manual_instruction: 'manual_instruction',
   manual_done: 'manual_done',
   remind_later: 'remind_later',
 } as const;

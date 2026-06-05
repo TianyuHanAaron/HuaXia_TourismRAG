@@ -9,6 +9,7 @@ export type UserPreferenceProfileMapProvider = typeof UserPreferenceProfileMapPr
 
 
 export const UserPreferenceProfileMapProvider = {
+  amap: 'amap',
   google_maps: 'google_maps',
   apple_maps: 'apple_maps',
   mapbox: 'mapbox',

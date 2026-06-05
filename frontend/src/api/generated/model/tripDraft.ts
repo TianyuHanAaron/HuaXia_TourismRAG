@@ -4,6 +4,8 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { OfficialAttractionLink } from './officialAttractionLink';
+import type { TripDraftBudgetLevel } from './tripDraftBudgetLevel';
 import type { TripEvidenceRef } from './tripEvidenceRef';
 import type { TripMilestone } from './tripMilestone';
 
@@ -18,10 +20,19 @@ export interface TripDraft {
   title: string;
   /** @maxLength 5000 */
   summary?: string;
+  origin_city?: string | null;
   destination?: string | null;
+  return_city?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   travelers?: number | null;
+  budget_level?: TripDraftBudgetLevel;
+  preferred_airline?: string | null;
+  lodging_area?: string | null;
+  preferred_hotel_platform?: string | null;
+  preferred_activity_provider?: string | null;
+  /** @maxItems 80 */
+  official_attraction_links?: OfficialAttractionLink[];
   milestones?: TripMilestone[];
   /** @maxItems 20 */
   warnings?: string[];
