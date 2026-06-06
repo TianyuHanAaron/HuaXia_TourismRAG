@@ -161,13 +161,27 @@ function buildContextRows({
       { label: '目的地', value: `${routeBundle.origin} → ${routeBundle.destination}` },
       { label: '出行方式', value: routeBundle.mode },
       { label: '可信度', value: routeBundle.confidence },
+      { label: '路线状态', value: routeFreshnessLabel(routeBundle.freshness_status) },
     );
+    if (routeBundle.valid_until) {
+      rows.push({ label: '有效期', value: routeBundle.valid_until });
+    }
     if (routeBundle.waypoints.length) {
       rows.push({ label: '途经', value: routeBundle.waypoints.join('、') });
     }
   }
   rows.push({ label: '备用方案', value: fallback ? '已准备' : '暂无' });
   return rows;
+}
+
+function routeFreshnessLabel(value?: string | null): string {
+  const labels: Record<string, string> = {
+    fresh: '可用',
+    stale: '需刷新',
+    unavailable: '不可用',
+    approximate: '近似路线',
+  };
+  return labels[value ?? ''] ?? '未确认';
 }
 
 function primaryLabel(action: TripProviderAction, routeBundle?: RouteBundle | null): string {

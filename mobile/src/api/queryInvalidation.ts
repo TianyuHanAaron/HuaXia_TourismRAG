@@ -23,6 +23,10 @@ export async function invalidateTripServerState(
       queryClient.invalidateQueries({ queryKey: queryKeys.tripDraftReview(tripId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripSummary(tripId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripTaskCommandRoot(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripReliability(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripWorkflows(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.providerHealth() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.providerCircuitBreakers() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripRouteBundles(tripId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripCalendarEvents(tripId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripSafetyCard(tripId) }),
@@ -44,6 +48,11 @@ export async function invalidateTripTaskServerState(
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripSummary(tripId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tripTaskCommandRoot(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripReliability(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripWorkflows(tripId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.providerHealth() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.providerCircuitBreakers() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripRouteBundles(tripId) }),
     );
   }
   await Promise.all(invalidations);

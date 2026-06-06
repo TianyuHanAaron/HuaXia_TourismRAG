@@ -1,0 +1,198 @@
+{
+  "schema_snapshot_version": "v5_prompt_dto_contracts",
+  "prompt_snapshot_version": "v5_prompt_contracts",
+  "contracts": [
+    {
+      "contract_key": "travel_answer",
+      "model_name": "TravelAnswer",
+      "required_fields": [
+        "answer",
+        "highlights",
+        "warnings",
+        "citations",
+        "generated_itinerary",
+        "topic_sections"
+      ],
+      "enum_expectations": {},
+      "prompt_contract_name": "final_answer_prompt",
+      "prompt_required_fragments": [
+        "只能引用“允许使用的引用”里出现的编号",
+        "citations 字段必须逐字复制",
+        "generated_itinerary",
+        "topic_sections",
+        "不要输出未在允许列表中的引用编号"
+      ]
+    },
+    {
+      "contract_key": "trip_draft",
+      "model_name": "TripDraft",
+      "required_fields": [
+        "title",
+        "summary",
+        "origin_city",
+        "destination",
+        "return_city",
+        "milestones",
+        "warnings",
+        "evidence_refs",
+        "source_answer_text",
+        "source_job_id"
+      ],
+      "enum_expectations": {
+        "budget_level": ["budget", "mid_range", "luxury"]
+      },
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    },
+    {
+      "contract_key": "trip_task",
+      "model_name": "TripTask",
+      "required_fields": [
+        "task_id",
+        "title",
+        "instruction",
+        "category",
+        "status",
+        "priority",
+        "phase_type",
+        "due_at",
+        "provider_action_ids",
+        "reminder_enabled"
+      ],
+      "enum_expectations": {
+        "category": ["booking", "document", "packing", "transport", "lodging", "ticket", "activity", "food_reservation", "safety", "return", "custom"],
+        "status": ["pending", "in_progress", "blocked", "completed", "skipped"],
+        "priority": ["low", "normal", "high", "urgent"],
+        "phase_type": ["planning", "booking", "preparation", "departure_day", "airport_or_station", "transit", "arrival", "hotel_checkin", "daily_activities", "return_preparation", "return_transit", "home_completed"]
+      },
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    },
+    {
+      "contract_key": "route_bundle",
+      "model_name": "RouteBundle",
+      "required_fields": [
+        "route_id",
+        "route_bundle_id",
+        "trip_id",
+        "task_id",
+        "label",
+        "mode",
+        "travel_mode",
+        "origin",
+        "destination",
+        "primary_provider",
+        "provider_id",
+        "launch_url",
+        "fallback_url",
+        "confidence",
+        "freshness_status",
+        "validation_status",
+        "handoff_ready"
+      ],
+      "enum_expectations": {
+        "primary_provider": ["amap", "google_maps", "apple_maps", "mapbox"],
+        "travel_mode": ["walking", "driving", "transit", "mixed"],
+        "confidence": ["high", "medium", "low"],
+        "freshness_status": ["fresh", "stale", "unavailable", "approximate"],
+        "validation_status": ["ready", "needs_review", "unavailable"]
+      },
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    },
+    {
+      "contract_key": "provider_action",
+      "model_name": "TripProviderAction",
+      "required_fields": [
+        "action_id",
+        "action_type",
+        "label",
+        "provider",
+        "url",
+        "deep_link",
+        "fallback_url",
+        "allowed_launch_channels",
+        "data_sensitivity",
+        "webview_policy",
+        "available",
+        "validation_status",
+        "recovery_status"
+      ],
+      "enum_expectations": {
+        "action_type": ["open_map_route", "open_flight_search", "open_hotel_search", "open_ticket_site", "add_calendar_event", "upload_document", "open_weather", "open_transport_booking", "open_local_guide"],
+        "validation_status": ["ready", "needs_fallback", "unavailable"],
+        "data_sensitivity": ["public", "personal", "sensitive"],
+        "webview_policy": ["allowed", "external_only", "blocked"],
+        "recovery_status": ["none", "needs_follow_up", "retry_available", "completed", "remind_later"]
+      },
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    },
+    {
+      "contract_key": "weather_snapshot",
+      "model_name": "WeatherSnapshotResponse",
+      "required_fields": [
+        "trip_id",
+        "location",
+        "provider",
+        "fallback_provider_id",
+        "status",
+        "stale",
+        "alerts",
+        "task_impacts",
+        "generated_at"
+      ],
+      "enum_expectations": {
+        "status": ["ready", "needs_provider_fetch", "forecast_unavailable", "provider_unavailable"]
+      },
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    },
+    {
+      "contract_key": "safety_card",
+      "model_name": "SafetyCardResponse",
+      "required_fields": [
+        "trip_id",
+        "destination",
+        "is_international",
+        "emergency_numbers",
+        "emergency_contacts",
+        "emergency_actions",
+        "hospital_search_url",
+        "entry_requirements",
+        "risk_advisory",
+        "provider_sources",
+        "safety_notes",
+        "stale_warning",
+        "source_note",
+        "offline_available"
+      ],
+      "enum_expectations": {},
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    },
+    {
+      "contract_key": "workflow_event",
+      "model_name": "TripExecutionEvent",
+      "required_fields": [
+        "event_id",
+        "trip_id",
+        "event_type",
+        "category",
+        "actor_type",
+        "actor_id",
+        "payload",
+        "occurred_at",
+        "correlation_id",
+        "visibility"
+      ],
+      "enum_expectations": {
+        "category": ["task", "provider", "notification", "document", "support", "workflow", "booking", "trip", "calendar"],
+        "actor_type": ["user", "system", "support", "provider", "worker"],
+        "visibility": ["user", "support", "private"]
+      },
+      "prompt_contract_name": null,
+      "prompt_required_fragments": []
+    }
+  ]
+}

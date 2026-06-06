@@ -279,6 +279,13 @@ export const sampleRouteBundle: RouteBundle = {
     mapbox: 'https://www.mapbox.com/search?query=Beijing%20South%20Railway%20Station',
   },
   confidence: 'high',
+  generated_at: now,
+  valid_until: tomorrowMorning,
+  last_revalidated_at: now,
+  refresh_reason: 'initial_generation',
+  freshness_status: 'fresh',
+  revalidation_attempts: 1,
+  provider_version: 'workflow_v1',
   handoff_ready: true,
   related_task_ids: ['task-station-route'],
 };

@@ -40,15 +40,24 @@ from huaxia_tourismrag.schemas.jobs import (
     TravelJobCreateResponse,
     TravelJobKind,
     TravelJobQueueItem,
+    TravelJobQueueSnapshot,
     TravelJobStatusResponse,
 )
 from huaxia_tourismrag.schemas.market import (
+    AdminOperationsConsoleResponse,
     AnalyticsBatchRequest,
     AnalyticsBatchResponse,
     AnalyticsEventListResponse,
     AnalyticsEventRequest,
     AnalyticsEventResponse,
     AnalyticsFunnelResponse,
+    CapacityPlanningProviderMode,
+    CapacityPlanningReportResponse,
+    CapacityPlanningRunMode,
+    ComplianceIncidentCreateRequest,
+    ComplianceIncidentPatchRequest,
+    ComplianceIncidentRecord,
+    ComplianceIncidentReportResponse,
     EntitlementFeature,
     EntitlementCheckRequest,
     EntitlementCheckResponse,
@@ -65,24 +74,50 @@ from huaxia_tourismrag.schemas.market import (
     PrivacyDeletionRequestResponse,
     PrivacySettingsPatchRequest,
     PrivacySettingsResponse,
+    MobileIncidentBannerResponse,
+    PromptDtoRegressionReportResponse,
+    PromptDtoRegressionRunMode,
+    QualityEvaluationReportResponse,
+    QualityEvaluationRunMode,
     MobileBetaFeatureConfigResponse,
     RolloutFlagPatchRequest,
     RolloutFlagResponse,
     RolloutReadinessResponse,
+    SecurityPostureResponse,
     SubscriptionRefreshResponse,
     SubscriptionState,
     SupportAuditEventListResponse,
     SupportJobRecoveryBundleResponse,
     SupportJobRecoveryRequest,
     SupportJobRecoveryResponse,
+    SupportRecoveryApplyRequest,
+    SupportRecoveryApplyResponse,
+    SupportRecoveryMobileRefresh,
+    SupportRecoveryPlaybook,
+    SupportRecoveryPlaybookResponse,
     SupportProviderActionDebugRecord,
     SupportProviderActionDebugResponse,
     SupportUserRecoverySummaryResponse,
     UserPreferencePatchRequest,
     UserPreferenceProfile,
     V3ProviderReadinessResponse,
+    V5BusinessScaleReadinessResponse,
 )
-from huaxia_tourismrag.schemas.providers import ProviderConnectorListResponse, ProviderDomain
+from huaxia_tourismrag.schemas.providers import (
+    ProviderCircuitBreakerSnapshot,
+    ProviderCircuitBreakerSnapshotResponse,
+    ProviderConnectorListResponse,
+    ProviderCostControlCheckRequest,
+    ProviderCostControlDecision,
+    ProviderCostControlSummaryResponse,
+    ProviderCostEntitlementTier,
+    ProviderCredentialReadinessResponse,
+    ProviderDomain,
+    ProviderHealthSnapshot,
+    ProviderHealthSnapshotResponse,
+    ProviderPartnerEnvironment,
+    ProviderRegionalLatencyResponse,
+)
 from huaxia_tourismrag.schemas.sales import SalesHandoffRequest, SalesHandoffResponse
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.schemas.trips import (
@@ -98,8 +133,15 @@ from huaxia_tourismrag.schemas.trips import (
     ProviderRecoveryStateResponse,
     RouteBundleListResponse,
     SafetyCardResponse,
+    OfflineQueuedTaskMutation,
+    Trip,
     TripDayReorderRequest,
+    TripDurableWorkflowListResponse,
     TripDraftReviewResponse,
+    TripExecutionEvent,
+    TripExecutionEventCategory,
+    TripExecutionEventListResponse,
+    TripExecutionEventVisibility,
     TripBookingCreateRequest,
     TripBookingPatchRequest,
     TripDocumentCreateRequest,
@@ -109,30 +151,106 @@ from huaxia_tourismrag.schemas.trips import (
     TripMilestonePatchRequest,
     NavigationPreviewListResponse,
     TripPatchRequest,
+    TripProviderAction,
     TripProviderActionFollowUpRequest,
     TripProviderActionLaunchRequest,
+    TripRecentActivityResponse,
+    TripRetentionApplyRequest,
+    TripRetentionApplyResponse,
+    TripRetentionSnapshotResponse,
+    TripTraceEventListResponse,
+    TripTraceOperationType,
+    TripNotificationDeliveryRequest,
+    TripNotificationDeliveryResponse,
     TripReminderCandidateResponse,
+    TripReliabilitySloTargetsResponse,
+    TripReliabilitySnapshotResponse,
     TripResponse,
     TripSummaryResponse,
     TripTaskCommandResponse,
     TripTaskCreateRequest,
     TripTaskPatchRequest,
+    TripTask,
     WeatherSnapshotResponse,
 )
 from huaxia_tourismrag.services.diy_itinerary_service import DIYItineraryService
 from huaxia_tourismrag.services.job_errors import public_job_error
 from huaxia_tourismrag.services.job_queue import TravelJobQueue
 from huaxia_tourismrag.services.job_store import TravelJobNotFoundError, TravelJobStore
+from huaxia_tourismrag.services.admin_operations import build_admin_operations_console
+from huaxia_tourismrag.services.capacity_planning import build_capacity_planning_report
+from huaxia_tourismrag.services.compliance_incidents import (
+    InMemoryComplianceIncidentStore,
+)
 from huaxia_tourismrag.services.market_store import MarketStore
 from huaxia_tourismrag.services.qa_service import TourismQAService
+from huaxia_tourismrag.services.quality_evaluation import build_quality_evaluation_report
+from huaxia_tourismrag.services.prompt_dto_regression import (
+    build_prompt_dto_regression_report,
+)
 from huaxia_tourismrag.services.sales_handoff import SalesHandoffStore
+from huaxia_tourismrag.services.security_posture import build_security_posture
 from huaxia_tourismrag.services.session_reply_service import SessionReplyService
 from huaxia_tourismrag.services.session_store import SessionNotFoundError
 from huaxia_tourismrag.services.provider_registry import default_provider_registry
+from huaxia_tourismrag.services.notification_delivery import (
+    InMemoryTripNotificationDeliveryStore,
+    TripNotificationDeliveryStore,
+)
+from huaxia_tourismrag.services.provider_credentials import (
+    apply_credentials_to_health_snapshots,
+    build_provider_credential_readiness,
+    configured_provider_ids_from_credentials,
+    provider_credentials_configured,
+)
+from huaxia_tourismrag.services.provider_health import (
+    InMemoryProviderHealthStore,
+    ProviderHealthStore,
+    apply_provider_health_to_actions,
+    default_provider_health_snapshots,
+    provider_registry_with_health,
+)
+from huaxia_tourismrag.services.provider_circuit_breaker import (
+    InMemoryProviderCircuitBreakerStore,
+    ProviderCircuitBreakerStore,
+    apply_provider_circuits_to_actions,
+)
+from huaxia_tourismrag.services.provider_cost_control import (
+    InMemoryProviderCostControlStore,
+    ProviderCostControlStore,
+)
+from huaxia_tourismrag.services.route_bundle_freshness import (
+    InMemoryRouteBundleFreshnessStore,
+    RouteBundleFreshnessStore,
+    apply_route_bundle_freshness,
+    apply_route_freshness_to_actions,
+)
+from huaxia_tourismrag.services.regional_latency import (
+    build_provider_regional_latency_snapshot,
+)
 from huaxia_tourismrag.services.trip_store import (
     TripNotFoundError,
     TripStore,
     trip_store_error_status,
+)
+from huaxia_tourismrag.services.trip_execution_events import (
+    InMemoryTripExecutionEventStore,
+    TripExecutionEventStore,
+    append_from_trip_audit_events,
+    mobile_recent_activity_from_events,
+)
+from huaxia_tourismrag.services.trip_observability import (
+    InMemoryTripObservabilityStore,
+    TripObservabilityStore,
+    build_trip_trace_event,
+)
+from huaxia_tourismrag.services.trip_reliability import (
+    build_trip_reliability_slo_targets,
+    build_trip_reliability_snapshot,
+)
+from huaxia_tourismrag.services.trip_retention import build_trip_retention_snapshot
+from huaxia_tourismrag.services.v5_rollout_readiness import (
+    build_v5_business_scale_readiness,
 )
 from huaxia_tourismrag.services.trip_workflow import (
     build_calendar_events,
@@ -150,7 +268,13 @@ from huaxia_tourismrag.services.trip_workflow import (
     build_weather_snapshot,
     draft_from_travel_answer,
     summarize_trip,
+    audit_event,
     TripWorkflowError,
+)
+from huaxia_tourismrag.services.trip_workflow_runtime import (
+    InMemoryTripWorkflowStore,
+    TripWorkflowStore,
+    run_trip_approval_workflow,
 )
 
 router = APIRouter(prefix="/tourism", tags=["tourism-rag"])
@@ -331,6 +455,262 @@ def get_trip_store(request: Request) -> TripStore:
     if store is None:
         raise HTTPException(status_code=503, detail="trip store is not configured")
     return store
+
+
+def get_trip_workflow_store(request: Request) -> TripWorkflowStore:
+    """Return the durable trip workflow store, creating a local fallback for tests."""
+
+    store: TripWorkflowStore | None = getattr(request.app.state, "trip_workflow_store", None)
+    if store is None:
+        store = InMemoryTripWorkflowStore()
+        request.app.state.trip_workflow_store = store
+    return store
+
+
+def get_provider_health_store(request: Request) -> ProviderHealthStore:
+    """Return the provider health store, creating a local fallback for tests."""
+
+    store: ProviderHealthStore | None = getattr(request.app.state, "provider_health_store", None)
+    if store is None:
+        store = InMemoryProviderHealthStore()
+        request.app.state.provider_health_store = store
+    return store
+
+
+def get_compliance_incident_store(request: Request) -> InMemoryComplianceIncidentStore:
+    """Return the incident store, creating a local fallback for tests."""
+
+    store: InMemoryComplianceIncidentStore | None = getattr(
+        request.app.state,
+        "compliance_incident_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryComplianceIncidentStore()
+        request.app.state.compliance_incident_store = store
+    return store
+
+
+async def _provider_health_snapshots(
+    *,
+    store: ProviderHealthStore,
+    domain: ProviderDomain | None = None,
+    region: str | None = None,
+    settings: Settings | None = None,
+    environment: ProviderPartnerEnvironment = "production",
+    now: datetime | None = None,
+) -> list[ProviderHealthSnapshot]:
+    """Return current provider health snapshots overlaid on registry defaults."""
+
+    registry = default_provider_registry()
+    credential_readiness = (
+        build_provider_credential_readiness(
+            registry,
+            settings=settings,
+            domain=domain,
+            environment=environment,
+            now=now,
+        )
+        if settings is not None and provider_credentials_configured(settings)
+        else None
+    )
+    snapshots_by_provider = {
+        snapshot.provider_id: snapshot
+        for snapshot in default_provider_health_snapshots(
+            registry,
+            configured_provider_ids=(
+                configured_provider_ids_from_credentials(credential_readiness)
+                if credential_readiness
+                else None
+            ),
+            domain=domain,
+            region=region,
+        )
+    }
+    snapshots_by_provider.update(
+        {
+            snapshot.provider_id: snapshot
+            for snapshot in await store.list(domain=domain)
+        }
+    )
+    snapshots = list(snapshots_by_provider.values())
+    if credential_readiness:
+        snapshots = apply_credentials_to_health_snapshots(snapshots, credential_readiness)
+    snapshots.sort(key=lambda snapshot: (snapshot.domain, snapshot.provider_id))
+    return snapshots
+
+
+def get_provider_circuit_breaker_store(request: Request) -> ProviderCircuitBreakerStore:
+    """Return the provider circuit breaker store, creating a local fallback for tests."""
+
+    store: ProviderCircuitBreakerStore | None = getattr(
+        request.app.state,
+        "provider_circuit_breaker_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryProviderCircuitBreakerStore()
+        request.app.state.provider_circuit_breaker_store = store
+    return store
+
+
+async def _provider_circuit_breaker_snapshots(
+    *,
+    store: ProviderCircuitBreakerStore,
+    domain: ProviderDomain | None = None,
+    region: str | None = None,
+) -> list[ProviderCircuitBreakerSnapshot]:
+    """Return current provider circuit breaker snapshots."""
+
+    return await store.list(domain=domain, region=region)
+
+
+def get_provider_cost_control_store(request: Request) -> ProviderCostControlStore:
+    """Return the provider cost-control store, creating a local fallback for tests."""
+
+    store: ProviderCostControlStore | None = getattr(
+        request.app.state,
+        "provider_cost_control_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryProviderCostControlStore()
+        request.app.state.provider_cost_control_store = store
+    return store
+
+
+def get_route_bundle_freshness_store(request: Request) -> RouteBundleFreshnessStore:
+    """Return the route bundle freshness store, creating a local fallback for tests."""
+
+    store: RouteBundleFreshnessStore | None = getattr(
+        request.app.state,
+        "route_bundle_freshness_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryRouteBundleFreshnessStore()
+        request.app.state.route_bundle_freshness_store = store
+    return store
+
+
+def get_trip_execution_event_store(request: Request) -> TripExecutionEventStore:
+    """Return the trip execution event store, creating a local fallback for tests."""
+
+    store: TripExecutionEventStore | None = getattr(
+        request.app.state,
+        "trip_execution_event_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryTripExecutionEventStore()
+        request.app.state.trip_execution_event_store = store
+    return store
+
+
+def get_trip_observability_store(request: Request) -> TripObservabilityStore:
+    """Return the trip observability store, creating a local fallback for tests."""
+
+    store: TripObservabilityStore | None = getattr(
+        request.app.state,
+        "trip_observability_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryTripObservabilityStore()
+        request.app.state.trip_observability_store = store
+    return store
+
+
+def get_notification_delivery_store(request: Request) -> TripNotificationDeliveryStore:
+    """Return the notification delivery store, creating a local fallback for tests."""
+
+    store: TripNotificationDeliveryStore | None = getattr(
+        request.app.state,
+        "notification_delivery_store",
+        None,
+    )
+    if store is None:
+        store = InMemoryTripNotificationDeliveryStore()
+        request.app.state.notification_delivery_store = store
+    return store
+
+
+def _fresh_route_bundles_for_trip(
+    trip,
+    *,
+    store: RouteBundleFreshnessStore,
+    now: datetime | None = None,
+    preferred_provider_id: str | None = None,
+    device_platform: Literal["web", "ios", "android", "unknown"] = "web",
+):
+    """Build route bundles and overlay freshness state."""
+
+    bundles = build_route_bundles(
+        trip,
+        preferred_provider_id=preferred_provider_id,
+        device_platform=device_platform,
+    )
+    return apply_route_bundle_freshness(
+        bundles,
+        store.list(trip.trip_id),
+        now=now,
+    )
+
+
+async def _record_trip_execution_events(
+    *,
+    trip,
+    store: TripExecutionEventStore,
+) -> None:
+    """Project current trip audit events into the append-only execution store."""
+
+    await append_from_trip_audit_events(
+        store,
+        trip_id=trip.trip_id,
+        audit_events=trip.audit_events,
+    )
+
+
+def _set_request_id_header(response: Response, x_request_id: str | None = None) -> str:
+    """Set and return the public request id used for diagnostics."""
+
+    request_id = x_request_id or str(uuid4())
+    response.headers["X-Request-ID"] = request_id
+    return request_id
+
+
+def _provider_action_domain(action: TripProviderAction) -> ProviderDomain:
+    connector = default_provider_registry().get(action.provider)
+    if connector:
+        return connector.domain
+    if action.action_type == "open_hotel_search":
+        return "hotel"
+    if action.action_type == "open_flight_search":
+        return "flight"
+    if action.action_type == "open_weather":
+        return "weather"
+    if action.action_type == "open_ticket_site":
+        return "activity_ticket"
+    if action.action_type == "add_calendar_event":
+        return "calendar"
+    if action.action_type == "open_transport_booking":
+        return "local_transport"
+    if action.action_type == "upload_document":
+        return "document_import"
+    return "navigation"
+
+
+def _provider_action_region(action: TripProviderAction) -> str | None:
+    return (
+        action.context.get("route_region")
+        or action.context.get("region")
+        or ("CN" if action.route_provider_id == "amap" else None)
+    )
+
+
+def _provider_action_fallback_provider_ids(action: TripProviderAction) -> list[str]:
+    connector = default_provider_registry().get(action.provider)
+    return connector.fallback_provider_ids if connector else []
 
 
 def get_market_store(request: Request) -> MarketStore:
@@ -834,6 +1214,184 @@ def _support_provider_target_url(
     return action.last_target_url, False
 
 
+def _support_recovery_playbooks(trip: Trip) -> list[SupportRecoveryPlaybook]:
+    playbooks: list[SupportRecoveryPlaybook] = []
+    for task in trip.tasks:
+        if task.status == "blocked":
+            playbooks.append(
+                SupportRecoveryPlaybook(
+                    playbook_id=f"playbook:{trip.trip_id}:{task.task_id}:clear_blocked_task",
+                    action_key="clear_blocked_task",
+                    failure_type="blocked_task",
+                    target_id=task.task_id,
+                    title="Clear blocked task",
+                    summary=(
+                        "Use when support has confirmed the blocker was handled outside "
+                        "the app and the task should return to the active task list."
+                    ),
+                    affected_phase=task.phase_type,
+                    affected_task_ids=[task.task_id],
+                    mobile_outcome="Blocked task returns to the active task list.",
+                )
+            )
+    task_ids_by_action: dict[str, list[str]] = {}
+    for task in trip.tasks:
+        for action_id in task.provider_action_ids:
+            task_ids_by_action.setdefault(action_id, []).append(task.task_id)
+    for action in trip.provider_actions:
+        if action.recovery_status in {"retry_available", "needs_follow_up"}:
+            playbooks.append(
+                SupportRecoveryPlaybook(
+                    playbook_id=(
+                        f"playbook:{trip.trip_id}:{action.action_id}:"
+                        "mark_provider_action_completed_externally"
+                    ),
+                    action_key="mark_provider_action_completed_externally",
+                    failure_type="invalid_provider_link",
+                    target_id=action.action_id,
+                    title="Mark provider action completed externally",
+                    summary=(
+                        "Use when the user or support confirms the booking, route, ticket, "
+                        "or provider task was completed outside HuaXia."
+                    ),
+                    affected_task_ids=task_ids_by_action.get(action.action_id, []),
+                    mobile_outcome=(
+                        "Provider action is marked complete and linked tasks can refresh."
+                    ),
+                )
+            )
+        if not action.available or action.validation_status != "ready":
+            playbooks.append(
+                SupportRecoveryPlaybook(
+                    playbook_id=(
+                        f"playbook:{trip.trip_id}:{action.action_id}:"
+                        "rebuild_provider_action"
+                    ),
+                    action_key="rebuild_provider_action",
+                    failure_type="invalid_provider_link",
+                    target_id=action.action_id,
+                    title="Rebuild provider action",
+                    summary=(
+                        "Use when a provider launch is missing route, date, destination, "
+                        "fallback, or required context and should be regenerated."
+                    ),
+                    affected_task_ids=task_ids_by_action.get(action.action_id, []),
+                    mobile_outcome="Mobile receives a corrected fallback action.",
+                )
+            )
+    return playbooks
+
+
+def _require_current_version(expected: datetime, actual: datetime) -> None:
+    if expected != actual:
+        raise HTTPException(
+            status_code=409,
+            detail="current version check failed; refresh before applying recovery",
+        )
+
+
+def _clear_blocked_task_for_support(
+    trip: Trip,
+    task_id: str,
+    *,
+    reason: str,
+) -> tuple[Trip, SupportRecoveryMobileRefresh]:
+    for index, task in enumerate(trip.tasks):
+        if task.task_id != task_id:
+            continue
+        if task.status != "blocked":
+            raise HTTPException(status_code=409, detail="task is not blocked")
+        timestamp = datetime.now(UTC)
+        trip.tasks[index] = task.model_copy(
+            update={
+                "status": "pending",
+                "blocked_reason": None,
+                "updated_at": timestamp,
+            }
+        )
+        trip.updated_at = timestamp
+        trip.audit_events.append(
+            audit_event(
+                "task_updated",
+                f"Support cleared blocked task: {task.title}",
+                actor="support",
+                metadata={
+                    "task_id": task_id,
+                    "support_recovery_action": "clear_blocked_task",
+                    "reason": reason,
+                },
+            )
+        )
+        return trip, SupportRecoveryMobileRefresh(
+            surfaces=["trip_home", "timeline", "tasks"],
+            message="Support cleared the blocked task. Refresh tasks and timeline.",
+        )
+    raise HTTPException(status_code=404, detail="task not found")
+
+
+def _mark_provider_action_completed_for_support(
+    trip: Trip,
+    action_id: str,
+    *,
+    reason: str,
+) -> tuple[Trip, SupportRecoveryMobileRefresh]:
+    task_ids = [
+        task.task_id for task in trip.tasks if action_id in task.provider_action_ids
+    ]
+    for index, action in enumerate(trip.provider_actions):
+        if action.action_id != action_id:
+            continue
+        timestamp = datetime.now(UTC)
+        trip.provider_actions[index] = action.model_copy(
+            update={
+                "handled_at": timestamp,
+                "last_launch_result": "completed",
+                "recovery_status": "completed",
+                "failure_reason": None,
+                "follow_up_prompt_at": None,
+            }
+        )
+        for task_index, task in enumerate(trip.tasks):
+            if (
+                action_id in task.provider_action_ids
+                and task.status not in {"completed", "skipped"}
+            ):
+                trip.tasks[task_index] = task.model_copy(
+                    update={
+                        "status": "completed",
+                        "blocked_reason": None,
+                        "updated_at": timestamp,
+                    }
+                )
+        trip.updated_at = timestamp
+        trip.audit_events.append(
+            audit_event(
+                "provider_action_recovered",
+                f"Support marked provider action completed: {action.label}",
+                actor="support",
+                metadata={
+                    "action_id": action_id,
+                    "provider": action.provider,
+                    "task_ids": ",".join(task_ids),
+                    "support_recovery_action": (
+                        "mark_provider_action_completed_externally"
+                    ),
+                    "reason": reason,
+                    "recovery_status": "completed",
+                    "last_launch_result": "completed",
+                },
+            )
+        )
+        return trip, SupportRecoveryMobileRefresh(
+            surfaces=["trip_home", "timeline", "tasks", "provider_actions"],
+            message=(
+                "Support marked the provider action complete. Refresh linked tasks "
+                "and provider actions."
+            ),
+        )
+    raise HTTPException(status_code=404, detail="provider action not found")
+
+
 @support_router.get(
     "/users/{target_user_id}/recovery-summary",
     response_model=SupportUserRecoverySummaryResponse,
@@ -923,6 +1481,119 @@ async def get_support_provider_action_debug(
         filters=filters,
         record_count=len(records),
         records=records,
+        support_audit_event_id=audit.event_id,
+    )
+
+
+@support_router.get(
+    "/users/{target_user_id}/trips/{trip_id}/recovery-playbooks",
+    response_model=SupportRecoveryPlaybookResponse,
+)
+async def get_support_trip_recovery_playbooks(
+    target_user_id: str,
+    trip_id: str,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> SupportRecoveryPlaybookResponse:
+    """Return deterministic support playbooks for one trip."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    await _require_support_access_consent(market_store, target_user_id)
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, target_user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    playbooks = _support_recovery_playbooks(trip)
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id=target_user_id,
+        action="support_playbooks_viewed",
+        resource_type="trip",
+        resource_id=trip_id,
+        metadata={"playbook_count": str(len(playbooks))},
+    )
+    return SupportRecoveryPlaybookResponse(
+        target_user_id=target_user_id,
+        trip_id=trip_id,
+        playbook_count=len(playbooks),
+        playbooks=playbooks,
+        support_audit_event_id=audit.event_id,
+    )
+
+
+@support_router.post(
+    "/users/{target_user_id}/trips/{trip_id}/recovery-playbooks/apply",
+    response_model=SupportRecoveryApplyResponse,
+)
+async def apply_support_trip_recovery_playbook(
+    target_user_id: str,
+    trip_id: str,
+    body: SupportRecoveryApplyRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> SupportRecoveryApplyResponse:
+    """Apply one controlled support recovery playbook."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    await _require_support_access_consent(market_store, target_user_id)
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, target_user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+
+    if body.action_key == "clear_blocked_task":
+        task = next((candidate for candidate in trip.tasks if candidate.task_id == body.target_id), None)
+        if task is None:
+            raise HTTPException(status_code=404, detail="task not found")
+        _require_current_version(body.expected_updated_at, task.updated_at)
+        trip, mobile_refresh = _clear_blocked_task_for_support(
+            trip,
+            body.target_id,
+            reason=body.reason,
+        )
+        resource_type = "task"
+    elif body.action_key == "mark_provider_action_completed_externally":
+        if not any(action.action_id == body.target_id for action in trip.provider_actions):
+            raise HTTPException(status_code=404, detail="provider action not found")
+        _require_current_version(body.expected_updated_at, trip.updated_at)
+        trip, mobile_refresh = _mark_provider_action_completed_for_support(
+            trip,
+            body.target_id,
+            reason=body.reason,
+        )
+        resource_type = "provider_action"
+    else:
+        raise HTTPException(
+            status_code=409,
+            detail=f"support recovery action {body.action_key} is not implemented yet",
+        )
+
+    trip = await trip_store.save(trip)
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id=target_user_id,
+        action="support_playbook_applied",
+        resource_type=resource_type,
+        resource_id=body.target_id,
+        metadata={
+            "trip_id": trip_id,
+            "action_key": body.action_key,
+            "reason": body.reason,
+        },
+    )
+    return SupportRecoveryApplyResponse(
+        target_user_id=target_user_id,
+        trip_id=trip_id,
+        action_key=body.action_key,
+        target_id=body.target_id,
+        trip=_sanitize_trip_for_privacy_export(trip),
+        mobile_refresh=mobile_refresh,
         support_audit_event_id=audit.event_id,
     )
 
@@ -1034,6 +1705,292 @@ async def support_refresh_user_subscription(
         metadata={"subscription_status": result.subscription.status},
     )
     return result.model_copy(update={"support_audit_event_id": audit.event_id})
+
+
+@support_router.get("/security/posture", response_model=SecurityPostureResponse)
+async def get_support_security_posture(
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_app_settings),
+    market_store: MarketStore = Depends(get_market_store),
+) -> SecurityPostureResponse:
+    """Return redacted security posture diagnostics for support/admin users."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="security_posture_viewed",
+        resource_type="security",
+        resource_id="posture",
+        metadata={"diagnostic": "redacted_credential_posture"},
+    )
+    return build_security_posture(
+        settings,
+        support_audit_event_id=audit.event_id,
+    )
+
+
+@support_router.get(
+    "/operations/console",
+    response_model=AdminOperationsConsoleResponse,
+)
+async def get_support_operations_console(
+    request: Request,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    trip_store: TripStore = Depends(get_trip_store),
+    workflow_store: TripWorkflowStore = Depends(get_trip_workflow_store),
+    provider_health_store: ProviderHealthStore = Depends(get_provider_health_store),
+    notification_store: TripNotificationDeliveryStore = Depends(
+        get_notification_delivery_store
+    ),
+) -> AdminOperationsConsoleResponse:
+    """Return an aggregate V5 operations console snapshot for support/admin users."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    trips = await trip_store.list(user.tenant_id)
+    workflows = [
+        workflow
+        for trip in trips
+        for workflow in await workflow_store.list_for_trip(
+            tenant_id=user.tenant_id,
+            trip_id=trip.trip_id,
+        )
+    ]
+    provider_health = await provider_health_store.list()
+    if not provider_health:
+        provider_health = await _provider_health_snapshots(store=provider_health_store)
+    notification_responses = [
+        await notification_store.list(tenant_id=user.tenant_id, trip_id=trip.trip_id)
+        for trip in trips
+    ]
+    notification_deliveries = [
+        delivery
+        for notification_response in notification_responses
+        for delivery in notification_response.delivery_records
+    ]
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    queue_snapshot = await job_queue.snapshot() if job_queue is not None else None
+    audit_events = await market_store.list_support_audit()
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="operations_console_viewed",
+        resource_type="operations",
+        resource_id="console",
+        metadata={
+            "active_trip_count": str(len(trips)),
+            "workflow_count": str(len(workflows)),
+            "provider_health_count": str(len(provider_health)),
+            "notification_delivery_count": str(len(notification_deliveries)),
+        },
+    )
+    return build_admin_operations_console(
+        tenant_id=user.tenant_id,
+        trips=trips,
+        workflows=workflows,
+        provider_health=provider_health,
+        queue_snapshot=queue_snapshot,
+        notification_deliveries=notification_deliveries,
+        support_audit_event_count=len(audit_events),
+        support_audit_event_id=audit.event_id,
+    )
+
+
+@support_router.get(
+    "/capacity/report",
+    response_model=CapacityPlanningReportResponse,
+)
+async def get_support_capacity_report(
+    request: Request,
+    response: Response,
+    run_mode: CapacityPlanningRunMode = Query(default="local_smoke"),
+    provider_mode: CapacityPlanningProviderMode = Query(default="mocked"),
+    allow_live_providers: bool = Query(default=False),
+    user: CurrentUser = Depends(get_current_user),
+) -> CapacityPlanningReportResponse:
+    """Return a V5 load-testing and capacity-planning report for support/admin users."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    if provider_mode == "live" and not allow_live_providers:
+        raise HTTPException(
+            status_code=409,
+            detail="live provider capacity tests require allow_live_providers=true",
+        )
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    queue_snapshot = await job_queue.snapshot() if job_queue is not None else None
+    return build_capacity_planning_report(
+        run_mode=run_mode,
+        provider_mode=provider_mode,
+        queue_snapshot=queue_snapshot,
+        live_provider_calls_allowed=allow_live_providers,
+    )
+
+
+@support_router.get(
+    "/quality/report",
+    response_model=QualityEvaluationReportResponse,
+)
+async def get_support_quality_report(
+    response: Response,
+    run_mode: QualityEvaluationRunMode = Query(default="smoke"),
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+) -> QualityEvaluationReportResponse:
+    """Return deterministic V5 trip workflow quality evaluation results."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    report = build_quality_evaluation_report(run_mode=run_mode)
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="quality_evaluation_report_viewed",
+        resource_type="operations",
+        resource_id="quality-evaluation",
+        metadata={
+            "run_mode": run_mode,
+            "fixture_count": str(report.fixture_count),
+            "release_blocked": str(report.release_blocked),
+        },
+    )
+    return report.model_copy(update={"support_audit_event_id": audit.event_id})
+
+
+@support_router.get(
+    "/prompt-dto/report",
+    response_model=PromptDtoRegressionReportResponse,
+)
+async def get_support_prompt_dto_regression_report(
+    response: Response,
+    run_mode: PromptDtoRegressionRunMode = Query(default="smoke"),
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+) -> PromptDtoRegressionReportResponse:
+    """Return deterministic V5 prompt and DTO regression contract results."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    report = build_prompt_dto_regression_report(run_mode=run_mode)
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="prompt_dto_regression_report_viewed",
+        resource_type="operations",
+        resource_id="prompt-dto-regression",
+        metadata={
+            "run_mode": run_mode,
+            "contract_count": str(report.contract_count),
+            "release_blocked": str(report.release_blocked),
+        },
+    )
+    return report.model_copy(update={"support_audit_event_id": audit.event_id})
+
+
+@support_router.post(
+    "/incidents",
+    response_model=ComplianceIncidentRecord,
+    status_code=201,
+)
+async def create_support_compliance_incident(
+    body: ComplianceIncidentCreateRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    incident_store: InMemoryComplianceIncidentStore = Depends(
+        get_compliance_incident_store
+    ),
+) -> ComplianceIncidentRecord:
+    """Open a support/admin incident with public mobile communication copy."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    record = incident_store.open_incident(body, actor_user_id=user.user_id)
+    await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="compliance_incident_opened",
+        resource_type="operations",
+        resource_id=record.incident_id,
+        metadata={
+            "incident_type": record.incident_type,
+            "severity": record.severity,
+            "disabled_features": ",".join(record.disabled_features),
+        },
+    )
+    return record
+
+
+@support_router.patch(
+    "/incidents/{incident_id}",
+    response_model=ComplianceIncidentRecord,
+)
+async def patch_support_compliance_incident(
+    incident_id: str,
+    body: ComplianceIncidentPatchRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    incident_store: InMemoryComplianceIncidentStore = Depends(
+        get_compliance_incident_store
+    ),
+) -> ComplianceIncidentRecord:
+    """Patch incident mitigation and resolution state."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    record = incident_store.update_incident(incident_id, body)
+    if record is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="compliance_incident_updated",
+        resource_type="operations",
+        resource_id=record.incident_id,
+        metadata={
+            "status": record.status,
+            "incident_type": record.incident_type,
+            "severity": record.severity,
+        },
+    )
+    return record
+
+
+@support_router.get(
+    "/incidents/report",
+    response_model=ComplianceIncidentReportResponse,
+)
+async def get_support_compliance_incident_report(
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    incident_store: InMemoryComplianceIncidentStore = Depends(
+        get_compliance_incident_store
+    ),
+) -> ComplianceIncidentReportResponse:
+    """Return V5 compliance and incident response state for support/admin users."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    report = incident_store.build_report()
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="compliance_incident_report_viewed",
+        resource_type="operations",
+        resource_id="compliance-incidents",
+        metadata={
+            "open_incident_count": str(report.open_incident_count),
+            "release_blocked": str(report.release_blocked),
+        },
+    )
+    return report.model_copy(update={"support_audit_event_id": audit.event_id})
 
 
 @support_router.get("/audit", response_model=SupportAuditEventListResponse)
@@ -1165,6 +2122,63 @@ async def get_v3_provider_rollout_readiness(
     return await market_store.get_v3_provider_readiness(user.user_id)
 
 
+@rollout_router.get(
+    "/v5/business-scale-readiness",
+    response_model=V5BusinessScaleReadinessResponse,
+)
+async def get_v5_business_scale_readiness(
+    request: Request,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    market_store: MarketStore = Depends(get_market_store),
+    provider_health_store: ProviderHealthStore = Depends(get_provider_health_store),
+    incident_store: InMemoryComplianceIncidentStore = Depends(
+        get_compliance_incident_store
+    ),
+) -> V5BusinessScaleReadinessResponse:
+    """Return V5 reliability and business-scale readiness for support/admin users."""
+
+    require_support_admin(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    queue_snapshot = await job_queue.snapshot() if job_queue is not None else None
+    provider_health = await provider_health_store.list()
+    if not provider_health:
+        provider_health = await _provider_health_snapshots(store=provider_health_store)
+    flags = await market_store.get_rollout_flags()
+    audit_events = await market_store.list_support_audit()
+    quality_report = build_quality_evaluation_report(run_mode="smoke")
+    prompt_dto_report = build_prompt_dto_regression_report(run_mode="smoke")
+    compliance_report = incident_store.build_report()
+    capacity_report = build_capacity_planning_report(
+        run_mode="local_smoke",
+        provider_mode="mocked",
+        queue_snapshot=queue_snapshot,
+    )
+    readiness = build_v5_business_scale_readiness(
+        quality_report=quality_report,
+        prompt_dto_report=prompt_dto_report,
+        compliance_report=compliance_report,
+        capacity_report=capacity_report,
+        provider_health=provider_health,
+        support_audit_event_count=len(audit_events),
+        rollout_flags=flags,
+    )
+    audit = await market_store.record_support_audit(
+        actor_user_id=user.user_id,
+        target_user_id="system",
+        action="v5_business_scale_readiness_viewed",
+        resource_type="operations",
+        resource_id="v5-business-scale-readiness",
+        metadata={
+            "release_blocked": str(readiness.release_blocked),
+            "readiness_score": str(readiness.readiness_score),
+            "launch_mode": readiness.launch_mode,
+        },
+    )
+    return readiness.model_copy(update={"support_audit_event_id": audit.event_id})
+
+
 @rollout_router.get("/v2/flags", response_model=RolloutFlagResponse)
 async def get_v2_rollout_flags(
     response: Response,
@@ -1288,6 +2302,18 @@ async def create_sample_trip(
             OnboardingUpdateRequest(completed=True),
         )
     return TripResponse(trip=trip)
+
+
+@trip_router.get("/reliability/slos", response_model=TripReliabilitySloTargetsResponse)
+async def get_trip_reliability_slo_targets(
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+) -> TripReliabilitySloTargetsResponse:
+    """Return published V5 reliability SLO targets."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return build_trip_reliability_slo_targets()
 
 
 @trip_router.get("/{trip_id}/draft-review", response_model=TripDraftReviewResponse)
@@ -1495,14 +2521,123 @@ async def get_trip_reminder_candidates(
     )
 
 
+@trip_router.get(
+    "/{trip_id}/notification-deliveries",
+    response_model=TripNotificationDeliveryResponse,
+)
+async def list_trip_notification_deliveries(
+    trip_id: str,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    notification_store: TripNotificationDeliveryStore = Depends(
+        get_notification_delivery_store
+    ),
+) -> TripNotificationDeliveryResponse:
+    """List notification delivery attempts and in-app fallback alerts."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return await notification_store.list(tenant_id=user.tenant_id, trip_id=trip_id)
+
+
+@trip_router.post(
+    "/{trip_id}/notification-deliveries",
+    response_model=TripNotificationDeliveryResponse,
+)
+async def record_trip_notification_deliveries(
+    trip_id: str,
+    body: TripNotificationDeliveryRequest,
+    response: Response,
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    notification_store: TripNotificationDeliveryStore = Depends(
+        get_notification_delivery_store
+    ),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+    observability_store: TripObservabilityStore = Depends(
+        get_trip_observability_store
+    ),
+) -> TripNotificationDeliveryResponse:
+    """Record mobile notification schedule/delivery outcomes and fallbacks."""
+
+    require_tourism_access(user)
+    request_id = _set_request_id_header(response, x_request_id)
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    result = await notification_store.record(
+        tenant_id=user.tenant_id,
+        trip=trip,
+        request=body,
+    )
+    for record in result.delivery_records:
+        await execution_event_store.append(
+            TripExecutionEvent(
+                event_id=record.record_id,
+                trip_id=trip_id,
+                event_type=f"notification_{record.status}",
+                category="notification",
+                actor_type="provider" if record.channel == "expo_push" else "system",
+                actor_id=record.provider_id,
+                payload={
+                    "task_id": record.task_id,
+                    "dedupe_key": record.dedupe_key,
+                    "status": record.status,
+                    "permission_state": record.permission_state,
+                    "channel": record.channel,
+                },
+                occurred_at=record.created_at,
+                correlation_id=record.dedupe_key,
+                visibility="user",
+            )
+        )
+        await observability_store.append(
+            user.tenant_id,
+            build_trip_trace_event(
+                trip_id=trip_id,
+                operation_type="notification",
+                operation_name="record_notification_delivery",
+                status="failed" if record.status == "failed" else "ok",
+                correlation_id=record.dedupe_key,
+                request_id=request_id,
+                task_id=record.task_id,
+                provider_id=record.provider_id,
+                payload={
+                    "channel": record.channel,
+                    "status": record.status,
+                    "permission_state": record.permission_state,
+                    "provider_id": record.provider_id,
+                    "provider_message_id": record.provider_message_id,
+                    "provider_response": record.provider_response or {},
+                    "error": record.error,
+                },
+                occurred_at=record.created_at,
+            ),
+        )
+    return result
+
+
 @trip_router.get("/{trip_id}/route-bundles", response_model=RouteBundleListResponse)
 async def get_trip_route_bundles(
     trip_id: str,
     response: Response,
     preferred_provider_id: str | None = Query(default=None),
     device_platform: Literal["web", "ios", "android", "unknown"] = Query(default="web"),
+    now: datetime | None = Query(default=None),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    route_bundle_freshness_store: RouteBundleFreshnessStore = Depends(
+        get_route_bundle_freshness_store
+    ),
 ) -> RouteBundleListResponse:
     """Return prepared route handoff bundles."""
 
@@ -1514,10 +2649,66 @@ async def get_trip_route_bundles(
         raise HTTPException(status_code=404, detail="trip not found") from exc
     return RouteBundleListResponse(
         trip_id=trip.trip_id,
-        route_bundles=build_route_bundles(
+        route_bundles=_fresh_route_bundles_for_trip(
             trip,
+            store=route_bundle_freshness_store,
+            now=now,
             preferred_provider_id=preferred_provider_id,
             device_platform=device_platform,
+        ),
+    )
+
+
+@trip_router.post(
+    "/{trip_id}/route-bundles/{route_bundle_id}/revalidate",
+    response_model=RouteBundleListResponse,
+)
+async def revalidate_trip_route_bundle(
+    trip_id: str,
+    route_bundle_id: str,
+    response: Response,
+    preferred_provider_id: str | None = Query(default=None),
+    device_platform: Literal["web", "ios", "android", "unknown"] = Query(default="web"),
+    now: datetime | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    route_bundle_freshness_store: RouteBundleFreshnessStore = Depends(
+        get_route_bundle_freshness_store
+    ),
+) -> RouteBundleListResponse:
+    """Record a manual route refresh and return current route bundle state."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    bundles = build_route_bundles(
+        trip,
+        preferred_provider_id=preferred_provider_id,
+        device_platform=device_platform,
+    )
+    bundle = next(
+        (candidate for candidate in bundles if candidate.route_bundle_id == route_bundle_id),
+        None,
+    )
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="route bundle not found")
+    route_bundle_freshness_store.record_refresh(
+        trip_id=trip.trip_id,
+        route_bundle_id=bundle.route_bundle_id,
+        provider_id=bundle.provider_id,
+        at=now or datetime.now(UTC),
+        reason="manual_refresh",
+        provider_version=bundle.provider_version,
+    )
+    return RouteBundleListResponse(
+        trip_id=trip.trip_id,
+        route_bundles=apply_route_bundle_freshness(
+            bundles,
+            route_bundle_freshness_store.list(trip.trip_id),
+            now=now,
         ),
     )
 
@@ -1607,18 +2798,24 @@ async def export_trip_calendar_events(
     response: Response,
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> CalendarExportResponse:
     """Confirm selected calendar events and return device-calendar/.ics payload."""
 
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
     try:
-        return await trip_store.export_calendar_events(
+        export = await trip_store.export_calendar_events(
             trip_id,
             user.tenant_id,
             body,
             owner_user_id=user.user_id,
         )
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
+        return export
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -1659,6 +2856,28 @@ async def get_trip_safety_card(
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail="trip not found") from exc
     return build_safety_card(trip)
+
+
+@trip_router.get(
+    "/{trip_id}/incidents/mobile-banners",
+    response_model=MobileIncidentBannerResponse,
+)
+async def get_trip_incident_mobile_banners(
+    trip_id: str,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    incident_store: InMemoryComplianceIncidentStore = Depends(
+        get_compliance_incident_store
+    ),
+) -> MobileIncidentBannerResponse:
+    """Return public incident banners that affect this active trip or user account."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return incident_store.mobile_banners_for_trip(
+        trip_id=trip_id,
+        user_id=user.user_id,
+    )
 
 
 @trip_router.get("/{trip_id}/offline-snapshot", response_model=OfflineTripSnapshotResponse)
@@ -1703,6 +2922,79 @@ async def get_trip_offline_snapshot(
     )
 
 
+@trip_router.get("/{trip_id}/reliability", response_model=TripReliabilitySnapshotResponse)
+async def get_trip_reliability_snapshot(
+    trip_id: str,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> TripReliabilitySnapshotResponse:
+    """Return the V5 reliability snapshot for mobile and support surfaces."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return build_trip_reliability_snapshot(trip)
+
+
+@trip_router.get(
+    "/{trip_id}/regional-latency",
+    response_model=ProviderRegionalLatencyResponse,
+)
+async def get_trip_regional_latency_snapshot(
+    trip_id: str,
+    response: Response,
+    user_region: str | None = Query(default=None),
+    settings: Settings = Depends(get_app_settings),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    provider_health_store: ProviderHealthStore = Depends(get_provider_health_store),
+) -> ProviderRegionalLatencyResponse:
+    """Return V5 region-aware provider latency and mobile prefetch guidance."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return build_provider_regional_latency_snapshot(
+        trip=trip,
+        user_region=user_region,
+        health_snapshots=await _provider_health_snapshots(
+            store=provider_health_store,
+            settings=settings,
+        ),
+        registry=default_provider_registry(),
+    )
+
+
+@trip_router.get("/{trip_id}/workflows", response_model=TripDurableWorkflowListResponse)
+async def list_trip_durable_workflows(
+    trip_id: str,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    workflow_store: TripWorkflowStore = Depends(get_trip_workflow_store),
+) -> TripDurableWorkflowListResponse:
+    """Return durable workflow records for one trip."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    workflows = await workflow_store.list_for_trip(
+        tenant_id=user.tenant_id,
+        trip_id=trip_id,
+    )
+    return TripDurableWorkflowListResponse(trip_id=trip_id, workflows=workflows)
+
+
 @trip_router.post(
     "/{trip_id}/offline-task-updates",
     response_model=OfflineTaskUpdateSyncResponse,
@@ -1711,13 +3003,20 @@ async def sync_trip_offline_task_updates(
     trip_id: str,
     body: OfflineTaskUpdateSyncRequest,
     response: Response,
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+    observability_store: TripObservabilityStore = Depends(
+        get_trip_observability_store
+    ),
 ) -> OfflineTaskUpdateSyncResponse:
     """Reconcile mobile-local queued task mutations after connectivity returns."""
 
     require_tourism_access(user)
-    response.headers["X-Request-ID"] = str(uuid4())
+    request_id = _set_request_id_header(response, x_request_id)
     try:
         latest_trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
     except TripNotFoundError as exc:
@@ -1725,6 +3024,21 @@ async def sync_trip_offline_task_updates(
 
     results: list[OfflineQueuedMutationResult] = []
     for mutation in body.mutations:
+        server_task = _find_trip_task(latest_trip, mutation.task_id)
+        duplicate_mutation_id = _accepted_offline_mutation_id(latest_trip, mutation)
+        if duplicate_mutation_id is not None:
+            results.append(
+                OfflineQueuedMutationResult(
+                    mutation_id=mutation.mutation_id,
+                    task_id=mutation.task_id,
+                    status="duplicate",
+                    server_task=server_task,
+                    server_updated_at=server_task.updated_at if server_task else None,
+                    updated_at=server_task.updated_at if server_task else None,
+                    accepted_duplicate_of=duplicate_mutation_id,
+                )
+            )
+            continue
         try:
             latest_trip = await trip_store.patch_task(
                 trip_id,
@@ -1740,19 +3054,38 @@ async def sync_trip_offline_task_updates(
                 OfflineQueuedMutationResult(
                     mutation_id=mutation.mutation_id,
                     task_id=mutation.task_id,
-                    status="applied",
+                    status="accepted",
+                    server_task=updated_task,
+                    server_updated_at=updated_task.updated_at,
                     updated_at=updated_task.updated_at,
                 )
             )
         except Exception as exc:
             message = str(exc)
-            result_status = "conflict" if "conflict" in message.lower() else "failed"
+            lowered = message.lower()
+            server_task = _find_trip_task(latest_trip, mutation.task_id)
+            if "task not found" in lowered:
+                result_status = "conflict"
+                conflict_policy = "missing_task"
+                conflict_reason = "The task no longer exists on the server."
+            elif "conflict" in lowered or "expected_updated_at" in lowered:
+                result_status = "conflict"
+                conflict_policy = "expected_updated_at"
+                conflict_reason = "The server task changed after the mobile copy was queued."
+            else:
+                result_status = "failed"
+                conflict_policy = "unknown"
+                conflict_reason = None
             results.append(
                 OfflineQueuedMutationResult(
                     mutation_id=mutation.mutation_id,
                     task_id=mutation.task_id,
                     status=result_status,
                     error=message,
+                    conflict_policy=conflict_policy,
+                    conflict_reason=conflict_reason,
+                    server_task=server_task,
+                    server_updated_at=server_task.updated_at if server_task else None,
                 )
             )
 
@@ -1760,16 +3093,71 @@ async def sync_trip_offline_task_updates(
         latest_trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail="trip not found") from exc
+    await _record_trip_execution_events(trip=latest_trip, store=execution_event_store)
+    for result in results:
+        await observability_store.append(
+            user.tenant_id,
+            build_trip_trace_event(
+                trip_id=trip_id,
+                operation_type="offline_sync",
+                operation_name="sync_offline_task_update",
+                status=(
+                    "failed"
+                    if result.status == "failed"
+                    else "degraded"
+                    if result.status in {"conflict", "rejected"}
+                    else "ok"
+                ),
+                correlation_id=result.mutation_id,
+                request_id=request_id,
+                task_id=result.task_id,
+                error_code=result.error,
+                payload={
+                    "mutation_id": result.mutation_id,
+                    "task_id": result.task_id,
+                    "status": result.status,
+                    "conflict_policy": result.conflict_policy,
+                    "conflict_reason": result.conflict_reason,
+                    "error": result.error,
+                },
+            ),
+        )
 
     return OfflineTaskUpdateSyncResponse(
         trip_id=trip_id,
         sync_token=latest_trip.updated_at.isoformat(),
         results=results,
-        applied_count=sum(1 for result in results if result.status == "applied"),
+        applied_count=sum(1 for result in results if result.status in {"accepted", "applied"}),
+        duplicate_count=sum(1 for result in results if result.status == "duplicate"),
         conflict_count=sum(1 for result in results if result.status == "conflict"),
+        rejected_count=sum(1 for result in results if result.status == "rejected"),
         failed_count=sum(1 for result in results if result.status == "failed"),
         trip=latest_trip,
     )
+
+
+def _find_trip_task(trip: Trip, task_id: str) -> TripTask | None:
+    """Return a task from a trip snapshot by id."""
+
+    return next((task for task in trip.tasks if task.task_id == task_id), None)
+
+
+def _accepted_offline_mutation_id(
+    trip: Trip,
+    mutation: OfflineQueuedTaskMutation,
+) -> str | None:
+    """Return an accepted client mutation id when a queued mutation was already applied."""
+
+    mutation_ids = {
+        mutation.mutation_id,
+        mutation.patch.client_mutation_id,
+    }
+    mutation_ids.discard(None)
+    for event in trip.audit_events:
+        accepted_id = event.metadata.get("client_mutation_id")
+        if accepted_id in mutation_ids and event.event_type == "task_updated":
+            return accepted_id
+    return None
 
 
 @trip_router.post("/{trip_id}/documents", response_model=TripResponse, status_code=201)
@@ -1777,14 +3165,21 @@ async def create_trip_document(
     trip_id: str,
     body: TripDocumentCreateRequest,
     response: Response,
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
     market_store: MarketStore = Depends(get_market_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+    observability_store: TripObservabilityStore = Depends(
+        get_trip_observability_store
+    ),
 ) -> TripResponse:
     """Attach document metadata to a trip without ingesting file contents."""
 
     require_tourism_access(user)
-    response.headers["X-Request-ID"] = str(uuid4())
+    request_id = _set_request_id_header(response, x_request_id)
     await require_entitlement(
         market_store=market_store,
         user=user,
@@ -1797,6 +3192,21 @@ async def create_trip_document(
             user.tenant_id,
             body,
             owner_user_id=user.user_id,
+        )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
+        document = trip.documents[-1] if trip.documents else None
+        await observability_store.append(
+            user.tenant_id,
+            build_trip_trace_event(
+                trip_id=trip_id,
+                operation_type="document_import",
+                operation_name="attach_document_metadata",
+                correlation_id=document.document_id if document else f"document-{uuid4()}",
+                request_id=request_id,
+                task_id=document.task_ids[0] if document and document.task_ids else None,
+                payload=body.model_dump(mode="json"),
+                occurred_at=document.created_at if document else None,
+            ),
         )
     except Exception as exc:
         status = trip_store_error_status(exc)
@@ -1813,6 +3223,9 @@ async def patch_trip_document_metadata(
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
     market_store: MarketStore = Depends(get_market_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Patch document metadata without ingesting file contents."""
 
@@ -1832,6 +3245,7 @@ async def patch_trip_document_metadata(
             body,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -1846,6 +3260,9 @@ async def delete_trip_document_metadata(
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
     market_store: MarketStore = Depends(get_market_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Remove document metadata from a trip."""
 
@@ -1864,6 +3281,7 @@ async def delete_trip_document_metadata(
             document_id,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -1878,6 +3296,9 @@ async def create_trip_booking(
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
     market_store: MarketStore = Depends(get_market_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Attach booking metadata to a trip."""
 
@@ -1896,6 +3317,7 @@ async def create_trip_booking(
             body,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -1911,6 +3333,9 @@ async def patch_trip_booking_metadata(
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
     market_store: MarketStore = Depends(get_market_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Patch booking metadata attached to a trip."""
 
@@ -1930,6 +3355,7 @@ async def patch_trip_booking_metadata(
             body,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -1944,6 +3370,9 @@ async def delete_trip_booking_metadata(
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
     market_store: MarketStore = Depends(get_market_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Remove booking metadata from a trip."""
 
@@ -1962,6 +3391,7 @@ async def delete_trip_booking_metadata(
             booking_id,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -1989,13 +3419,21 @@ async def list_provider_connectors(
     capability: str | None = Query(default=None),
     region: str | None = Query(default=None),
     preferred_provider_id: str | None = Query(default=None),
+    settings: Settings = Depends(get_app_settings),
     user: CurrentUser = Depends(get_current_user),
+    provider_health_store: ProviderHealthStore = Depends(get_provider_health_store),
 ) -> ProviderConnectorListResponse:
     """Return V3 provider connector registry information."""
 
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
-    registry = default_provider_registry()
+    health_snapshots = await _provider_health_snapshots(
+        store=provider_health_store,
+        domain=domain,
+        region=region,
+        settings=settings,
+    )
+    registry = provider_registry_with_health(default_provider_registry(), health_snapshots)
     connectors = registry.list(domain=domain)
     selected_provider_id: str | None = None
     fallback_provider_ids: list[str] = []
@@ -2023,6 +3461,136 @@ async def list_provider_connectors(
     )
 
 
+@trip_router.get(
+    "/provider-credentials",
+    response_model=ProviderCredentialReadinessResponse,
+)
+async def list_provider_credential_readiness(
+    response: Response,
+    domain: ProviderDomain | None = Query(default=None),
+    environment: ProviderPartnerEnvironment = Query(default="production"),
+    now: datetime | None = Query(default=None),
+    settings: Settings = Depends(get_app_settings),
+    user: CurrentUser = Depends(get_current_user),
+) -> ProviderCredentialReadinessResponse:
+    """Return safe provider credential readiness without raw secret values."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return build_provider_credential_readiness(
+        default_provider_registry(),
+        settings=settings,
+        domain=domain,
+        environment=environment,
+        now=now,
+    )
+
+
+@trip_router.get("/provider-health", response_model=ProviderHealthSnapshotResponse)
+async def list_provider_health(
+    response: Response,
+    domain: ProviderDomain | None = Query(default=None),
+    region: str | None = Query(default=None),
+    settings: Settings = Depends(get_app_settings),
+    user: CurrentUser = Depends(get_current_user),
+    provider_health_store: ProviderHealthStore = Depends(get_provider_health_store),
+) -> ProviderHealthSnapshotResponse:
+    """Return current provider health snapshots for web, mobile, and support surfaces."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return ProviderHealthSnapshotResponse(
+        domain=domain,
+        region=region,
+        snapshots=await _provider_health_snapshots(
+            store=provider_health_store,
+            domain=domain,
+            region=region,
+            settings=settings,
+        ),
+    )
+
+
+@trip_router.get(
+    "/provider-circuit-breakers",
+    response_model=ProviderCircuitBreakerSnapshotResponse,
+)
+async def list_provider_circuit_breakers(
+    response: Response,
+    domain: ProviderDomain | None = Query(default=None),
+    region: str | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    provider_circuit_breaker_store: ProviderCircuitBreakerStore = Depends(
+        get_provider_circuit_breaker_store
+    ),
+) -> ProviderCircuitBreakerSnapshotResponse:
+    """Return current provider circuit breaker states for web, mobile, and support."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return ProviderCircuitBreakerSnapshotResponse(
+        domain=domain,
+        region=region,
+        snapshots=await _provider_circuit_breaker_snapshots(
+            store=provider_circuit_breaker_store,
+            domain=domain,
+            region=region,
+        ),
+    )
+
+
+@trip_router.get(
+    "/provider-cost-controls",
+    response_model=ProviderCostControlSummaryResponse,
+)
+async def list_provider_cost_controls(
+    response: Response,
+    domain: ProviderDomain | None = Query(default=None),
+    provider_id: str | None = Query(default=None),
+    entitlement_tier: ProviderCostEntitlementTier | None = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    provider_cost_control_store: ProviderCostControlStore = Depends(
+        get_provider_cost_control_store
+    ),
+) -> ProviderCostControlSummaryResponse:
+    """Return provider budget usage and policy visibility for support/admin/mobile."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    return await provider_cost_control_store.summary(
+        tenant_id=user.tenant_id,
+        domain=domain,
+        provider_id=provider_id,
+        entitlement_tier=entitlement_tier,
+        admin_visible=user.role == "tourism_admin",
+    )
+
+
+@trip_router.post(
+    "/provider-cost-controls/check",
+    response_model=ProviderCostControlDecision,
+)
+async def check_provider_cost_control(
+    body: ProviderCostControlCheckRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    provider_cost_control_store: ProviderCostControlStore = Depends(
+        get_provider_cost_control_store
+    ),
+) -> ProviderCostControlDecision:
+    """Evaluate whether a provider call should proceed, use cache, or degrade."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    request = body
+    if user.role == "tourism_admin" and body.entitlement_tier != "admin":
+        request = body.model_copy(update={"entitlement_tier": "admin"})
+    return await provider_cost_control_store.check(
+        tenant_id=user.tenant_id,
+        request=request,
+    )
+
+
 @trip_router.get("/{trip_id}", response_model=TripResponse)
 async def get_trip(
     trip_id: str,
@@ -2039,6 +3607,101 @@ async def get_trip(
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail="trip not found") from exc
     return TripResponse(trip=trip)
+
+
+@trip_router.get(
+    "/{trip_id}/observability/traces",
+    response_model=TripTraceEventListResponse,
+)
+async def list_trip_observability_traces(
+    trip_id: str,
+    response: Response,
+    operation_type: TripTraceOperationType | None = Query(default=None),
+    correlation_id: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    observability_store: TripObservabilityStore = Depends(
+        get_trip_observability_store
+    ),
+) -> TripTraceEventListResponse:
+    """Return support-safe observability traces for one trip."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    traces = await observability_store.list(
+        tenant_id=user.tenant_id,
+        trip_id=trip_id,
+        operation_type=operation_type,
+        correlation_id=correlation_id,
+        limit=limit,
+    )
+    return TripTraceEventListResponse(trip_id=trip_id, traces=traces)
+
+
+@trip_router.get("/{trip_id}/execution-events", response_model=TripExecutionEventListResponse)
+async def list_trip_execution_events(
+    trip_id: str,
+    response: Response,
+    visibility: TripExecutionEventVisibility | None = Query(default=None),
+    category: TripExecutionEventCategory | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+) -> TripExecutionEventListResponse:
+    """Return projected trip execution events for support/admin/mobile surfaces."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    await _record_trip_execution_events(trip=trip, store=execution_event_store)
+    events = await execution_event_store.list(
+        trip_id,
+        visibility=visibility,
+        category=category,
+        limit=limit,
+    )
+    return TripExecutionEventListResponse(trip_id=trip_id, events=events)
+
+
+@trip_router.get(
+    "/{trip_id}/execution-events/mobile-activity",
+    response_model=TripRecentActivityResponse,
+)
+async def get_trip_recent_activity(
+    trip_id: str,
+    response: Response,
+    limit: int = Query(default=20, ge=1, le=100),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+) -> TripRecentActivityResponse:
+    """Return user-visible recent activity for mobile."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    await _record_trip_execution_events(trip=trip, store=execution_event_store)
+    events = await execution_event_store.list(trip_id, limit=limit)
+    return TripRecentActivityResponse(
+        trip_id=trip_id,
+        activities=mobile_recent_activity_from_events(events, limit=limit),
+    )
 
 
 @trip_router.patch("/{trip_id}", response_model=TripResponse)
@@ -2070,23 +3733,38 @@ async def patch_trip(
 async def approve_trip_draft(
     trip_id: str,
     response: Response,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    workflow_store: TripWorkflowStore = Depends(get_trip_workflow_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Approve a draft and generate initial lifecycle workflow tasks."""
 
     require_tourism_access(user)
     response.headers["X-Request-ID"] = str(uuid4())
-    try:
-        trip = await trip_store.approve(
-            trip_id,
-            user.tenant_id,
-            owner_user_id=user.user_id,
+    result = await run_trip_approval_workflow(
+        trip_store=trip_store,
+        workflow_store=workflow_store,
+        trip_id=trip_id,
+        tenant_id=user.tenant_id,
+        owner_user_id=user.user_id,
+        idempotency_key=idempotency_key,
+    )
+    response.headers["X-Trip-Workflow-ID"] = result.workflow.workflow_id
+    if result.trip is None:
+        status_code = 404 if "not found" in (result.workflow.terminal_error or "") else 409
+        raise HTTPException(
+            status_code=status_code,
+            detail=result.workflow.terminal_error or "trip approval workflow failed",
         )
-    except Exception as exc:
-        status = trip_store_error_status(exc)
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
-    return TripResponse(trip=trip)
+    await _record_trip_execution_events(
+        trip=result.trip,
+        store=execution_event_store,
+    )
+    return TripResponse(trip=result.trip)
 
 
 @trip_router.post("/{trip_id}/archive", response_model=TripResponse)
@@ -2095,6 +3773,9 @@ async def archive_trip(
     response: Response,
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Archive a trip so it no longer appears in the active trip list."""
 
@@ -2106,10 +3787,70 @@ async def archive_trip(
             user.tenant_id,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     return TripResponse(trip=trip)
+
+
+@trip_router.get("/{trip_id}/retention", response_model=TripRetentionSnapshotResponse)
+async def get_trip_retention_snapshot(
+    trip_id: str,
+    response: Response,
+    now: datetime | None = Query(default=None),
+    support_hold: bool = Query(default=False),
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+) -> TripRetentionSnapshotResponse:
+    """Return the current retention and archival status for one trip."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="trip not found") from exc
+    return build_trip_retention_snapshot(
+        trip,
+        now=now,
+        support_hold=support_hold,
+    )
+
+
+@trip_router.post(
+    "/{trip_id}/retention/apply",
+    response_model=TripRetentionApplyResponse,
+)
+async def apply_trip_retention_policy(
+    trip_id: str,
+    body: TripRetentionApplyRequest,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+    trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+) -> TripRetentionApplyResponse:
+    """Apply retention redaction/archive rules or set a support hold."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    try:
+        result = await trip_store.apply_retention(
+            trip_id,
+            user.tenant_id,
+            body,
+            owner_user_id=user.user_id,
+        )
+        await _record_trip_execution_events(
+            trip=result.trip,
+            store=execution_event_store,
+        )
+    except Exception as exc:
+        status = trip_store_error_status(exc)
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return result
 
 
 @trip_router.post("/{trip_id}/tasks", response_model=TripResponse, status_code=201)
@@ -2119,6 +3860,9 @@ async def create_trip_task(
     response: Response,
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Add a user-created task to a trip."""
 
@@ -2131,6 +3875,7 @@ async def create_trip_task(
             body,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -2145,6 +3890,9 @@ async def patch_trip_task(
     response: Response,
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Patch a trip task."""
 
@@ -2158,6 +3906,7 @@ async def patch_trip_task(
             body,
             owner_user_id=user.user_id,
         )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -2173,8 +3922,17 @@ async def get_trip_provider_action_mobile_sheet(
     action_id: str,
     response: Response,
     task_id: str | None = Query(default=None),
+    now: datetime | None = Query(default=None),
+    settings: Settings = Depends(get_app_settings),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    provider_health_store: ProviderHealthStore = Depends(get_provider_health_store),
+    provider_circuit_breaker_store: ProviderCircuitBreakerStore = Depends(
+        get_provider_circuit_breaker_store
+    ),
+    route_bundle_freshness_store: RouteBundleFreshnessStore = Depends(
+        get_route_bundle_freshness_store
+    ),
 ) -> MobileProviderActionSheetResponse:
     """Return Expo-ready provider action bottom-sheet data."""
 
@@ -2182,6 +3940,35 @@ async def get_trip_provider_action_mobile_sheet(
     response.headers["X-Request-ID"] = str(uuid4())
     try:
         trip = await trip_store.get(trip_id, user.tenant_id, user.user_id)
+        health_snapshots = await _provider_health_snapshots(
+            store=provider_health_store,
+            settings=settings,
+            now=now,
+        )
+        circuit_snapshots = await _provider_circuit_breaker_snapshots(
+            store=provider_circuit_breaker_store
+        )
+        route_bundles = _fresh_route_bundles_for_trip(
+            trip,
+            store=route_bundle_freshness_store,
+            now=now,
+        )
+        provider_actions = apply_provider_health_to_actions(
+            trip.provider_actions,
+            health_snapshots,
+        )
+        provider_actions = apply_provider_circuits_to_actions(
+            provider_actions,
+            circuit_snapshots,
+        )
+        provider_actions = apply_route_freshness_to_actions(
+            provider_actions,
+            route_bundles,
+        )
+        trip = trip.model_copy(
+            update={"provider_actions": provider_actions},
+            deep=True,
+        )
         return build_mobile_provider_action_sheet(trip, action_id, task_id=task_id)
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail="trip not found") from exc
@@ -2200,13 +3987,20 @@ async def launch_trip_provider_action(
     action_id: str,
     response: Response,
     body: TripProviderActionLaunchRequest | None = None,
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
+    observability_store: TripObservabilityStore = Depends(
+        get_trip_observability_store
+    ),
 ) -> TripResponse:
     """Record a provider action launch."""
 
     require_tourism_access(user)
-    response.headers["X-Request-ID"] = str(uuid4())
+    request_id = _set_request_id_header(response, x_request_id)
     try:
         trip = await trip_store.launch_provider_action(
             trip_id,
@@ -2214,6 +4008,36 @@ async def launch_trip_provider_action(
             action_id,
             owner_user_id=user.user_id,
             request=body,
+        )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
+        action = next(
+            (item for item in trip.provider_actions if item.action_id == action_id),
+            None,
+        )
+        correlation_id = (
+            body.client_event_id
+            if body and body.client_event_id
+            else action_id
+        )
+        await observability_store.append(
+            user.tenant_id,
+            build_trip_trace_event(
+                trip_id=trip_id,
+                operation_type="provider_action",
+                operation_name="launch_provider_action",
+                correlation_id=correlation_id,
+                request_id=request_id,
+                action_id=action_id,
+                provider_id=action.provider if action else None,
+                payload={
+                    "action_id": action_id,
+                    "provider_id": action.provider if action else None,
+                    "launch_channel": body.launch_channel if body else None,
+                    "target_url": body.target_url if body else None,
+                    "validation_status": action.validation_status if action else None,
+                    "last_launch_result": action.last_launch_result if action else None,
+                },
+            ),
         )
     except Exception as exc:
         status = trip_store_error_status(exc)
@@ -2232,6 +4056,12 @@ async def follow_up_trip_provider_action(
     response: Response,
     user: CurrentUser = Depends(get_current_user),
     trip_store: TripStore = Depends(get_trip_store),
+    provider_circuit_breaker_store: ProviderCircuitBreakerStore = Depends(
+        get_provider_circuit_breaker_store
+    ),
+    execution_event_store: TripExecutionEventStore = Depends(
+        get_trip_execution_event_store
+    ),
 ) -> TripResponse:
     """Record user follow-up after returning from a provider handoff."""
 
@@ -2245,6 +4075,25 @@ async def follow_up_trip_provider_action(
             body,
             owner_user_id=user.user_id,
         )
+        action = next(
+            (candidate for candidate in trip.provider_actions if candidate.action_id == action_id),
+            None,
+        )
+        if action and body.outcome == "failed":
+            await provider_circuit_breaker_store.record_failure(
+                provider_id=action.provider,
+                domain=_provider_action_domain(action),
+                region=_provider_action_region(action),
+                failure_reason=body.failure_reason,
+                fallback_provider_ids=_provider_action_fallback_provider_ids(action),
+            )
+        elif action and body.outcome == "completed":
+            await provider_circuit_breaker_store.record_success(
+                provider_id=action.provider,
+                domain=_provider_action_domain(action),
+                region=_provider_action_region(action),
+            )
+        await _record_trip_execution_events(trip=trip, store=execution_event_store)
     except Exception as exc:
         status = trip_store_error_status(exc)
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -2508,6 +4357,22 @@ async def create_general_question_job(
             )
         )
     return TravelJobCreateResponse(job_id=job.job_id, status=job.status)
+
+
+@router.get("/jobs/queue/snapshot", response_model=TravelJobQueueSnapshot)
+async def get_travel_job_queue_snapshot(
+    request: Request,
+    response: Response,
+    user: CurrentUser = Depends(get_current_user),
+) -> TravelJobQueueSnapshot:
+    """Return observable state for the external travel job worker queue."""
+
+    require_tourism_access(user)
+    response.headers["X-Request-ID"] = str(uuid4())
+    job_queue: TravelJobQueue | None = getattr(request.app.state, "travel_job_queue", None)
+    if job_queue is None:
+        raise HTTPException(status_code=503, detail="travel job queue is not configured")
+    return await job_queue.snapshot()
 
 
 @router.get("/jobs/{job_id}", response_model=TravelJobStatusResponse)

@@ -22,9 +22,12 @@ from huaxia_tourismrag.schemas.trips import (
     TripPatchRequest,
     TripProviderActionFollowUpRequest,
     TripProviderActionLaunchRequest,
+    TripRetentionApplyRequest,
+    TripRetentionApplyResponse,
     TripTaskCreateRequest,
     TripTaskPatchRequest,
 )
+from huaxia_tourismrag.services.trip_retention import apply_trip_retention
 from huaxia_tourismrag.services.trip_workflow import (
     add_trip_booking,
     add_custom_task,
@@ -88,6 +91,9 @@ class TripStore(Protocol):
         owner_user_id: str | None = None,
     ) -> Trip:
         """Get a tenant-scoped trip visible to an optional owner."""
+
+    async def save(self, trip: Trip) -> Trip:
+        """Persist an already-mutated tenant-scoped trip."""
 
     async def patch(
         self,
@@ -157,6 +163,16 @@ class TripStore(Protocol):
         owner_user_id: str | None = None,
     ) -> Trip:
         """Archive a trip."""
+
+    async def apply_retention(
+        self,
+        trip_id: str,
+        tenant_id: str,
+        request: TripRetentionApplyRequest,
+        *,
+        owner_user_id: str | None = None,
+    ) -> TripRetentionApplyResponse:
+        """Apply retention and archival rules to one trip."""
 
     async def patch_task(
         self,
@@ -331,6 +347,11 @@ class InMemoryTripStore:
             raise TripNotFoundError("trip not found")
         return trip
 
+    async def save(self, trip: Trip) -> Trip:
+        trip.updated_at = datetime.now(UTC)
+        self._trips[trip.trip_id] = trip
+        return trip
+
     async def patch(
         self,
         trip_id: str,
@@ -421,6 +442,19 @@ class InMemoryTripStore:
             trip = transition_trip(trip, "archived", actor="user")
         self._trips[trip.trip_id] = trip
         return trip
+
+    async def apply_retention(
+        self,
+        trip_id: str,
+        tenant_id: str,
+        request: TripRetentionApplyRequest,
+        *,
+        owner_user_id: str | None = None,
+    ) -> TripRetentionApplyResponse:
+        trip = await self.get(trip_id, tenant_id, owner_user_id)
+        result = apply_trip_retention(trip, request)
+        self._trips[result.trip.trip_id] = result.trip
+        return result
 
     async def patch_task(
         self,
@@ -667,6 +701,10 @@ class RedisTripStore:
             raise TripNotFoundError("trip not found")
         return trip
 
+    async def save(self, trip: Trip) -> Trip:
+        await self._save(trip)
+        return trip
+
     async def patch(
         self,
         trip_id: str,
@@ -757,6 +795,19 @@ class RedisTripStore:
             trip = transition_trip(trip, "archived", actor="user")
         await self._save(trip)
         return trip
+
+    async def apply_retention(
+        self,
+        trip_id: str,
+        tenant_id: str,
+        request: TripRetentionApplyRequest,
+        *,
+        owner_user_id: str | None = None,
+    ) -> TripRetentionApplyResponse:
+        trip = await self.get(trip_id, tenant_id, owner_user_id)
+        result = apply_trip_retention(trip, request)
+        await self._save(result.trip)
+        return result
 
     async def patch_task(
         self,

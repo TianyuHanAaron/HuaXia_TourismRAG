@@ -36,6 +36,7 @@ class TravelJobWorker:
             job = await self.job_store.get(item.job_id, item.tenant_id)
         except TravelJobNotFoundError:
             logger.warning("Queued travel job not found: %s", item.job_id)
+            await self.job_queue.ack(item)
             return True
 
         await self.job_store.mark_running(item.job_id, item.tenant_id)
@@ -44,6 +45,10 @@ class TravelJobWorker:
                 await self.job_store.fail(
                     item.job_id,
                     item.tenant_id,
+                    "QA service factory is not configured for general question jobs",
+                )
+                await self.job_queue.fail(
+                    item,
                     "QA service factory is not configured for general question jobs",
                 )
                 return True
@@ -58,7 +63,9 @@ class TravelJobWorker:
                 item.tenant_id,
                 public_job_error(exc),
             )
+            await self.job_queue.fail(item, public_job_error(exc))
             return True
 
         await self.job_store.complete(item.job_id, item.tenant_id, answer)
+        await self.job_queue.ack(item)
         return True

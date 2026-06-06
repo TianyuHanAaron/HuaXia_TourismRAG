@@ -57,6 +57,10 @@ from huaxia_tourismrag.services.session_store import (
     TravelSessionStore,
 )
 from huaxia_tourismrag.services.trip_store import RedisTripStore
+from huaxia_tourismrag.services.trip_execution_events import (
+    InMemoryTripExecutionEventStore,
+)
+from huaxia_tourismrag.services.trip_workflow_runtime import RedisTripWorkflowStore
 from huaxia_tourismrag.tools.citation_formatter import CitationFormatter
 from huaxia_tourismrag.tools.internal_rag import InternalRAGTool
 from huaxia_tourismrag.tools.reranker import BgeRerankerTool
@@ -536,6 +540,14 @@ def build_trip_store(redis: Redis | None = None) -> RedisTripStore:
     return RedisTripStore(redis=redis)
 
 
+def build_trip_workflow_store(redis: Redis | None = None) -> RedisTripWorkflowStore:
+    """Build the Redis-backed durable trip workflow store."""
+
+    settings = get_settings()
+    redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
+    return RedisTripWorkflowStore(redis=redis)
+
+
 def build_market_store() -> InMemoryMarketStore:
     """Build the V2 market MVP preference/subscription/analytics store."""
 
@@ -553,7 +565,13 @@ def build_travel_job_queue(
         return None
 
     redis = redis or Redis.from_url(settings.redis_url, decode_responses=True)
-    return RedisTravelJobQueue(redis=redis, key=settings.job_queue_key)
+    return RedisTravelJobQueue(
+        redis=redis,
+        key=settings.job_queue_key,
+        lease_seconds=settings.job_queue_lease_seconds,
+        max_attempts=settings.job_queue_max_attempts,
+        retry_backoff_seconds=settings.job_queue_retry_backoff_seconds,
+    )
 
 
 def configure_frontend_cors(app: FastAPI, settings: Settings) -> None:
@@ -622,6 +640,8 @@ def create_app() -> FastAPI:
     evidence_pack_cache = build_evidence_pack_cache(redis=session_store.redis)
     job_store = build_travel_job_store(redis=session_store.redis)
     trip_store = build_trip_store(redis=session_store.redis)
+    trip_workflow_store = build_trip_workflow_store(redis=session_store.redis)
+    trip_execution_event_store = InMemoryTripExecutionEventStore()
     market_store = build_market_store()
     job_queue = build_travel_job_queue(redis=session_store.redis)
     sales_handoff_store = RedisSalesHandoffStore(
@@ -632,6 +652,8 @@ def create_app() -> FastAPI:
     app.state.retrieval_cache = retrieval_cache
     app.state.travel_job_store = job_store
     app.state.trip_store = trip_store
+    app.state.trip_workflow_store = trip_workflow_store
+    app.state.trip_execution_event_store = trip_execution_event_store
     app.state.market_store = market_store
     app.state.travel_job_queue = job_queue
     app.state.sales_handoff_store = sales_handoff_store

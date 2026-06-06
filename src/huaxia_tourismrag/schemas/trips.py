@@ -100,6 +100,59 @@ TripProviderRecoveryStatus = Literal[
     "completed",
     "remind_later",
 ]
+TripReliabilityStatus = Literal["healthy", "degraded", "critical", "not_ready"]
+TripReliabilitySeverity = Literal["info", "warning", "degraded", "critical"]
+TripReliabilityCategory = Literal[
+    "workflow",
+    "provider",
+    "offline_sync",
+    "notification",
+    "route",
+    "support",
+]
+TripReliabilitySloSubsystem = Literal[
+    "planning_jobs",
+    "provider_actions",
+    "route_bundles",
+    "notifications",
+    "offline_sync",
+    "support_recovery",
+]
+TripReliabilitySloUnit = Literal["percent", "seconds", "minutes", "count"]
+TripRetentionTarget = Literal[
+    "active_trip",
+    "archived_trip",
+    "document",
+    "booking_reference",
+    "provider_audit",
+    "notification_record",
+    "analytics_event",
+    "support_case",
+]
+TripRetentionAction = Literal["keep", "archive", "redact", "delete", "hold"]
+TripRetentionStatus = Literal[
+    "retained",
+    "due_for_archive",
+    "due_for_redaction",
+    "redacted",
+    "deleted",
+    "held",
+]
+TripDurableWorkflowKind = Literal[
+    "trip_approval",
+    "task_generation",
+    "provider_action_refresh",
+    "notification_scheduling",
+    "offline_mutation_replay",
+]
+TripDurableWorkflowStatus = Literal[
+    "queued",
+    "running",
+    "retrying",
+    "blocked",
+    "failed",
+    "completed",
+]
 TripProviderActionFollowUpOutcome = Literal[
     "completed",
     "failed",
@@ -146,6 +199,21 @@ TripAuditEventType = Literal[
     "booking_added",
     "booking_updated",
     "booking_removed",
+    "retention_policy_applied",
+    "retention_hold_set",
+]
+TripExecutionEventActorType = Literal["user", "system", "support", "provider", "worker"]
+TripExecutionEventVisibility = Literal["user", "support", "private"]
+TripExecutionEventCategory = Literal[
+    "task",
+    "provider",
+    "notification",
+    "document",
+    "support",
+    "workflow",
+    "booking",
+    "trip",
+    "calendar",
 ]
 CalendarExportTarget = Literal["device_calendar", "ics"]
 OfflineTripCapability = Literal[
@@ -167,7 +235,45 @@ OfflineProviderCacheEntryType = Literal[
     "booking_reference",
     "document_metadata",
 ]
-OfflineMutationStatus = Literal["applied", "conflict", "failed"]
+OfflineMutationStatus = Literal[
+    "accepted",
+    "applied",
+    "duplicate",
+    "conflict",
+    "rejected",
+    "failed",
+]
+OfflineConflictPolicy = Literal[
+    "none",
+    "expected_updated_at",
+    "missing_task",
+    "server_rejected",
+    "unknown",
+]
+TripNotificationPermissionState = Literal[
+    "granted",
+    "denied",
+    "undetermined",
+    "unavailable",
+]
+TripNotificationDeliveryStatus = Literal[
+    "scheduled",
+    "delivered",
+    "failed",
+    "fallback_in_app",
+    "skipped_duplicate",
+]
+TripNotificationChannel = Literal["expo_push", "in_app"]
+RouteBundleFreshnessStatus = Literal["fresh", "stale", "unavailable", "approximate"]
+TripTraceOperationType = Literal[
+    "planning_job",
+    "trip_workflow",
+    "provider_action",
+    "notification",
+    "offline_sync",
+    "document_import",
+]
+TripTraceOperationStatus = Literal["ok", "failed", "degraded"]
 
 
 class TripEvidenceRef(BaseModel):
@@ -614,6 +720,83 @@ class ProviderRecoveryStateResponse(BaseModel):
     states: list[ProviderRecoveryState] = Field(default_factory=list)
 
 
+class TripReliabilityIndicator(BaseModel):
+    """One actionable reliability signal for a trip."""
+
+    indicator_id: str = Field(min_length=1, max_length=120)
+    category: TripReliabilityCategory
+    severity: TripReliabilitySeverity
+    title: str = Field(min_length=1, max_length=160)
+    detail: str = Field(min_length=1, max_length=800)
+    recovery_action: str | None = Field(default=None, max_length=500)
+    related_task_ids: list[str] = Field(default_factory=list, max_length=20)
+    related_action_ids: list[str] = Field(default_factory=list, max_length=20)
+
+
+class TripReliabilitySnapshotResponse(BaseModel):
+    """V5 trip reliability snapshot for mobile and support surfaces."""
+
+    trip_id: str
+    overall_status: TripReliabilityStatus
+    score: int = Field(ge=0, le=100)
+    support_recovery_priority: Literal["normal", "medium", "high"]
+    indicators: list[TripReliabilityIndicator] = Field(default_factory=list, max_length=40)
+    metrics: dict[str, int] = Field(default_factory=dict)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripReliabilitySloTarget(BaseModel):
+    """One measurable V5 reliability target."""
+
+    target_id: str = Field(min_length=1, max_length=120)
+    subsystem: TripReliabilitySloSubsystem
+    metric_key: str = Field(min_length=1, max_length=120)
+    target_label: str = Field(min_length=1, max_length=160)
+    healthy_threshold: float = Field(ge=0)
+    degraded_threshold: float | None = Field(default=None, ge=0)
+    unit: TripReliabilitySloUnit
+    measurement_window: str = Field(min_length=1, max_length=80)
+    measurement_source: str = Field(min_length=1, max_length=500)
+    mobile_ready_label: str = Field(min_length=1, max_length=120)
+    degraded_user_copy: str = Field(min_length=1, max_length=300)
+    admin_recovery_owner: str = Field(min_length=1, max_length=120)
+
+
+class TripReliabilitySloTargetsResponse(BaseModel):
+    """Published V5 reliability targets for mobile, web, and admin surfaces."""
+
+    version: Literal["v5_reliability_slo_targets"] = "v5_reliability_slo_targets"
+    targets: list[TripReliabilitySloTarget] = Field(default_factory=list, min_length=1)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripDurableWorkflowRecord(BaseModel):
+    """Durable record for one recoverable trip workflow command."""
+
+    workflow_id: str
+    tenant_id: str
+    trip_id: str
+    owner_user_id: str | None = None
+    workflow_kind: TripDurableWorkflowKind
+    idempotency_key: str = Field(min_length=1, max_length=240)
+    status: TripDurableWorkflowStatus = "queued"
+    attempt_count: int = Field(default=0, ge=0)
+    next_retry_at: datetime | None = None
+    terminal_result: dict[str, str] = Field(default_factory=dict)
+    terminal_error: str | None = Field(default=None, max_length=1000)
+    metadata: dict[str, str] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
+
+
+class TripDurableWorkflowListResponse(BaseModel):
+    """List durable workflow records for one trip."""
+
+    trip_id: str
+    workflows: list[TripDurableWorkflowRecord] = Field(default_factory=list)
+
+
 class MobileProviderActionSheetContextRow(BaseModel):
     """Compact context row for the Expo provider action bottom sheet."""
 
@@ -747,6 +930,80 @@ class TripAuditEvent(BaseModel):
     metadata: dict[str, str] = Field(default_factory=dict)
 
 
+class TripExecutionEvent(BaseModel):
+    """Append-only projected event for trip execution debugging and recovery."""
+
+    event_id: str
+    trip_id: str
+    event_type: str = Field(min_length=1, max_length=120)
+    category: TripExecutionEventCategory
+    actor_type: TripExecutionEventActorType = "system"
+    actor_id: str = Field(default="system", max_length=160)
+    payload: dict[str, str] = Field(default_factory=dict)
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    correlation_id: str | None = Field(default=None, max_length=160)
+    visibility: TripExecutionEventVisibility = "user"
+
+
+class TripExecutionEventListResponse(BaseModel):
+    """Execution event list response for support/admin and mobile clients."""
+
+    trip_id: str
+    events: list[TripExecutionEvent]
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripRecentActivityItem(BaseModel):
+    """User-safe compact activity item for mobile recent activity surfaces."""
+
+    activity_id: str
+    event_type: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=1, max_length=200)
+    subtitle: str | None = Field(default=None, max_length=500)
+    occurred_at: datetime
+    task_id: str | None = Field(default=None, max_length=160)
+    action_id: str | None = Field(default=None, max_length=160)
+    document_id: str | None = Field(default=None, max_length=160)
+    booking_id: str | None = Field(default=None, max_length=160)
+
+
+class TripRecentActivityResponse(BaseModel):
+    """User-visible recent activity response for mobile."""
+
+    trip_id: str
+    activities: list[TripRecentActivityItem]
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripTraceEvent(BaseModel):
+    """Support-safe trace event linking a mobile/user issue to backend operations."""
+
+    trace_id: str
+    diagnostic_id: str
+    trip_id: str
+    operation_type: TripTraceOperationType
+    operation_name: str = Field(min_length=1, max_length=160)
+    status: TripTraceOperationStatus = "ok"
+    correlation_id: str = Field(min_length=1, max_length=160)
+    request_id: str | None = Field(default=None, max_length=160)
+    task_id: str | None = Field(default=None, max_length=160)
+    action_id: str | None = Field(default=None, max_length=160)
+    provider_id: str | None = Field(default=None, max_length=120)
+    latency_ms: int | None = Field(default=None, ge=0)
+    error_code: str | None = Field(default=None, max_length=160)
+    redacted_payload: dict[str, str] = Field(default_factory=dict)
+    log_search_url: str = Field(max_length=2000)
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripTraceEventListResponse(BaseModel):
+    """Trace list response for support/admin and mobile diagnostics."""
+
+    trip_id: str
+    traces: list[TripTraceEvent]
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class Trip(BaseModel):
     """Long-lived trip command-center state."""
 
@@ -783,6 +1040,51 @@ class TripResponse(BaseModel):
     """Public trip response."""
 
     trip: Trip
+
+
+class TripRetentionPolicy(BaseModel):
+    """One publishable retention rule for trip lifecycle data."""
+
+    target: TripRetentionTarget
+    action: TripRetentionAction
+    after_days: int | None = Field(default=None, ge=0)
+    applies_to_statuses: list[TripStatus] = Field(default_factory=list, max_length=12)
+    description: str = Field(min_length=1, max_length=500)
+
+
+class TripRetentionSnapshotResponse(BaseModel):
+    """Current retention/archival state for one trip."""
+
+    trip_id: str
+    status: TripRetentionStatus
+    support_hold: bool = False
+    sensitive_document_count: int = Field(default=0, ge=0)
+    booking_reference_count: int = Field(default=0, ge=0)
+    sensitive_data_removed: bool = False
+    user_message: str = Field(min_length=1, max_length=1000)
+    policies: list[TripRetentionPolicy] = Field(default_factory=list, max_length=20)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    next_review_at: datetime | None = None
+    archived_at: datetime | None = None
+
+
+class TripRetentionApplyRequest(BaseModel):
+    """Apply trip retention rules or set a temporary support hold."""
+
+    now: datetime | None = None
+    support_hold: bool = False
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class TripRetentionApplyResponse(BaseModel):
+    """Result of applying retention policy to one trip."""
+
+    trip_id: str
+    trip: Trip
+    snapshot: TripRetentionSnapshotResponse
+    actions: list[str] = Field(default_factory=list, max_length=20)
+    audit_event_id: str | None = Field(default=None, max_length=160)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class TripListResponse(BaseModel):
@@ -1022,6 +1324,82 @@ class TripReminderCandidateResponse(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class TripNotificationDeliveryAttemptCreate(BaseModel):
+    """One mobile notification delivery attempt reported by the app."""
+
+    task_id: str = Field(min_length=1, max_length=160)
+    dedupe_key: str = Field(min_length=1, max_length=240)
+    planned_for: datetime
+    provider_id: str = Field(default="expo_notifications", max_length=120)
+    provider_message_id: str | None = Field(default=None, max_length=240)
+    provider_response: dict[str, str] = Field(default_factory=dict)
+    requested_status: TripNotificationDeliveryStatus = "scheduled"
+    error: str | None = Field(default=None, max_length=500)
+
+
+class TripNotificationDeliveryRequest(BaseModel):
+    """Batch notification delivery attempt report from mobile."""
+
+    device_id: str | None = Field(default=None, max_length=160)
+    timezone: str = Field(default="UTC", max_length=80)
+    permission_state: TripNotificationPermissionState
+    quiet_hours_start: str | None = Field(default=None, max_length=5)
+    quiet_hours_end: str | None = Field(default=None, max_length=5)
+    attempts: list[TripNotificationDeliveryAttemptCreate] = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+
+class TripNotificationDeliveryRecord(BaseModel):
+    """Stored notification delivery/fallback record."""
+
+    record_id: str
+    trip_id: str
+    task_id: str
+    dedupe_key: str
+    channel: TripNotificationChannel
+    status: TripNotificationDeliveryStatus
+    permission_state: TripNotificationPermissionState
+    provider_id: str
+    provider_message_id: str | None = None
+    provider_response: dict[str, str] = Field(default_factory=dict)
+    error: str | None = Field(default=None, max_length=500)
+    timezone: str = "UTC"
+    scheduled_for: datetime
+    quiet_hours_adjusted: bool = False
+    device_id: str | None = Field(default=None, max_length=160)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripInAppNotificationAlert(BaseModel):
+    """In-app fallback alert shown when push cannot be trusted."""
+
+    alert_id: str
+    trip_id: str
+    task_id: str
+    dedupe_key: str
+    title: str = Field(min_length=1, max_length=160)
+    body: str = Field(default="", max_length=500)
+    visible: bool = True
+    reason: str = Field(max_length=500)
+    tap_target: str = Field(min_length=1, max_length=240)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TripNotificationDeliveryResponse(BaseModel):
+    """Notification delivery ledger response."""
+
+    trip_id: str
+    delivery_records: list[TripNotificationDeliveryRecord] = Field(default_factory=list)
+    in_app_alerts: list[TripInAppNotificationAlert] = Field(default_factory=list)
+    scheduled_count: int = Field(default=0, ge=0)
+    fallback_count: int = Field(default=0, ge=0)
+    duplicate_count: int = Field(default=0, ge=0)
+    failed_count: int = Field(default=0, ge=0)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class RouteBundle(BaseModel):
     """Prepared route handoff with provider URLs."""
 
@@ -1052,6 +1430,13 @@ class RouteBundle(BaseModel):
     fallback_url: str | None = Field(default=None, max_length=2000)
     provider_urls: dict[str, str] = Field(default_factory=dict)
     confidence: Literal["high", "medium", "low"] = "medium"
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    valid_until: datetime | None = None
+    last_revalidated_at: datetime | None = None
+    refresh_reason: str | None = Field(default=None, max_length=500)
+    freshness_status: RouteBundleFreshnessStatus = "fresh"
+    revalidation_attempts: int = Field(default=0, ge=0)
+    provider_version: str = Field(default="workflow_v1", max_length=80)
     source: Literal["workflow", "provider", "user"] = "workflow"
     validation_status: Literal["ready", "needs_review", "unavailable"] = "ready"
     handoff_ready: bool = True
@@ -1336,6 +1721,8 @@ class OfflineQueuedTaskMutation(BaseModel):
     mutation_id: str = Field(min_length=1, max_length=120)
     task_id: str = Field(min_length=1, max_length=160)
     patch: TripTaskPatchRequest
+    client_created_at: datetime | None = None
+    client_updated_at: datetime | None = None
 
 
 class OfflineQueuedMutationResult(BaseModel):
@@ -1345,6 +1732,11 @@ class OfflineQueuedMutationResult(BaseModel):
     task_id: str
     status: OfflineMutationStatus
     error: str | None = Field(default=None, max_length=500)
+    conflict_policy: OfflineConflictPolicy = "none"
+    conflict_reason: str | None = Field(default=None, max_length=500)
+    server_task: TripTask | None = None
+    server_updated_at: datetime | None = None
+    accepted_duplicate_of: str | None = Field(default=None, max_length=120)
     updated_at: datetime | None = None
 
 
@@ -1361,7 +1753,9 @@ class OfflineTaskUpdateSyncResponse(BaseModel):
     sync_token: str
     results: list[OfflineQueuedMutationResult]
     applied_count: int = Field(ge=0)
+    duplicate_count: int = Field(default=0, ge=0)
     conflict_count: int = Field(ge=0)
+    rejected_count: int = Field(default=0, ge=0)
     failed_count: int = Field(ge=0)
     trip: Trip | None = None
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

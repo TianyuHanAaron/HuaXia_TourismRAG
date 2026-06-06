@@ -17,7 +17,11 @@ export interface OfflineTaskUpdateSyncResponse {
   /** @minimum 0 */
   applied_count: number;
   /** @minimum 0 */
+  duplicate_count?: number;
+  /** @minimum 0 */
   conflict_count: number;
+  /** @minimum 0 */
+  rejected_count?: number;
   /** @minimum 0 */
   failed_count: number;
   trip?: Trip | null;

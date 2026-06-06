@@ -91,6 +91,12 @@ class Settings(BaseSettings):
         default="tourism:job_queue:travel",
         alias="JOB_QUEUE_KEY",
     )
+    job_queue_lease_seconds: int = Field(default=300, alias="JOB_QUEUE_LEASE_SECONDS")
+    job_queue_max_attempts: int = Field(default=3, alias="JOB_QUEUE_MAX_ATTEMPTS")
+    job_queue_retry_backoff_seconds: int = Field(
+        default=30,
+        alias="JOB_QUEUE_RETRY_BACKOFF_SECONDS",
+    )
     enable_retrieval_cache: bool = Field(default=True, alias="ENABLE_RETRIEVAL_CACHE")
     retrieval_cache_ttl_seconds: int = Field(
         default=3600,
@@ -199,6 +205,11 @@ class Settings(BaseSettings):
         alias="TAVILY_MCP_URL",
     )
     tavily_mcp_command: str | None = Field(default=None, alias="TAVILY_MCP_COMMAND")
+
+    provider_credentials_json: str | None = Field(
+        default=None,
+        alias="PROVIDER_CREDENTIALS_JSON",
+    )
 
     @property
     def checkpoint_model(self) -> str:

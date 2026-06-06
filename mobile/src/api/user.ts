@@ -1,5 +1,9 @@
 import { apiGet, apiPatch, apiPost } from './client';
 import {
+  AdminOperationsConsoleResponseSchema,
+  CapacityPlanningReportResponseSchema,
+  ComplianceIncidentRecordSchema,
+  ComplianceIncidentReportResponseSchema,
   CurrentUserSchema,
   EntitlementCheckResponseSchema,
   GuestSessionResponseSchema,
@@ -10,13 +14,27 @@ import {
   PrivacyDataExportResponseSchema,
   PrivacyDeletionRequestResponseSchema,
   PrivacySettingsResponseSchema,
+  PromptDtoRegressionReportResponseSchema,
+  QualityEvaluationReportResponseSchema,
+  SecurityPostureResponseSchema,
+  SupportRecoveryApplyResponseSchema,
+  SupportRecoveryPlaybookResponseSchema,
   SubscriptionRefreshResponseSchema,
   SubscriptionStateSchema,
   UserPreferenceProfileSchema,
+  V5BusinessScaleReadinessResponseSchema,
 } from './schemas';
 import { privacySettingsPatchSchema } from '../schemas/userPreferences';
 import { saveGuestSession } from '../storage/secureSession';
 import type {
+  AdminOperationsConsoleResponse,
+  CapacityPlanningProviderMode,
+  CapacityPlanningReportResponse,
+  CapacityPlanningRunMode,
+  ComplianceIncidentCreateRequest,
+  ComplianceIncidentPatchRequest,
+  ComplianceIncidentRecord,
+  ComplianceIncidentReportResponse,
   CurrentUser,
   EntitlementCheckRequest,
   EntitlementCheckResponse,
@@ -32,9 +50,18 @@ import type {
   PrivacyDeletionRequestResponse,
   PrivacySettingsPatchRequest,
   PrivacySettingsResponse,
+  PromptDtoRegressionReportResponse,
+  PromptDtoRegressionRunMode,
+  QualityEvaluationReportResponse,
+  QualityEvaluationRunMode,
+  SecurityPostureResponse,
+  SupportRecoveryApplyRequest,
+  SupportRecoveryApplyResponse,
+  SupportRecoveryPlaybookResponse,
   SubscriptionRefreshResponse,
   SubscriptionState,
   UserPreferenceProfile,
+  V5BusinessScaleReadinessResponse,
 } from '../types/trip';
 
 export async function getCurrentUser(): Promise<CurrentUser> {
@@ -119,6 +146,107 @@ export async function requestPrivacyDeletion(
   );
 }
 
+export async function getSecurityPosture(): Promise<SecurityPostureResponse> {
+  return apiGet('/support/security/posture', SecurityPostureResponseSchema);
+}
+
+export async function createComplianceIncident(
+  request: ComplianceIncidentCreateRequest,
+): Promise<ComplianceIncidentRecord> {
+  return apiPost('/support/incidents', request, ComplianceIncidentRecordSchema);
+}
+
+export async function updateComplianceIncident(
+  incidentId: string,
+  request: ComplianceIncidentPatchRequest,
+): Promise<ComplianceIncidentRecord> {
+  return apiPatch(
+    `/support/incidents/${incidentId}`,
+    request,
+    ComplianceIncidentRecordSchema,
+  );
+}
+
+export async function getComplianceIncidentReport(): Promise<ComplianceIncidentReportResponse> {
+  return apiGet(
+    '/support/incidents/report',
+    ComplianceIncidentReportResponseSchema,
+  );
+}
+
+export async function getAdminOperationsConsole(): Promise<AdminOperationsConsoleResponse> {
+  return apiGet(
+    '/support/operations/console',
+    AdminOperationsConsoleResponseSchema,
+  );
+}
+
+export async function getCapacityPlanningReport(params?: {
+  run_mode?: CapacityPlanningRunMode | null;
+  provider_mode?: CapacityPlanningProviderMode | null;
+}): Promise<CapacityPlanningReportResponse> {
+  return apiGet(
+    '/support/capacity/report',
+    CapacityPlanningReportResponseSchema,
+    {
+      params: {
+        run_mode: params?.run_mode,
+        provider_mode: params?.provider_mode,
+      },
+    },
+  );
+}
+
+export async function getQualityEvaluationReport(params?: {
+  run_mode?: QualityEvaluationRunMode | null;
+}): Promise<QualityEvaluationReportResponse> {
+  return apiGet(
+    '/support/quality/report',
+    QualityEvaluationReportResponseSchema,
+    {
+      params: {
+        run_mode: params?.run_mode,
+      },
+    },
+  );
+}
+
+export async function getPromptDtoRegressionReport(params?: {
+  run_mode?: PromptDtoRegressionRunMode | null;
+}): Promise<PromptDtoRegressionReportResponse> {
+  return apiGet(
+    '/support/prompt-dto/report',
+    PromptDtoRegressionReportResponseSchema,
+    {
+      params: {
+        run_mode: params?.run_mode,
+      },
+    },
+  );
+}
+
+export async function getSupportRecoveryPlaybooks(
+  targetUserId: string,
+  tripId: string,
+): Promise<SupportRecoveryPlaybookResponse> {
+  return apiGet(
+    `/support/users/${targetUserId}/trips/${tripId}/recovery-playbooks`,
+    SupportRecoveryPlaybookResponseSchema,
+  );
+}
+
+export async function applySupportRecoveryPlaybook(
+  targetUserId: string,
+  tripId: string,
+  request: SupportRecoveryApplyRequest,
+): Promise<SupportRecoveryApplyResponse> {
+  return apiPost(
+    `/support/users/${targetUserId}/trips/${tripId}/recovery-playbooks/apply`,
+    request,
+    SupportRecoveryApplyResponseSchema,
+  );
+}
+
 export async function getPaywallConfig(): Promise<PaywallConfigResponse> {
   return apiGet('/users/me/paywall', PaywallConfigResponseSchema);
 }
@@ -137,5 +265,12 @@ export async function getMobileBetaConfig(): Promise<MobileBetaFeatureConfigResp
   return apiGet(
     '/rollout/v2/mobile-config',
     MobileBetaFeatureConfigResponseSchema,
+  );
+}
+
+export async function getV5BusinessScaleReadiness(): Promise<V5BusinessScaleReadinessResponse> {
+  return apiGet(
+    '/rollout/v5/business-scale-readiness',
+    V5BusinessScaleReadinessResponseSchema,
   );
 }

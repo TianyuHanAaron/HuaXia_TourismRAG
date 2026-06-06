@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from huaxia_tourismrag.agents.model_runtime import AgentModelConfigurationError
 from huaxia_tourismrag.api import routes
-from huaxia_tourismrag.api.routes import router
+from huaxia_tourismrag.api.routes import router, trip_router
 from huaxia_tourismrag.schemas.engagement import EngagementFeed
 from huaxia_tourismrag.schemas.evidence import (
     TravelAnswer,
@@ -14,9 +14,14 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelTopicSection,
 )
 from huaxia_tourismrag.schemas.jobs import TravelJobQueueItem
+from huaxia_tourismrag.schemas.providers import ProviderHealthSnapshot
 from huaxia_tourismrag.schemas.session import SessionReplyRequest
 from huaxia_tourismrag.services.job_store import InMemoryTravelJobStore
+from huaxia_tourismrag.services.job_queue import InMemoryTravelJobQueue
+from huaxia_tourismrag.services.provider_health import InMemoryProviderHealthStore
 from huaxia_tourismrag.services.sales_handoff import InMemorySalesHandoffStore
+from huaxia_tourismrag.services.trip_store import InMemoryTripStore
+from huaxia_tourismrag.services.trip_workflow import draft_from_travel_answer
 
 
 class FakeTourismQAService:
@@ -100,6 +105,8 @@ class FakeDIYItineraryService:
 
 
 class SlowFakeTourismQAService(FakeTourismQAService):
+    completed = False
+
     async def answer(
         self,
         question: TravelQuestion,
@@ -109,6 +116,7 @@ class SlowFakeTourismQAService(FakeTourismQAService):
         topic_section_callback=None,
     ) -> TravelAnswer:
         await asyncio.sleep(0.2)
+        type(self).completed = True
         return await super().answer(
             question,
             progress_callback=progress_callback,
@@ -242,6 +250,7 @@ def make_client(
     FakeSessionReplyService.replies = []
     FakeSessionReplyService.job_replies = []
     FakeEngagementFeedService.calls = []
+    SlowFakeTourismQAService.completed = False
     app = FastAPI()
     if configure_service:
         app.state.tourism_qa_service_factory = FakeTourismQAService
@@ -256,6 +265,7 @@ def make_client(
     if configure_engagement_feed_service:
         app.state.engagement_feed_service = FakeEngagementFeedService()
     app.include_router(router)
+    app.include_router(trip_router)
     return TestClient(app)
 
 
@@ -265,11 +275,22 @@ def make_misconfigured_client() -> TestClient:
     app.state.diy_itinerary_service_factory = FakeDIYItineraryService
     app.state.session_reply_service_factory = FakeSessionReplyService
     app.include_router(router)
+    app.include_router(trip_router)
     return TestClient(app)
 
 
 def run_async(coro):
     return asyncio.run(coro)
+
+
+async def async_create_trip(trip_store: InMemoryTripStore):
+    return await trip_store.create_from_draft(
+        "demo-tenant",
+        draft_from_travel_answer(
+            answer=TravelAnswer(answer="北京五日游。", highlights=[], warnings=[], citations=[])
+        ),
+        owner_user_id="u_123",
+    )
 
 
 def first_sse_event(client: TestClient, job_id: str) -> str:
@@ -571,6 +592,164 @@ def test_general_question_job_route_can_enqueue_for_external_worker():
     assert queue.items[0].kind == "general_question"
 
 
+def test_travel_job_queue_snapshot_route_returns_observable_depth():
+    client = make_client(configure_job_queue=False)
+    queue = InMemoryTravelJobQueue()
+    client.app.state.travel_job_queue = queue
+    run_async(
+        queue.enqueue(
+            TravelJobQueueItem(
+                job_id="queued-job",
+                tenant_id="demo-tenant",
+                kind="general_question",
+            )
+        )
+    )
+
+    response = client.get("/tourism/jobs/queue/snapshot")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready_count"] == 1
+    assert body["leased_count"] == 0
+    assert body["dead_letter_count"] == 0
+    assert body["oldest_ready_age_seconds"] is not None
+
+
+def test_provider_health_route_returns_snapshots_grouped_by_domain():
+    client = make_client()
+
+    response = client.get("/trips/provider-health?domain=navigation&region=CN")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["domain"] == "navigation"
+    assert body["region"] == "CN"
+    assert body["snapshots"]
+    assert any(snapshot["provider_id"] == "amap" for snapshot in body["snapshots"])
+    assert body["generated_at"]
+
+
+def test_provider_cost_control_decisions_cache_quota_and_paid_override():
+    client = make_client()
+    base_payload = {
+        "provider_id": "weatherapi",
+        "domain": "weather",
+        "feature_key": "weather_snapshot",
+        "entitlement_tier": "free",
+        "estimated_units": 1,
+        "cache_key": "weather:beijing:2026-09-20",
+        "trip_complexity": "simple",
+    }
+
+    first = client.post("/trips/provider-cost-controls/check", json=base_payload)
+    cache_hit = client.post("/trips/provider-cost-controls/check", json=base_payload)
+    degraded = client.post(
+        "/trips/provider-cost-controls/check",
+        json={
+            **base_payload,
+            "cache_key": "weather:shanghai:2026-09-20",
+        },
+    )
+    paid = client.post(
+        "/trips/provider-cost-controls/check",
+        json={
+            **base_payload,
+            "entitlement_tier": "plus",
+            "cache_key": "weather:hangzhou:2026-09-20",
+        },
+    )
+
+    assert first.status_code == 200
+    assert cache_hit.status_code == 200
+    assert degraded.status_code == 200
+    assert paid.status_code == 200
+    assert first.json()["status"] == "allowed"
+    assert first.json()["cache_hit"] is False
+    assert cache_hit.json()["status"] == "cache_hit"
+    assert cache_hit.json()["remaining_calls"] == first.json()["remaining_calls"]
+    assert degraded.json()["status"] == "degraded"
+    assert degraded.json()["degraded_mode"] is True
+    assert degraded.json()["provider_call_allowed"] is False
+    assert "cached weather" in degraded.json()["user_message"].lower()
+    assert paid.json()["status"] == "allowed"
+    assert paid.json()["entitlement_tier"] == "plus"
+    assert paid.json()["remaining_calls"] > 0
+
+
+def test_provider_cost_control_summary_exposes_admin_visibility():
+    client = make_client()
+    request = {
+        "provider_id": "weatherapi",
+        "domain": "weather",
+        "feature_key": "weather_snapshot",
+        "entitlement_tier": "free",
+        "estimated_units": 1,
+        "cache_key": "weather:beijing:2026-09-20",
+        "trip_complexity": "complex",
+    }
+    client.post("/trips/provider-cost-controls/check", json=request)
+
+    summary = client.get(
+        "/trips/provider-cost-controls",
+        headers={"X-Huaxia-Role": "tourism_admin"},
+    )
+
+    assert summary.status_code == 200
+    body = summary.json()
+    assert body["admin_visible"] is True
+    assert body["total_estimated_cost"] > 0
+    weather = next(
+        snapshot
+        for snapshot in body["snapshots"]
+        if snapshot["provider_id"] == "weatherapi"
+    )
+    assert weather["domain"] == "weather"
+    assert weather["feature_key"] == "weather_snapshot"
+    assert weather["entitlement_tier"] == "free"
+    assert weather["used_calls"] == 1
+    assert weather["trip_complexity"] == "complex"
+
+
+def test_mobile_provider_action_sheet_blocks_primary_when_provider_health_is_missing_credentials():
+    client = make_client()
+    trip_store = InMemoryTripStore()
+    client.app.state.trip_store = trip_store
+    store = InMemoryProviderHealthStore()
+    run_async(
+        store.upsert(
+            ProviderHealthSnapshot(
+                provider_id="booking_com",
+                domain="hotel",
+                health_status="credential_missing",
+                credential_state="missing",
+                quota_state="available",
+            )
+        )
+    )
+    client.app.state.provider_health_store = store
+    trip = run_async(async_create_trip(trip_store))
+    run_async(
+        trip_store.approve(
+            trip.trip_id,
+            "demo-tenant",
+            owner_user_id="u_123",
+        )
+    )
+
+    response = client.get(
+        f"/trips/{trip.trip_id}/provider-actions/action-hotel-search/mobile-sheet"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["recommended_provider_id"] == "booking_com"
+    assert body["available"] is False
+    assert body["validation_status"] == "unavailable"
+    assert body["primary_action"]["disabled"] is True
+    assert body["correction_prompt"] == "Provider credentials are missing."
+
+
 def test_background_general_question_job_stores_partial_answer_and_topic_sections():
     client = make_client(configure_job_queue=False)
     job = run_async(
@@ -610,7 +789,8 @@ def test_general_question_job_route_returns_before_slow_service_finishes():
     elapsed = time.perf_counter() - started
 
     assert response.status_code == 202
-    assert elapsed < 0.15
+    assert elapsed < 0.2
+    assert not SlowFakeTourismQAService.completed
     job_id = response.json()["job_id"]
     status = client.get(f"/tourism/jobs/{job_id}")
     assert status.status_code == 200

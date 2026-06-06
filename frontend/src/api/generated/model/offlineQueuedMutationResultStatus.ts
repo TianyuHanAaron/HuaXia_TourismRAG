@@ -9,7 +9,10 @@ export type OfflineQueuedMutationResultStatus = typeof OfflineQueuedMutationResu
 
 
 export const OfflineQueuedMutationResultStatus = {
+  accepted: 'accepted',
   applied: 'applied',
+  duplicate: 'duplicate',
   conflict: 'conflict',
+  rejected: 'rejected',
   failed: 'failed',
 } as const;

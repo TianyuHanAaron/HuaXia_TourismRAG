@@ -6,6 +6,7 @@
  */
 import type { RouteBundleConfidence } from './routeBundleConfidence';
 import type { RouteBundleDevicePlatform } from './routeBundleDevicePlatform';
+import type { RouteBundleFreshnessStatus } from './routeBundleFreshnessStatus';
 import type { RouteBundleMode } from './routeBundleMode';
 import type { RouteBundlePrimaryProvider } from './routeBundlePrimaryProvider';
 import type { RouteBundleProviderUrls } from './routeBundleProviderUrls';
@@ -60,6 +61,15 @@ export interface RouteBundle {
   fallback_url?: string | null;
   provider_urls?: RouteBundleProviderUrls;
   confidence?: RouteBundleConfidence;
+  generated_at?: string;
+  valid_until?: string | null;
+  last_revalidated_at?: string | null;
+  refresh_reason?: string | null;
+  freshness_status?: RouteBundleFreshnessStatus;
+  /** @minimum 0 */
+  revalidation_attempts?: number;
+  /** @maxLength 80 */
+  provider_version?: string;
   source?: RouteBundleSource;
   validation_status?: RouteBundleValidationStatus;
   handoff_ready?: boolean;

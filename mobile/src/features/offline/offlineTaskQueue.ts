@@ -1,6 +1,4 @@
-import { isAxiosError } from 'axios';
-
-import { patchTask } from '../../api/trips';
+import { syncOfflineTaskUpdates } from '../../api/trips';
 import {
   buildQueuedTaskStatusMutation,
   parseOfflineQueue,
@@ -18,7 +16,9 @@ export type QueuedTaskMutation = QueuedTaskStatusMutation;
 export type OfflineTaskSyncResult = {
   synced: number;
   accepted: number;
+  duplicate: number;
   rejected: number;
+  failed: number;
   remaining: number;
   conflicts: QueuedTaskMutation[];
 };
@@ -60,21 +60,44 @@ export async function syncQueuedTaskMutations(
   tripId: string,
 ): Promise<OfflineTaskSyncResult> {
   const queued = await readQueuedTaskMutations(tripId);
-  const remaining: QueuedTaskMutation[] = [];
-  const conflicts: QueuedTaskMutation[] = [];
-  let synced = 0;
-
-  for (const mutation of queued) {
-    try {
-      await patchTask(mutation.tripId, mutation.taskId, mutation.patch);
-      synced += 1;
-    } catch (error) {
-      if (isConflictError(error)) {
-        conflicts.push(mutation);
-      }
-      remaining.push(mutation);
-    }
+  if (queued.length === 0) {
+    return {
+      synced: 0,
+      accepted: 0,
+      duplicate: 0,
+      rejected: 0,
+      failed: 0,
+      remaining: 0,
+      conflicts: [],
+    };
   }
+  const response = await syncOfflineTaskUpdates(tripId, {
+    mutations: queued.map((mutation) => ({
+      mutation_id: mutation.clientMutationId,
+      task_id: mutation.taskId,
+      patch: mutation.patch,
+      client_created_at: mutation.queuedAt,
+      client_updated_at: mutation.queuedAt,
+    })),
+  });
+  const acceptedIds = new Set(
+    response.results
+      .filter((result) =>
+        ['accepted', 'applied', 'duplicate'].includes(result.status),
+      )
+      .map((result) => result.mutation_id),
+  );
+  const conflictIds = new Set(
+    response.results
+      .filter((result) => ['conflict', 'rejected'].includes(result.status))
+      .map((result) => result.mutation_id),
+  );
+  const remaining = queued.filter(
+    (mutation) => !acceptedIds.has(mutation.clientMutationId),
+  );
+  const conflicts = remaining.filter((mutation) =>
+    conflictIds.has(mutation.clientMutationId),
+  );
 
   if (remaining.length) {
     parseOfflineQueue(remaining);
@@ -84,9 +107,11 @@ export async function syncQueuedTaskMutations(
   }
 
   return {
-    synced,
-    accepted: synced,
-    rejected: conflicts.length,
+    synced: response.applied_count + response.duplicate_count,
+    accepted: response.applied_count,
+    duplicate: response.duplicate_count,
+    rejected: response.rejected_count + response.conflict_count,
+    failed: response.failed_count,
     remaining: remaining.length,
     conflicts,
   };
@@ -97,11 +122,4 @@ function parseQueuedTaskMutations(value: unknown): QueuedTaskMutation[] {
     (mutation): mutation is QueuedTaskStatusMutation =>
       mutation.type === 'task_status_patch',
   );
-}
-
-function isConflictError(error: unknown): boolean {
-  if (!isAxiosError(error)) {
-    return false;
-  }
-  return error.response?.status === 409 || error.response?.status === 412;
 }

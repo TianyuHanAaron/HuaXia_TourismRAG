@@ -4,7 +4,9 @@
  * HuaXia Tourism RAG
  * OpenAPI spec version: 0.1.0
  */
+import type { OfflineQueuedMutationResultConflictPolicy } from './offlineQueuedMutationResultConflictPolicy';
 import type { OfflineQueuedMutationResultStatus } from './offlineQueuedMutationResultStatus';
+import type { TripTask } from './tripTask';
 
 /**
  * Per-mutation reconciliation result.
@@ -14,5 +16,10 @@ export interface OfflineQueuedMutationResult {
   task_id: string;
   status: OfflineQueuedMutationResultStatus;
   error?: string | null;
+  conflict_policy?: OfflineQueuedMutationResultConflictPolicy;
+  conflict_reason?: string | null;
+  server_task?: TripTask | null;
+  server_updated_at?: string | null;
+  accepted_duplicate_of?: string | null;
   updated_at?: string | null;
 }

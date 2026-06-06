@@ -89,3 +89,22 @@ class TravelJobQueueItem(BaseModel):
     tenant_id: str
     kind: TravelJobKind = "diy_itinerary"
     session_id: str | None = None
+    attempt_count: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=3, ge=1)
+    available_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    enqueued_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    lease_id: str | None = None
+    leased_until: datetime | None = None
+    last_error: str | None = Field(default=None, max_length=1000)
+
+
+class TravelJobQueueSnapshot(BaseModel):
+    """Observable queue state for support/admin surfaces."""
+
+    queue_name: str = "travel_jobs"
+    ready_count: int = Field(default=0, ge=0)
+    leased_count: int = Field(default=0, ge=0)
+    retry_count: int = Field(default=0, ge=0)
+    dead_letter_count: int = Field(default=0, ge=0)
+    oldest_ready_age_seconds: float | None = Field(default=None, ge=0)
+    failed_samples: list[TravelJobQueueItem] = Field(default_factory=list)

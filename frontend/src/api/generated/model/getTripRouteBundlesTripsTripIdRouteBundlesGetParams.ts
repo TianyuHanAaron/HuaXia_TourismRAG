@@ -9,4 +9,5 @@ import type { GetTripRouteBundlesTripsTripIdRouteBundlesGetDevicePlatform } from
 export type GetTripRouteBundlesTripsTripIdRouteBundlesGetParams = {
 preferred_provider_id?: string | null;
 device_platform?: GetTripRouteBundlesTripsTripIdRouteBundlesGetDevicePlatform;
+now?: string | null;
 };

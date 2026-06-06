@@ -1,13 +1,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { recordAnalyticsEvent } from '../../api/analytics';
+import { recordNotificationDeliveries } from '../../api/trips';
 import { tripQueries, userQueries } from '../../api/queryOptions';
+import { queryKeys } from '../../api/queryKeys';
 import { Button, Card, Chip, Text } from '../../components/PaperControls';
 import { Screen } from '../../components/Screen';
-import { scheduleTripReminderCandidates } from './reminders';
+import {
+  buildNotificationDeliveryRequest,
+  scheduleTripReminderCandidates,
+} from './reminders';
 import { ReminderEducationCard } from './ReminderEducationCard';
 import {
   buildInAppReminderFallbacks,
@@ -16,6 +21,7 @@ import {
 
 export function ReminderSettingsScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  const queryClient = useQueryClient();
   const [inAppOnly, setInAppOnly] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const preferencesQuery = useQuery(userQueries.preferences());
@@ -44,6 +50,19 @@ export function ReminderSettingsScreen() {
     mutationFn: () => scheduleTripReminderCandidates(candidates),
     onSuccess: (result) => {
       const pushGranted = result.permission === 'granted';
+      void recordNotificationDeliveries(
+        tripId,
+        buildNotificationDeliveryRequest(candidates, result, {
+          quietHoursStart: quietHourParams.quietHoursStart,
+          quietHoursEnd: quietHourParams.quietHoursEnd,
+        }),
+      )
+        .then(() =>
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.tripNotificationDeliveries(tripId),
+          }),
+        )
+        .catch(() => undefined);
       setInAppOnly(!pushGranted);
       setResultMessage(
         pushGranted

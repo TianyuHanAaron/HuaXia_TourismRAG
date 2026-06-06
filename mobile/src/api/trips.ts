@@ -2,15 +2,32 @@ import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 import {
   CalendarExportResponseSchema,
   CalendarEventPreviewResponseSchema,
+  MobileIncidentBannerResponseSchema,
+  OfflineTaskUpdateSyncResponseSchema,
   OfflineTripSnapshotResponseSchema,
+  ProviderCircuitBreakerSnapshotResponseSchema,
+  ProviderCredentialReadinessResponseSchema,
+  ProviderCostControlDecisionSchema,
+  ProviderCostControlSummaryResponseSchema,
+  ProviderHealthSnapshotResponseSchema,
+  ProviderRegionalLatencyResponseSchema,
   RouteBundleListResponseSchema,
   SafetyCardResponseSchema,
+  TripDurableWorkflowListResponseSchema,
   TripDraftReviewResponseSchema,
+  TripExecutionEventListResponseSchema,
   TripListResponseSchema,
+  TripNotificationDeliveryResponseSchema,
+  TripRecentActivityResponseSchema,
+  TripReliabilitySloTargetsResponseSchema,
+  TripReliabilitySnapshotResponseSchema,
+  TripRetentionApplyResponseSchema,
+  TripRetentionSnapshotResponseSchema,
   TripReminderCandidateResponseSchema,
   TripResponseSchema,
   TripSummaryResponseSchema,
   TripTaskCommandResponseSchema,
+  TripTraceEventListResponseSchema,
 } from './schemas';
 import {
   parseBookingMetadata,
@@ -22,7 +39,19 @@ import type {
   CalendarExportRequest,
   CalendarExportResponse,
   CalendarEventPreviewResponse,
+  MobileIncidentBannerResponse,
   OfflineTripSnapshotResponse,
+  OfflineTaskUpdateSyncRequest,
+  OfflineTaskUpdateSyncResponse,
+  ProviderCircuitBreakerSnapshotResponse,
+  ProviderCredentialReadinessResponse,
+  ProviderCostControlCheckRequest,
+  ProviderCostControlDecision,
+  ProviderCostControlSummaryResponse,
+  ProviderCostEntitlementTier,
+  ProviderHealthSnapshotResponse,
+  ProviderPartnerEnvironment,
+  ProviderRegionalLatencyResponse,
   RouteBundleListResponse,
   SafetyCardResponse,
   TripDayReorderRequest,
@@ -30,16 +59,30 @@ import type {
   TripBookingPatchRequest,
   TripDocumentCreateRequest,
   TripDocumentPatchRequest,
+  TripDurableWorkflowListResponse,
   TripDraftReviewResponse,
+  TripExecutionEventCategory,
+  TripExecutionEventListResponse,
+  TripExecutionEventVisibility,
   TripListResponse,
   TripMilestoneCreateRequest,
   TripMilestonePatchRequest,
+  TripNotificationDeliveryRequest,
+  TripNotificationDeliveryResponse,
   TripProviderActionLaunchRequest,
+  TripRecentActivityResponse,
+  TripReliabilitySloTargetsResponse,
+  TripReliabilitySnapshotResponse,
+  TripRetentionApplyRequest,
+  TripRetentionApplyResponse,
+  TripRetentionSnapshotResponse,
   TripReminderCandidateResponse,
   TripResponse,
   TripTaskCommandResponse,
   TripTaskCreateRequest,
   TripTaskPatchRequest,
+  TripTraceEventListResponse,
+  TripTraceOperationType,
   TripSummaryResponse,
 } from '../types/trip';
 
@@ -128,6 +171,208 @@ export async function getTripTaskCommand(
   );
 }
 
+export async function getTripReliability(
+  tripId: string,
+): Promise<TripReliabilitySnapshotResponse> {
+  return apiGet(
+    `/trips/${tripId}/reliability`,
+    TripReliabilitySnapshotResponseSchema,
+  );
+}
+
+export async function getTripRetention(
+  tripId: string,
+  params?: {
+    now?: string | null;
+    support_hold?: boolean | null;
+  },
+): Promise<TripRetentionSnapshotResponse> {
+  return apiGet(
+    `/trips/${tripId}/retention`,
+    TripRetentionSnapshotResponseSchema,
+    {
+      params: {
+        now: params?.now ?? undefined,
+        support_hold: params?.support_hold ?? undefined,
+      },
+    },
+  );
+}
+
+export async function applyTripRetention(
+  tripId: string,
+  request: TripRetentionApplyRequest,
+): Promise<TripRetentionApplyResponse> {
+  return apiPost(
+    `/trips/${tripId}/retention/apply`,
+    request,
+    TripRetentionApplyResponseSchema,
+  );
+}
+
+export async function getTripReliabilitySloTargets(): Promise<TripReliabilitySloTargetsResponse> {
+  return apiGet('/trips/reliability/slos', TripReliabilitySloTargetsResponseSchema);
+}
+
+export async function listTripWorkflows(
+  tripId: string,
+): Promise<TripDurableWorkflowListResponse> {
+  return apiGet(
+    `/trips/${tripId}/workflows`,
+    TripDurableWorkflowListResponseSchema,
+  );
+}
+
+export async function getTripExecutionEvents(
+  tripId: string,
+  params?: {
+    visibility?: TripExecutionEventVisibility | null;
+    category?: TripExecutionEventCategory | null;
+    limit?: number;
+  },
+): Promise<TripExecutionEventListResponse> {
+  return apiGet(
+    `/trips/${tripId}/execution-events`,
+    TripExecutionEventListResponseSchema,
+    {
+      params: {
+        visibility: params?.visibility ?? undefined,
+        category: params?.category ?? undefined,
+        limit: params?.limit ?? undefined,
+      },
+    },
+  );
+}
+
+export async function getTripObservabilityTraces(
+  tripId: string,
+  params?: {
+    operation_type?: TripTraceOperationType | null;
+    correlation_id?: string | null;
+    limit?: number | null;
+  },
+): Promise<TripTraceEventListResponse> {
+  return apiGet(
+    `/trips/${tripId}/observability/traces`,
+    TripTraceEventListResponseSchema,
+    {
+      params: {
+        operation_type: params?.operation_type ?? undefined,
+        correlation_id: params?.correlation_id ?? undefined,
+        limit: params?.limit ?? undefined,
+      },
+    },
+  );
+}
+
+export async function getTripRecentActivity(
+  tripId: string,
+  params?: {
+    limit?: number;
+  },
+): Promise<TripRecentActivityResponse> {
+  return apiGet(
+    `/trips/${tripId}/execution-events/mobile-activity`,
+    TripRecentActivityResponseSchema,
+    {
+      params: {
+        limit: params?.limit ?? undefined,
+      },
+    },
+  );
+}
+
+export async function getProviderHealth(params?: {
+  domain?: string | null;
+  region?: string | null;
+}): Promise<ProviderHealthSnapshotResponse> {
+  return apiGet('/trips/provider-health', ProviderHealthSnapshotResponseSchema, {
+    params: {
+      domain: params?.domain ?? undefined,
+      region: params?.region ?? undefined,
+    },
+  });
+}
+
+export async function getTripRegionalLatency(
+  tripId: string,
+  params?: {
+    user_region?: string | null;
+  },
+): Promise<ProviderRegionalLatencyResponse> {
+  return apiGet(
+    `/trips/${tripId}/regional-latency`,
+    ProviderRegionalLatencyResponseSchema,
+    {
+      params: {
+        user_region: params?.user_region ?? undefined,
+      },
+    },
+  );
+}
+
+export async function getProviderCredentialReadiness(params?: {
+  domain?: string | null;
+  environment?: ProviderPartnerEnvironment | null;
+  now?: string | null;
+}): Promise<ProviderCredentialReadinessResponse> {
+  return apiGet(
+    '/trips/provider-credentials',
+    ProviderCredentialReadinessResponseSchema,
+    {
+      params: {
+        domain: params?.domain ?? undefined,
+        environment: params?.environment ?? undefined,
+        now: params?.now ?? undefined,
+      },
+    },
+  );
+}
+
+export async function getProviderCircuitBreakers(params?: {
+  domain?: string | null;
+  region?: string | null;
+}): Promise<ProviderCircuitBreakerSnapshotResponse> {
+  return apiGet(
+    '/trips/provider-circuit-breakers',
+    ProviderCircuitBreakerSnapshotResponseSchema,
+    {
+      params: {
+        domain: params?.domain ?? undefined,
+        region: params?.region ?? undefined,
+      },
+    },
+  );
+}
+
+export async function getProviderCostControls(params?: {
+  domain?: string | null;
+  provider_id?: string | null;
+  entitlement_tier?: ProviderCostEntitlementTier | null;
+}): Promise<ProviderCostControlSummaryResponse> {
+  return apiGet(
+    '/trips/provider-cost-controls',
+    ProviderCostControlSummaryResponseSchema,
+    {
+      params: {
+        domain: params?.domain ?? undefined,
+        provider_id: params?.provider_id ?? undefined,
+        entitlement_tier: params?.entitlement_tier ?? undefined,
+      },
+    },
+  );
+}
+
+export async function checkProviderCostControl(
+  request: ProviderCostControlCheckRequest,
+): Promise<ProviderCostControlDecision> {
+  return apiPost(
+    '/trips/provider-cost-controls/check',
+    request,
+    ProviderCostControlDecisionSchema,
+  );
+}
+
 export async function getReminderCandidates(
   tripId: string,
   params?: {
@@ -147,8 +392,56 @@ export async function getReminderCandidates(
   );
 }
 
-export async function getRouteBundles(tripId: string): Promise<RouteBundleListResponse> {
-  return apiGet(`/trips/${tripId}/route-bundles`, RouteBundleListResponseSchema);
+export async function getNotificationDeliveries(
+  tripId: string,
+): Promise<TripNotificationDeliveryResponse> {
+  return apiGet(
+    `/trips/${tripId}/notification-deliveries`,
+    TripNotificationDeliveryResponseSchema,
+  );
+}
+
+export async function recordNotificationDeliveries(
+  tripId: string,
+  request: TripNotificationDeliveryRequest,
+): Promise<TripNotificationDeliveryResponse> {
+  return apiPost(
+    `/trips/${tripId}/notification-deliveries`,
+    request,
+    TripNotificationDeliveryResponseSchema,
+  );
+}
+
+export async function getRouteBundles(
+  tripId: string,
+  params?: {
+    now?: string | null;
+  },
+): Promise<RouteBundleListResponse> {
+  return apiGet(`/trips/${tripId}/route-bundles`, RouteBundleListResponseSchema, {
+    params: {
+      now: params?.now ?? undefined,
+    },
+  });
+}
+
+export async function revalidateRouteBundle(
+  tripId: string,
+  routeBundleId: string,
+  params?: {
+    now?: string | null;
+  },
+): Promise<RouteBundleListResponse> {
+  return apiPost(
+    `/trips/${tripId}/route-bundles/${routeBundleId}/revalidate`,
+    {},
+    RouteBundleListResponseSchema,
+    {
+      params: {
+        now: params?.now ?? undefined,
+      },
+    },
+  );
 }
 
 export async function getCalendarEvents(tripId: string): Promise<CalendarEventPreviewResponse> {
@@ -171,6 +464,15 @@ export async function exportCalendarEvents(
 
 export async function getSafetyCard(tripId: string): Promise<SafetyCardResponse> {
   return apiGet(`/trips/${tripId}/safety-card`, SafetyCardResponseSchema);
+}
+
+export async function getTripIncidentBanners(
+  tripId: string,
+): Promise<MobileIncidentBannerResponse> {
+  return apiGet(
+    `/trips/${tripId}/incidents/mobile-banners`,
+    MobileIncidentBannerResponseSchema,
+  );
 }
 
 export async function getOfflineSnapshot(
@@ -199,6 +501,17 @@ export async function patchTask(
     `/trips/${tripId}/tasks/${taskId}`,
     parseTaskEdit(task),
     TripResponseSchema,
+  );
+}
+
+export async function syncOfflineTaskUpdates(
+  tripId: string,
+  request: OfflineTaskUpdateSyncRequest,
+): Promise<OfflineTaskUpdateSyncResponse> {
+  return apiPost(
+    `/trips/${tripId}/offline-task-updates`,
+    request,
+    OfflineTaskUpdateSyncResponseSchema,
   );
 }
 

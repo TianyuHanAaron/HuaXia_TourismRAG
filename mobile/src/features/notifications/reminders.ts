@@ -1,7 +1,11 @@
 import * as Notifications from 'expo-notifications';
 
 import { parseReminderCandidates, reminderSettingsSchema } from '../../schemas/reminders';
-import type { TripReminderCandidate } from '../../types/trip';
+import type {
+  TripNotificationDeliveryRequest,
+  TripNotificationPermissionState,
+  TripReminderCandidate,
+} from '../../types/trip';
 
 export type ReminderScheduleResult = {
   permission: Notifications.PermissionStatus;
@@ -52,6 +56,44 @@ export async function scheduleTripReminderCandidates(
   return { permission, scheduledCount, skippedCount };
 }
 
+export function buildNotificationDeliveryRequest(
+  candidates: TripReminderCandidate[],
+  result: ReminderScheduleResult,
+  options: {
+    quietHoursStart?: string | null;
+    quietHoursEnd?: string | null;
+    timezone?: string | null;
+    deviceId?: string | null;
+  } = {},
+): TripNotificationDeliveryRequest {
+  const parsedCandidates = parseReminderCandidates(candidates);
+  const timezone =
+    options.timezone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    'UTC';
+  return {
+    device_id: options.deviceId ?? null,
+    timezone,
+    permission_state: notificationPermissionState(result.permission),
+    quiet_hours_start: options.quietHoursStart ?? null,
+    quiet_hours_end: options.quietHoursEnd ?? null,
+    attempts: parsedCandidates.map((candidate) => ({
+      task_id: candidate.task_id,
+      dedupe_key: `${candidate.trip_id}:${candidate.task_id}:${candidate.offset_minutes}`,
+      planned_for: candidate.reminder_at,
+      provider_id: 'expo_notifications',
+      provider_response: {
+        scheduled_count: String(result.scheduledCount),
+        skipped_count: String(result.skippedCount),
+      },
+      requested_status:
+        result.permission === Notifications.PermissionStatus.GRANTED
+          ? 'scheduled'
+          : 'fallback_in_app',
+    })),
+  };
+}
+
 export async function cancelTaskReminder(
   tripId: string,
   taskId: string,
@@ -72,4 +114,16 @@ async function ensureNotificationPermission(): Promise<Notifications.PermissionS
 
 function reminderIdentifier(candidate: TripReminderCandidate): string {
   return `huaxia-reminder-${candidate.trip_id}-${candidate.task_id}`;
+}
+
+function notificationPermissionState(
+  permission: Notifications.PermissionStatus,
+): TripNotificationPermissionState {
+  if (permission === Notifications.PermissionStatus.GRANTED) {
+    return 'granted';
+  }
+  if (permission === Notifications.PermissionStatus.DENIED) {
+    return 'denied';
+  }
+  return 'undetermined';
 }

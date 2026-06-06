@@ -11,5 +11,8 @@ export type ProviderConnectorHealthStatus = typeof ProviderConnectorHealthStatus
 export const ProviderConnectorHealthStatus = {
   healthy: 'healthy',
   degraded: 'degraded',
+  quota_exceeded: 'quota_exceeded',
+  credential_missing: 'credential_missing',
+  region_unsupported: 'region_unsupported',
   disabled: 'disabled',
 } as const;

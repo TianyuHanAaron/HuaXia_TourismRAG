@@ -161,6 +161,9 @@ def test_speed_controls_default_to_safe_values():
     assert settings.job_ttl_seconds == 86400
     assert settings.job_execution_mode == "background"
     assert settings.job_queue_key == "tourism:job_queue:travel"
+    assert settings.job_queue_lease_seconds == 300
+    assert settings.job_queue_max_attempts == 3
+    assert settings.job_queue_retry_backoff_seconds == 30
     assert settings.embedding_max_retries == 2
     assert settings.embedding_retry_delay_seconds == 0.5
     assert settings.enable_prompt_compaction is True
@@ -245,10 +248,19 @@ def test_build_retrieval_orchestrator_uses_speed_settings():
 def test_build_travel_job_queue_respects_execution_mode():
     assert bootstrap.build_travel_job_queue(Settings(_env_file=None), redis=object()) is None
 
-    settings = Settings(JOB_EXECUTION_MODE="queue", _env_file=None)
+    settings = Settings(
+        JOB_EXECUTION_MODE="queue",
+        JOB_QUEUE_LEASE_SECONDS=120,
+        JOB_QUEUE_MAX_ATTEMPTS=5,
+        JOB_QUEUE_RETRY_BACKOFF_SECONDS=10,
+        _env_file=None,
+    )
     queue = bootstrap.build_travel_job_queue(settings, redis=object())
 
     assert isinstance(queue, RedisTravelJobQueue)
+    assert queue.lease_seconds == 120
+    assert queue.max_attempts == 5
+    assert queue.retry_backoff_seconds == 10
 
 
 def test_build_service_enrichment_keeps_providers_disabled_by_default():

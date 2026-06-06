@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from huaxia_tourismrag.schemas.evidence import (
@@ -53,6 +55,15 @@ class FakeQuotaErrorService:
         raise error
 
 
+class AlwaysFailService:
+    async def answer(
+        self,
+        question: TravelQuestion,
+        form_request: TravelFormRequest | None = None,
+    ) -> TravelAnswer:
+        raise RuntimeError("temporary provider outage")
+
+
 @pytest.mark.asyncio
 async def test_in_memory_job_queue_round_trip():
     queue = InMemoryTravelJobQueue()
@@ -60,8 +71,86 @@ async def test_in_memory_job_queue_round_trip():
 
     await queue.enqueue(item)
 
-    assert await queue.dequeue(timeout_seconds=0) == item
+    leased = await queue.dequeue(timeout_seconds=0)
+    assert leased is not None
+    assert leased.job_id == item.job_id
+    assert leased.tenant_id == item.tenant_id
+    assert leased.lease_id is not None
     assert await queue.dequeue(timeout_seconds=0) is None
+
+
+@pytest.mark.asyncio
+async def test_job_queue_recovers_expired_lease_for_worker_restart():
+    queue = InMemoryTravelJobQueue(lease_seconds=0)
+    item = TravelJobQueueItem(job_id="job-lease", tenant_id="tenant-a")
+
+    await queue.enqueue(item)
+    leased = await queue.dequeue(timeout_seconds=0)
+    recovered = await queue.dequeue(timeout_seconds=0)
+
+    assert leased is not None
+    assert leased.lease_id is not None
+    assert recovered is not None
+    assert recovered.job_id == "job-lease"
+    assert recovered.attempt_count == 2
+
+
+@pytest.mark.asyncio
+async def test_job_queue_schedules_retry_with_exponential_backoff():
+    queue = InMemoryTravelJobQueue(max_attempts=3, retry_backoff_seconds=3)
+    item = TravelJobQueueItem(job_id="job-backoff", tenant_id="tenant-a")
+
+    await queue.enqueue(item)
+    first = await queue.dequeue(timeout_seconds=0)
+    assert first is not None
+    await queue.fail(first, "first failure")
+    retry_item = queue.items[0]
+
+    assert retry_item.attempt_count == 1
+    assert (retry_item.available_at - datetime.now(UTC)).total_seconds() >= 2
+    assert await queue.dequeue(timeout_seconds=0) is None
+
+
+@pytest.mark.asyncio
+async def test_job_queue_snapshot_tracks_depth_under_burst_enqueue():
+    queue = InMemoryTravelJobQueue()
+
+    for index in range(50):
+        await queue.enqueue(
+            TravelJobQueueItem(job_id=f"job-{index}", tenant_id="tenant-a")
+        )
+
+    snapshot = await queue.snapshot()
+
+    assert snapshot.ready_count == 50
+    assert snapshot.leased_count == 0
+    assert snapshot.oldest_ready_age_seconds is not None
+
+
+@pytest.mark.asyncio
+async def test_job_queue_retries_then_dead_letters_poison_message():
+    queue = InMemoryTravelJobQueue(max_attempts=2, retry_backoff_seconds=0)
+    item = TravelJobQueueItem(job_id="job-poison", tenant_id="tenant-a")
+
+    await queue.enqueue(item)
+    first = await queue.dequeue(timeout_seconds=0)
+    assert first is not None
+    await queue.fail(first, "first failure")
+    snapshot = await queue.snapshot()
+
+    assert snapshot.ready_count == 1
+    assert snapshot.retry_count == 1
+    assert snapshot.dead_letter_count == 0
+    retry = await queue.dequeue(timeout_seconds=0)
+    assert retry is not None
+    assert retry.attempt_count == 2
+    await queue.fail(retry, "second failure")
+    snapshot = await queue.snapshot()
+
+    assert snapshot.ready_count == 0
+    assert snapshot.dead_letter_count == 1
+    assert snapshot.failed_samples[0].job_id == "job-poison"
+    assert snapshot.failed_samples[0].last_error == "second failure"
 
 
 @pytest.mark.asyncio
@@ -86,6 +175,41 @@ async def test_travel_job_worker_processes_one_queued_job():
     assert completed.answer is not None
     assert service.questions == [question]
     assert service.form_requests == [None]
+
+
+@pytest.mark.asyncio
+async def test_travel_job_worker_requeues_failed_job_until_poison_dead_letter():
+    job_store = InMemoryTravelJobStore()
+    job_queue = InMemoryTravelJobQueue(max_attempts=2, retry_backoff_seconds=0)
+    question = TravelQuestion(question="供应商短暂不可用。")
+    job = await job_store.create("tenant-a", question, kind="general_question")
+    await job_queue.enqueue(
+        TravelJobQueueItem(
+            job_id=job.job_id,
+            tenant_id="tenant-a",
+            kind="general_question",
+        )
+    )
+    worker = TravelJobWorker(
+        job_store=job_store,
+        job_queue=job_queue,
+        diy_service_factory=lambda tenant_id: FakeDIYService(),
+        qa_service_factory=lambda tenant_id: AlwaysFailService(),
+    )
+
+    assert await worker.run_once(timeout_seconds=0) is True
+    snapshot = await job_queue.snapshot()
+    assert snapshot.ready_count == 1
+    assert snapshot.dead_letter_count == 0
+
+    assert await worker.run_once(timeout_seconds=0) is True
+    snapshot = await job_queue.snapshot()
+    failed = await job_store.get(job.job_id, "tenant-a")
+
+    assert failed.status == "failed"
+    assert snapshot.ready_count == 0
+    assert snapshot.dead_letter_count == 1
+    assert snapshot.failed_samples[0].job_id == job.job_id
 
 
 @pytest.mark.asyncio

@@ -30,9 +30,152 @@ SupportAuditAction = Literal[
     "job_retry_created",
     "subscription_refreshed",
     "provider_action_debug_viewed",
+    "security_posture_viewed",
+    "operations_console_viewed",
+    "quality_evaluation_report_viewed",
+    "prompt_dto_regression_report_viewed",
+    "compliance_incident_report_viewed",
+    "compliance_incident_opened",
+    "compliance_incident_updated",
+    "v5_business_scale_readiness_viewed",
+    "support_playbooks_viewed",
+    "support_playbook_applied",
 ]
+AdminOperationsPanelStatus = Literal["healthy", "attention", "critical", "unavailable"]
+AdminOperationsPanelKey = Literal[
+    "trips",
+    "workflows",
+    "providers",
+    "notifications",
+    "documents",
+    "analytics",
+    "incidents",
+    "support_cases",
+]
+AdminOperationsControlledActionKey = Literal[
+    "retry_failed_workflow",
+    "revalidate_provider_health",
+    "resend_notification",
+    "set_support_hold",
+    "open_incident",
+    "refresh_subscription",
+]
+CapacityPlanningRunMode = Literal["local_smoke", "staging_mock", "live_canary"]
+CapacityPlanningProviderMode = Literal["mocked", "recorded", "sandbox", "live"]
+CapacityPlanningScenarioKey = Literal[
+    "planning_job",
+    "trip_approval",
+    "task_command_refresh",
+    "route_refresh",
+    "weather_refresh",
+    "provider_action_sheet",
+    "notification_scheduling",
+    "offline_sync_replay",
+    "admin_support_query",
+]
+QualityEvaluationRunMode = Literal["smoke", "full"]
+QualityEvaluationStatus = Literal["passed", "warning", "failed"]
+QualityEvaluationFixtureKey = Literal[
+    "local_city_trip",
+    "elderly_slow_trip",
+    "regional_road_trip",
+    "international_trip",
+    "outdoor_high_risk_trip",
+    "long_multi_stop_trip",
+]
+QualityEvaluationCriterionKey = Literal[
+    "itinerary_validity",
+    "task_usefulness",
+    "provider_action_readiness",
+    "citation_quality",
+    "safety_coverage",
+    "mobile_snapshot_readability",
+]
+PromptDtoRegressionRunMode = Literal["smoke", "full"]
+PromptDtoRegressionStatus = Literal["passed", "warning", "failed"]
+PromptDtoRegressionContractKey = Literal[
+    "travel_answer",
+    "trip_draft",
+    "trip_task",
+    "route_bundle",
+    "provider_action",
+    "weather_snapshot",
+    "safety_card",
+    "workflow_event",
+]
+PromptDtoRegressionCriterionKey = Literal[
+    "required_fields",
+    "enum_values",
+    "prompt_required_fragments",
+    "citation_guard_contract",
+    "structured_repair_retry_contract",
+    "client_schema_compatibility",
+]
+ComplianceIncidentType = Literal[
+    "provider_outage",
+    "notification_failure",
+    "document_privacy",
+    "safety_misinformation",
+    "data_loss",
+    "llm_feature_risk",
+]
+ComplianceIncidentSeverity = Literal[
+    "info",
+    "warning",
+    "critical",
+    "safety_critical",
+]
+ComplianceIncidentStatus = Literal["open", "mitigating", "resolved", "postmortem"]
+ComplianceDisableFeature = Literal[
+    "provider_actions",
+    "weather_provider",
+    "notification_delivery",
+    "document_import",
+    "safety_card_llm_enrichment",
+    "llm_final_answer_generation",
+    "riskline_safety_data",
+]
+SupportRecoveryActionKey = Literal[
+    "retry_workflow",
+    "regenerate_route_bundle",
+    "resend_reminder",
+    "rebuild_provider_action",
+    "clear_blocked_task",
+    "resolve_sync_conflict",
+    "mark_provider_action_completed_externally",
+]
+SupportRecoveryFailureType = Literal[
+    "failed_workflow",
+    "stale_route_bundle",
+    "missing_notification",
+    "invalid_provider_link",
+    "blocked_task",
+    "document_import_error",
+    "sync_conflict",
+]
+SecurityCredentialScope = Literal[
+    "admin",
+    "embedding",
+    "llm",
+    "mcp",
+    "search",
+    "vector_store",
+    "voice",
+    "web_parse",
+]
+SecurityCredentialState = Literal["configured", "missing", "not_required"]
 RolloutGateStatus = Literal["ready", "monitoring", "blocked"]
 RolloutLaunchMode = Literal["controlled_beta", "closed_beta", "full_launch", "rollback"]
+V5BusinessScaleGateKey = Literal[
+    "quality_harness",
+    "prompt_dto_regression",
+    "compliance_incidents",
+    "capacity_planning",
+    "provider_health",
+    "support_operations",
+    "mobile_execution_quality",
+    "business_scale_experiments",
+]
 EntitlementFeature = Literal[
     "basic_trip_execution",
     "single_active_trip",
@@ -424,7 +567,16 @@ class SupportAuditEvent(BaseModel):
     actor_user_id: str
     target_user_id: str
     action: SupportAuditAction
-    resource_type: Literal["user", "job", "subscription", "provider_action"]
+    resource_type: Literal[
+        "user",
+        "job",
+        "trip",
+        "task",
+        "subscription",
+        "provider_action",
+        "security",
+        "operations",
+    ]
     resource_id: str | None = None
     metadata: dict[str, str] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -434,6 +586,417 @@ class SupportAuditEventListResponse(BaseModel):
     """Support audit trail."""
 
     events: list[SupportAuditEvent] = Field(default_factory=list)
+
+
+class SecurityCredentialPosture(BaseModel):
+    """Redacted operational posture for one provider credential."""
+
+    credential_id: str
+    scope: SecurityCredentialScope
+    state: SecurityCredentialState
+    configured: bool
+    env_var_names: list[str] = Field(default_factory=list)
+    redacted_value: str | None = None
+    rotation_guidance: str
+
+
+class SecurityPostureResponse(BaseModel):
+    """Admin-only security posture diagnostics with no raw secret values."""
+
+    version: Literal["v5_security_posture"] = "v5_security_posture"
+    credentials: list[SecurityCredentialPosture] = Field(default_factory=list)
+    frontend_secret_exposure_allowed: bool = False
+    sensitive_document_prompt_default: Literal["excluded"] = "excluded"
+    admin_only: bool = True
+    support_audit_event_id: str
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ComplianceIncidentCreateRequest(BaseModel):
+    """Create a V5 compliance or production incident record."""
+
+    title: str = Field(min_length=1, max_length=180)
+    incident_type: ComplianceIncidentType
+    severity: ComplianceIncidentSeverity
+    public_message: str = Field(min_length=1, max_length=700)
+    internal_summary: str = Field(min_length=1, max_length=1200)
+    affected_trip_ids: list[str] = Field(default_factory=list, max_length=200)
+    affected_user_ids: list[str] = Field(default_factory=list, max_length=200)
+    disabled_features: list[ComplianceDisableFeature] = Field(default_factory=list)
+    user_communication_required: bool = False
+    mitigation_steps: list[str] = Field(default_factory=list, max_length=20)
+
+
+class ComplianceIncidentPatchRequest(BaseModel):
+    """Patch mitigation and resolution state for an incident."""
+
+    status: ComplianceIncidentStatus | None = None
+    public_message: str | None = Field(default=None, min_length=1, max_length=700)
+    mitigation_steps: list[str] | None = Field(default=None, max_length=20)
+    resolution_summary: str | None = Field(default=None, max_length=1200)
+
+
+class ComplianceDisableSwitch(BaseModel):
+    """Active emergency disable switch derived from open incidents."""
+
+    feature_key: ComplianceDisableFeature
+    incident_id: str
+    reason: str = Field(min_length=1, max_length=500)
+    severity: ComplianceIncidentSeverity
+    created_at: datetime
+
+
+class ComplianceIncidentRecord(BaseModel):
+    """Admin-visible compliance incident record."""
+
+    incident_id: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=1, max_length=180)
+    incident_type: ComplianceIncidentType
+    severity: ComplianceIncidentSeverity
+    status: ComplianceIncidentStatus = "open"
+    public_message: str = Field(min_length=1, max_length=700)
+    internal_summary: str = Field(min_length=1, max_length=1200)
+    affected_trip_ids: list[str] = Field(default_factory=list)
+    affected_user_ids: list[str] = Field(default_factory=list)
+    disabled_features: list[ComplianceDisableFeature] = Field(default_factory=list)
+    user_communication_required: bool = False
+    mitigation_steps: list[str] = Field(default_factory=list)
+    opened_by: str = Field(min_length=1, max_length=160)
+    resolution_summary: str | None = Field(default=None, max_length=1200)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    resolved_at: datetime | None = None
+
+
+class ComplianceIncidentReportResponse(BaseModel):
+    """Support/admin incident response report for V5 operations."""
+
+    version: Literal["v5_compliance_incident_response"] = (
+        "v5_compliance_incident_response"
+    )
+    admin_only: bool = True
+    incident_count: int = Field(ge=0)
+    open_incident_count: int = Field(ge=0)
+    safety_critical_open_count: int = Field(ge=0)
+    user_communication_required_count: int = Field(ge=0)
+    affected_trip_count: int = Field(ge=0)
+    affected_user_count: int = Field(ge=0)
+    release_blocked: bool
+    active_disable_switches: list[ComplianceDisableSwitch] = Field(default_factory=list)
+    incidents: list[ComplianceIncidentRecord] = Field(default_factory=list)
+    support_audit_event_id: str = ""
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class MobileIncidentBanner(BaseModel):
+    """User-safe incident banner for a trip or account."""
+
+    incident_id: str = Field(min_length=1, max_length=120)
+    incident_type: ComplianceIncidentType
+    severity: ComplianceIncidentSeverity
+    title: str = Field(min_length=1, max_length=180)
+    public_message: str = Field(min_length=1, max_length=700)
+    disabled_features: list[ComplianceDisableFeature] = Field(default_factory=list)
+    user_action_label: str = Field(default="Review trip guidance", max_length=120)
+    created_at: datetime
+
+
+class MobileIncidentBannerResponse(BaseModel):
+    """Incident banners relevant to one mobile active-trip screen."""
+
+    trip_id: str = Field(min_length=1, max_length=120)
+    banners: list[MobileIncidentBanner] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class AdminOperationsOverview(BaseModel):
+    """Aggregate counts for the V5 admin operations console."""
+
+    active_trip_count: int = Field(ge=0)
+    approved_trip_count: int = Field(ge=0)
+    queued_job_count: int = Field(ge=0)
+    leased_job_count: int = Field(ge=0)
+    dead_letter_job_count: int = Field(ge=0)
+    failed_workflow_count: int = Field(ge=0)
+    provider_unavailable_count: int = Field(ge=0)
+    notification_failure_count: int = Field(ge=0)
+    sensitive_document_count: int = Field(ge=0)
+    open_incident_count: int = Field(ge=0)
+    support_audit_event_count: int = Field(ge=0)
+
+
+class AdminOperationsPanel(BaseModel):
+    """One console panel backed by an existing V5 operations surface."""
+
+    panel_key: AdminOperationsPanelKey
+    title: str = Field(min_length=1, max_length=160)
+    status: AdminOperationsPanelStatus
+    count: int = Field(ge=0)
+    route_path: str = Field(min_length=1, max_length=240)
+    description: str = Field(min_length=1, max_length=500)
+    primary_metric_label: str = Field(min_length=1, max_length=160)
+
+
+class AdminOperationsControlledAction(BaseModel):
+    """Controlled support action exposed by the admin console."""
+
+    action_key: AdminOperationsControlledActionKey
+    label: str = Field(min_length=1, max_length=160)
+    route_path: str = Field(min_length=1, max_length=240)
+    role_required: Literal["tourism_admin"] = "tourism_admin"
+    requires_reason: bool = True
+    audit_resource_type: Literal[
+        "job",
+        "subscription",
+        "provider_action",
+        "operations",
+    ]
+    description: str = Field(min_length=1, max_length=500)
+
+
+class AdminOperationsConsoleResponse(BaseModel):
+    """Role-gated V5 operations console summary for web/admin clients."""
+
+    version: Literal["v5_admin_operations_console"] = "v5_admin_operations_console"
+    tenant_id: str
+    admin_only: bool = True
+    overview: AdminOperationsOverview
+    panels: list[AdminOperationsPanel] = Field(default_factory=list, min_length=1)
+    controlled_actions: list[AdminOperationsControlledAction] = Field(
+        default_factory=list,
+        min_length=1,
+    )
+    support_audit_event_id: str
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class CapacityPlanningQueueSnapshot(BaseModel):
+    """Queue summary embedded in V5 capacity planning reports."""
+
+    ready_count: int = Field(default=0, ge=0)
+    leased_count: int = Field(default=0, ge=0)
+    retry_count: int = Field(default=0, ge=0)
+    dead_letter_count: int = Field(default=0, ge=0)
+    oldest_ready_age_seconds: float | None = Field(default=None, ge=0)
+
+
+class CapacityPlanningScenarioResult(BaseModel):
+    """One load scenario measurement for V5 capacity planning."""
+
+    scenario_key: CapacityPlanningScenarioKey
+    title: str = Field(min_length=1, max_length=180)
+    request_count: int = Field(ge=0)
+    success_count: int = Field(ge=0)
+    error_count: int = Field(ge=0)
+    error_rate_percent: float = Field(ge=0)
+    p50_ms: float = Field(ge=0)
+    p95_ms: float = Field(ge=0)
+    p99_ms: float = Field(ge=0)
+    queue_depth_observed: int = Field(ge=0)
+    provider_mode: CapacityPlanningProviderMode
+    provider_calls_blocked: bool
+    bottlenecks: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+
+
+class CapacityPlanningReportResponse(BaseModel):
+    """Support/admin capacity planning report for V5 load testing."""
+
+    version: Literal["v5_capacity_planning"] = "v5_capacity_planning"
+    admin_only: bool = True
+    run_mode: CapacityPlanningRunMode
+    provider_mode: CapacityPlanningProviderMode
+    safe_for_local_smoke: bool = True
+    scenario_count: int = Field(ge=0)
+    total_request_count: int = Field(ge=0)
+    overall_error_rate_percent: float = Field(ge=0)
+    queue_snapshot: CapacityPlanningQueueSnapshot
+    scenarios: list[CapacityPlanningScenarioResult] = Field(default_factory=list)
+    bottlenecks: list[str] = Field(default_factory=list)
+    capacity_recommendations: list[str] = Field(default_factory=list)
+    live_provider_calls_allowed: bool = False
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class QualityEvaluationCriterionResult(BaseModel):
+    """One structural quality criterion for a V5 fixture journey."""
+
+    criterion_key: QualityEvaluationCriterionKey
+    status: QualityEvaluationStatus
+    score: int = Field(ge=0, le=100)
+    required: str = Field(default="", max_length=500)
+    observed: str = Field(default="", max_length=500)
+    failure_reasons: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class QualityEvaluationMobileSnapshot(BaseModel):
+    """Compact mobile-readability snapshot for a fixture journey."""
+
+    task_card_count: int = Field(ge=0)
+    provider_action_count: int = Field(ge=0)
+    route_bundle_count: int = Field(ge=0)
+    safety_note_count: int = Field(ge=0)
+    offline_ready: bool
+    readable_surfaces: list[str] = Field(default_factory=list)
+
+
+class QualityEvaluationFixtureResult(BaseModel):
+    """Quality result for one deterministic fixture journey."""
+
+    fixture_key: QualityEvaluationFixtureKey
+    title: str
+    journey_type: str
+    status: QualityEvaluationStatus
+    score: int = Field(ge=0, le=100)
+    required_day_count: int = Field(ge=1)
+    observed_day_count: int = Field(ge=0)
+    required_task_count: int = Field(ge=0)
+    observed_task_count: int = Field(ge=0)
+    required_provider_action_types: list[str] = Field(default_factory=list)
+    observed_provider_action_types: list[str] = Field(default_factory=list)
+    required_citation_count: int = Field(ge=0)
+    observed_citation_count: int = Field(ge=0)
+    criteria: list[QualityEvaluationCriterionResult] = Field(default_factory=list)
+    mobile_snapshot: QualityEvaluationMobileSnapshot
+    failure_reasons: list[str] = Field(default_factory=list)
+
+
+class QualityEvaluationReportResponse(BaseModel):
+    """Support/admin report for deterministic V5 trip workflow quality checks."""
+
+    version: Literal["v5_quality_evaluation"] = "v5_quality_evaluation"
+    admin_only: bool = True
+    run_mode: QualityEvaluationRunMode
+    fixture_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    release_blocked: bool
+    fixtures: list[QualityEvaluationFixtureResult] = Field(default_factory=list)
+    baseline_diff: list[str] = Field(default_factory=list)
+    failure_reasons: list[str] = Field(default_factory=list)
+    support_audit_event_id: str = ""
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class PromptDtoRegressionCriterionResult(BaseModel):
+    """One Step 20 prompt/DTO contract criterion."""
+
+    criterion_key: PromptDtoRegressionCriterionKey
+    status: PromptDtoRegressionStatus
+    score: int = Field(ge=0, le=100)
+    required: str = Field(default="", max_length=700)
+    observed: str = Field(default="", max_length=700)
+    failure_reasons: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+
+
+class PromptDtoRegressionContractResult(BaseModel):
+    """Regression result for one DTO or prompt contract."""
+
+    contract_key: PromptDtoRegressionContractKey
+    model_name: str = Field(min_length=1, max_length=120)
+    status: PromptDtoRegressionStatus
+    score: int = Field(ge=0, le=100)
+    required_fields: list[str] = Field(default_factory=list)
+    observed_fields: list[str] = Field(default_factory=list)
+    enum_expectations: dict[str, list[str]] = Field(default_factory=dict)
+    observed_enum_values: dict[str, list[str]] = Field(default_factory=dict)
+    prompt_contract_name: str | None = Field(default=None, max_length=120)
+    prompt_required_fragments: list[str] = Field(default_factory=list)
+    criteria: list[PromptDtoRegressionCriterionResult] = Field(default_factory=list)
+    failure_reasons: list[str] = Field(default_factory=list)
+
+
+class PromptDtoRegressionReportResponse(BaseModel):
+    """Support/admin report for V5 prompt and DTO regression protection."""
+
+    version: Literal["v5_prompt_dto_regression"] = "v5_prompt_dto_regression"
+    admin_only: bool = True
+    run_mode: PromptDtoRegressionRunMode
+    contract_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    release_blocked: bool
+    contracts: list[PromptDtoRegressionContractResult] = Field(default_factory=list)
+    schema_snapshot_version: str = Field(default="v5_prompt_dto_contracts")
+    prompt_snapshot_version: str = Field(default="v5_prompt_contracts")
+    baseline_diff: list[str] = Field(default_factory=list)
+    failure_reasons: list[str] = Field(default_factory=list)
+    support_audit_event_id: str = ""
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class SupportRecoveryPlaybook(BaseModel):
+    """One deterministic support recovery playbook for a user-impacting issue."""
+
+    playbook_id: str = Field(min_length=1, max_length=220)
+    action_key: SupportRecoveryActionKey
+    failure_type: SupportRecoveryFailureType
+    target_id: str = Field(min_length=1, max_length=220)
+    title: str = Field(min_length=1, max_length=180)
+    summary: str = Field(min_length=1, max_length=700)
+    affected_phase: str | None = Field(default=None, max_length=120)
+    affected_task_ids: list[str] = Field(default_factory=list, max_length=20)
+    requires_current_version: bool = True
+    recommended: bool = True
+    mobile_outcome: str = Field(min_length=1, max_length=500)
+
+
+class SupportRecoveryPlaybookResponse(BaseModel):
+    """Consent-gated list of support recovery playbooks for one trip."""
+
+    version: Literal["v5_support_recovery_playbooks"] = "v5_support_recovery_playbooks"
+    target_user_id: str
+    trip_id: str
+    playbook_count: int = Field(ge=0)
+    playbooks: list[SupportRecoveryPlaybook] = Field(default_factory=list)
+    support_audit_event_id: str
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class SupportRecoveryApplyRequest(BaseModel):
+    """Apply one controlled support recovery playbook."""
+
+    action_key: SupportRecoveryActionKey
+    target_id: str = Field(min_length=1, max_length=220)
+    expected_updated_at: datetime
+    reason: str = Field(min_length=12, max_length=700)
+
+
+class SupportRecoveryMobileRefresh(BaseModel):
+    """Mobile surfaces that should refresh after support changes state."""
+
+    refresh_required: bool = True
+    surfaces: list[Literal[
+        "trip_home",
+        "timeline",
+        "tasks",
+        "provider_actions",
+        "notifications",
+        "documents",
+        "offline_sync",
+    ]] = Field(default_factory=list)
+    message: str = Field(min_length=1, max_length=400)
+
+
+class SupportRecoveryApplyResponse(BaseModel):
+    """Result of applying one support recovery playbook."""
+
+    version: Literal["v5_support_recovery_playbook_apply"] = (
+        "v5_support_recovery_playbook_apply"
+    )
+    target_user_id: str
+    trip_id: str
+    action_key: SupportRecoveryActionKey
+    target_id: str
+    status: Literal["applied"] = "applied"
+    trip: dict[str, Any]
+    mobile_refresh: SupportRecoveryMobileRefresh
+    support_audit_event_id: str
+    applied_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class SupportUserRecoverySummaryResponse(BaseModel):
@@ -595,6 +1158,48 @@ class V3ProviderReadinessResponse(BaseModel):
     required_provider_metric_events: dict[str, AnalyticsEventType] = Field(default_factory=dict)
     scenario_tests: list[str] = Field(default_factory=list)
     v4_bridge: V4ReliabilityBridge
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class V5BusinessScaleGate(BaseModel):
+    """One V5 reliability/business-scale release gate."""
+
+    gate_key: V5BusinessScaleGateKey
+    title: str = Field(min_length=1, max_length=180)
+    status: RolloutGateStatus
+    owner: str = Field(min_length=1, max_length=120)
+    evidence: list[str] = Field(default_factory=list)
+    blocking_reason: str | None = Field(default=None, max_length=700)
+    user_impact: str = Field(min_length=1, max_length=500)
+    business_impact: str = Field(min_length=1, max_length=500)
+
+
+class V6BusinessScaleBridge(BaseModel):
+    """Bridge from V5 reliability to V6 partner/growth automation."""
+
+    focus: Literal["partner_network_and_growth_automation"] = (
+        "partner_network_and_growth_automation"
+    )
+    next_capabilities: list[str] = Field(default_factory=list)
+    promotion_criteria: list[str] = Field(default_factory=list)
+    blocked_until: list[str] = Field(default_factory=list)
+
+
+class V5BusinessScaleReadinessResponse(BaseModel):
+    """Decision-oriented V5 rollout and business-scale readiness snapshot."""
+
+    version: Literal["v5_business_scale_readiness"] = "v5_business_scale_readiness"
+    admin_only: bool = True
+    launch_mode: RolloutLaunchMode
+    safe_to_start_business_scale_experiments: bool
+    release_blocked: bool
+    gates: list[V5BusinessScaleGate] = Field(default_factory=list)
+    readiness_score: int = Field(ge=0, le=100)
+    reliability_scorecard: dict[str, int] = Field(default_factory=dict)
+    business_scale_metrics: dict[str, bool] = Field(default_factory=dict)
+    rollout_sequence: list[str] = Field(default_factory=list)
+    v6_bridge: V6BusinessScaleBridge
+    support_audit_event_id: str = ""
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

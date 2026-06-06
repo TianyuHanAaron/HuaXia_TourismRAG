@@ -1,0 +1,63 @@
+{
+  "version": "v5_capacity_smoke_scenarios",
+  "provider_mode": "mocked",
+  "scenarios": [
+    {
+      "scenario_key": "planning_job",
+      "method": "GET",
+      "path": "/tourism/capabilities",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "trip_approval",
+      "method": "GET",
+      "path": "/trips/reliability/slos",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "task_command_refresh",
+      "method": "GET",
+      "path": "/trips/reliability/slos",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "route_refresh",
+      "method": "GET",
+      "path": "/trips/provider-health?domain=navigation&region=CN",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "weather_refresh",
+      "method": "GET",
+      "path": "/trips/provider-health?domain=weather",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "provider_action_sheet",
+      "method": "GET",
+      "path": "/trips/provider-health",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "notification_scheduling",
+      "method": "GET",
+      "path": "/trips/reliability/slos",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "offline_sync_replay",
+      "method": "GET",
+      "path": "/trips/reliability/slos",
+      "provider_mode": "mocked"
+    },
+    {
+      "scenario_key": "admin_support_query",
+      "method": "GET",
+      "path": "/support/capacity/report",
+      "provider_mode": "mocked",
+      "headers": {
+        "X-Huaxia-Role": "tourism_admin"
+      }
+    }
+  ]
+}

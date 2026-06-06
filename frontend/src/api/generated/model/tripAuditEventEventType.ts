@@ -25,4 +25,6 @@ export const TripAuditEventEventType = {
   booking_added: 'booking_added',
   booking_updated: 'booking_updated',
   booking_removed: 'booking_removed',
+  retention_policy_applied: 'retention_policy_applied',
+  retention_hold_set: 'retention_hold_set',
 } as const;

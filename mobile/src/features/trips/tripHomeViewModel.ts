@@ -1,4 +1,9 @@
-import type { Trip, TripSummaryResponse, TripTask } from '../../types/trip';
+import type {
+  Trip,
+  TripReliabilitySnapshotResponse,
+  TripSummaryResponse,
+  TripTask,
+} from '../../types/trip';
 
 export type TripHomeAlert = {
   title: string;
@@ -27,6 +32,7 @@ export type TripHomeViewModel = {
   blockedTaskCount: number;
   nextBestAction: TripHomeNextBestAction;
   contextualAlert: TripHomeAlert | null;
+  reliabilityLabel: string | null;
   isWarmCache: boolean;
   updatedAt: string | null;
 };
@@ -37,6 +43,7 @@ export function buildTripHomeViewModel({
   isWarmCache,
   subscriptionWarning,
   reminderMessage,
+  reliability,
   safetyOfflineAvailable,
   safetyNumbers,
 }: {
@@ -45,6 +52,7 @@ export function buildTripHomeViewModel({
   isWarmCache: boolean;
   subscriptionWarning?: string | null;
   reminderMessage?: string | null;
+  reliability?: TripReliabilitySnapshotResponse | null;
   safetyOfflineAvailable?: boolean;
   safetyNumbers?: string[];
 }): TripHomeViewModel | null {
@@ -75,6 +83,7 @@ export function buildTripHomeViewModel({
     isWarmCache,
     subscriptionWarning,
     reminderMessage,
+    reliability,
     safetyOfflineAvailable,
     safetyNumbers,
   });
@@ -97,6 +106,7 @@ export function buildTripHomeViewModel({
     blockedTaskCount: effectiveSummary.blocked_task_count,
     nextBestAction,
     contextualAlert,
+    reliabilityLabel: reliability ? reliabilityLabel(reliability) : null,
     isWarmCache,
     updatedAt: effectiveSummary.updated_at ?? null,
   };
@@ -134,6 +144,7 @@ function buildContextualAlert({
   isWarmCache,
   subscriptionWarning,
   reminderMessage,
+  reliability,
   safetyOfflineAvailable,
   safetyNumbers = [],
 }: {
@@ -142,9 +153,23 @@ function buildContextualAlert({
   isWarmCache: boolean;
   subscriptionWarning?: string | null;
   reminderMessage?: string | null;
+  reliability?: TripReliabilitySnapshotResponse | null;
   safetyOfflineAvailable?: boolean;
   safetyNumbers?: string[];
 }): TripHomeAlert | null {
+  if (
+    reliability?.overall_status === 'critical' ||
+    reliability?.overall_status === 'degraded'
+  ) {
+    const firstIndicator = reliability.indicators[0];
+    return {
+      title: reliability.overall_status === 'critical' ? '执行可靠性需要处理' : '执行可靠性需复核',
+      body:
+        firstIndicator?.detail ??
+        `当前可靠性评分 ${reliability.score}，建议先检查任务、路线或服务商动作。`,
+      tone: reliability.overall_status === 'critical' ? 'danger' : 'warning',
+    };
+  }
   if (summary.next_task_urgency === 'blocked' && nextTask?.blocked_reason) {
     return {
       title: '下一步被阻塞',
@@ -202,6 +227,16 @@ function buildContextualAlert({
     };
   }
   return null;
+}
+
+function reliabilityLabel(snapshot: TripReliabilitySnapshotResponse): string {
+  const labels: Record<TripReliabilitySnapshotResponse['overall_status'], string> = {
+    healthy: '可靠',
+    degraded: '需复核',
+    critical: '需处理',
+    not_ready: '未就绪',
+  };
+  return `${labels[snapshot.overall_status]} · ${snapshot.score}`;
 }
 
 function buildNextBestAction({

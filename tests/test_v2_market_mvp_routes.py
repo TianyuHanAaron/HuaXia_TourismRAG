@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, time
 
 from fastapi import FastAPI
@@ -11,6 +12,7 @@ from huaxia_tourismrag.api.routes import (
     trip_router,
     user_router,
 )
+from huaxia_tourismrag.core.config import get_settings
 from huaxia_tourismrag.schemas.evidence import (
     ActivityItem,
     DailyPlan,
@@ -18,10 +20,16 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelItinerary,
     TravelQuestion,
 )
+from huaxia_tourismrag.schemas.jobs import TravelJobQueueItem
 from huaxia_tourismrag.schemas.market import SubscriptionState
+from huaxia_tourismrag.schemas.providers import ProviderHealthSnapshot
 from huaxia_tourismrag.services.job_store import InMemoryTravelJobStore
+from huaxia_tourismrag.services.job_queue import InMemoryTravelJobQueue
 from huaxia_tourismrag.services.market_store import InMemoryMarketStore
+from huaxia_tourismrag.services.provider_health import InMemoryProviderHealthStore
 from huaxia_tourismrag.services.trip_store import InMemoryTripStore
+from huaxia_tourismrag.services.trip_workflow import draft_from_travel_answer
+from huaxia_tourismrag.services.trip_workflow_runtime import InMemoryTripWorkflowStore
 
 
 def make_v2_client() -> TestClient:
@@ -36,6 +44,10 @@ def make_v2_client() -> TestClient:
     app.include_router(support_router)
     app.include_router(rollout_router)
     return TestClient(app)
+
+
+def run_async(coro):
+    return asyncio.run(coro)
 
 
 def test_user_preferences_and_subscription_entitlements():
@@ -120,6 +132,548 @@ def test_step20_analytics_rejects_provider_url_and_deep_link_metadata():
 
     assert rejected_url.status_code == 422
     assert rejected_deep_link.status_code == 422
+
+
+def test_step15_admin_operations_console_requires_admin_role():
+    client = make_v2_client()
+
+    response = client.get("/support/operations/console")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "support admin permission required"
+
+
+def test_step18_capacity_planning_report_requires_admin_role():
+    client = make_v2_client()
+
+    response = client.get("/support/capacity/report")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "support admin permission required"
+
+
+def test_step18_capacity_planning_report_includes_core_scenarios_and_queue_depth():
+    client = make_v2_client()
+    queue = InMemoryTravelJobQueue()
+    client.app.state.travel_job_queue = queue
+    run_async(
+        queue.enqueue(
+            TravelJobQueueItem(
+                job_id="capacity-job",
+                tenant_id="demo-tenant",
+                kind="general_question",
+            )
+        )
+    )
+
+    response = client.get(
+        "/support/capacity/report?run_mode=local_smoke&provider_mode=mocked",
+        headers={"X-Huaxia-Role": "tourism_admin"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_capacity_planning"
+    assert body["admin_only"] is True
+    assert body["run_mode"] == "local_smoke"
+    assert body["provider_mode"] == "mocked"
+    assert body["live_provider_calls_allowed"] is False
+    assert body["queue_snapshot"]["ready_count"] == 1
+    scenario_keys = {scenario["scenario_key"] for scenario in body["scenarios"]}
+    assert {
+        "planning_job",
+        "trip_approval",
+        "task_command_refresh",
+        "route_refresh",
+        "weather_refresh",
+        "provider_action_sheet",
+        "notification_scheduling",
+        "offline_sync_replay",
+        "admin_support_query",
+    }.issubset(scenario_keys)
+    assert all(scenario["provider_calls_blocked"] for scenario in body["scenarios"])
+    assert body["capacity_recommendations"]
+
+
+def test_step18_capacity_planning_report_rejects_live_provider_load_without_opt_in():
+    client = make_v2_client()
+
+    response = client.get(
+        "/support/capacity/report?provider_mode=live",
+        headers={"X-Huaxia-Role": "tourism_admin"},
+    )
+
+    assert response.status_code == 409
+    assert "allow_live_providers" in response.json()["detail"]
+
+
+def test_step19_quality_evaluation_report_requires_admin_role():
+    client = make_v2_client()
+
+    response = client.get("/support/quality/report")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "support admin permission required"
+
+
+def test_step19_quality_evaluation_report_returns_fixture_results_and_audit_event():
+    client = make_v2_client()
+
+    response = client.get(
+        "/support/quality/report?run_mode=smoke",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_quality_evaluation"
+    assert body["admin_only"] is True
+    assert body["run_mode"] == "smoke"
+    assert body["release_blocked"] is False
+    assert body["fixture_count"] == 6
+    assert body["passed_count"] == 6
+    assert body["failed_count"] == 0
+    assert body["support_audit_event_id"].startswith("support_")
+    fixture_keys = {fixture["fixture_key"] for fixture in body["fixtures"]}
+    assert {
+        "local_city_trip",
+        "elderly_slow_trip",
+        "regional_road_trip",
+        "international_trip",
+        "outdoor_high_risk_trip",
+        "long_multi_stop_trip",
+    } == fixture_keys
+    for fixture in body["fixtures"]:
+        assert fixture["status"] == "passed"
+        assert fixture["mobile_snapshot"]["task_card_count"] >= fixture["required_task_count"]
+        assert fixture["mobile_snapshot"]["provider_action_count"] >= len(
+            fixture["required_provider_action_types"]
+        )
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+    assert audit.status_code == 200
+    assert audit.json()["events"][-1]["action"] == "quality_evaluation_report_viewed"
+
+
+def test_step20_prompt_dto_regression_report_requires_admin_role():
+    client = make_v2_client()
+
+    response = client.get("/support/prompt-dto/report")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "support admin permission required"
+
+
+def test_step20_prompt_dto_regression_report_returns_contract_results_and_audit_event():
+    client = make_v2_client()
+
+    response = client.get(
+        "/support/prompt-dto/report?run_mode=smoke",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_prompt_dto_regression"
+    assert body["admin_only"] is True
+    assert body["run_mode"] == "smoke"
+    assert body["release_blocked"] is False
+    assert body["contract_count"] >= 8
+    assert body["passed_count"] == body["contract_count"]
+    assert body["failed_count"] == 0
+    assert body["support_audit_event_id"].startswith("support_")
+    assert {
+        "travel_answer",
+        "trip_draft",
+        "trip_task",
+        "route_bundle",
+        "provider_action",
+        "weather_snapshot",
+        "safety_card",
+        "workflow_event",
+    }.issubset({contract["contract_key"] for contract in body["contracts"]})
+    travel_answer = next(
+        contract
+        for contract in body["contracts"]
+        if contract["contract_key"] == "travel_answer"
+    )
+    assert travel_answer["model_name"] == "TravelAnswer"
+    assert "answer" in travel_answer["required_fields"]
+    assert "citations" in travel_answer["required_fields"]
+    assert any(
+        criterion["criterion_key"] == "prompt_required_fragments"
+        for criterion in travel_answer["criteria"]
+    )
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+    assert audit.status_code == 200
+    assert audit.json()["events"][-1]["action"] == "prompt_dto_regression_report_viewed"
+
+
+def test_step21_compliance_incident_report_requires_admin_role():
+    client = make_v2_client()
+
+    response = client.get("/support/incidents/report")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "support admin permission required"
+
+
+def test_step21_support_can_open_provider_outage_incident_and_mobile_sees_targeted_banner():
+    client = make_v2_client()
+    admin_headers = {"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"}
+
+    created = client.post(
+        "/support/incidents",
+        headers=admin_headers,
+        json={
+            "title": "Map provider outage",
+            "incident_type": "provider_outage",
+            "severity": "critical",
+            "public_message": "Map handoff for this trip may be degraded. Use the fallback route before leaving.",
+            "internal_summary": "Amap proxy returned 5xx for route creation.",
+            "affected_trip_ids": ["trip-incident"],
+            "affected_user_ids": ["demo-user"],
+            "disabled_features": ["provider_actions"],
+            "user_communication_required": True,
+            "mitigation_steps": ["Switch to fallback provider URLs."],
+        },
+    )
+
+    assert created.status_code == 201
+    incident = created.json()
+    assert incident["status"] == "open"
+    assert incident["opened_by"] == "support_1"
+
+    report = client.get("/support/incidents/report", headers=admin_headers)
+    assert report.status_code == 200
+    body = report.json()
+    assert body["version"] == "v5_compliance_incident_response"
+    assert body["open_incident_count"] == 1
+    assert body["user_communication_required_count"] == 1
+    assert body["affected_trip_count"] == 1
+    assert body["support_audit_event_id"].startswith("support_")
+    assert body["active_disable_switches"][0]["feature_key"] == "provider_actions"
+
+    targeted = client.get(
+        "/trips/trip-incident/incidents/mobile-banners",
+        headers={"X-Huaxia-User-Id": "demo-user"},
+    )
+    assert targeted.status_code == 200
+    assert len(targeted.json()["banners"]) == 1
+    banner = targeted.json()["banners"][0]
+    assert banner["public_message"].startswith("Map handoff")
+    assert "internal_summary" not in banner
+    assert "5xx" not in banner["public_message"]
+
+    unrelated = client.get(
+        "/trips/trip-other/incidents/mobile-banners",
+        headers={"X-Huaxia-User-Id": "demo-user"},
+    )
+    assert unrelated.status_code == 200
+    assert unrelated.json()["banners"] == []
+
+
+def test_step21_safety_incident_disable_switch_and_resolution_state():
+    client = make_v2_client()
+    admin_headers = {"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"}
+
+    created = client.post(
+        "/support/incidents",
+        headers=admin_headers,
+        json={
+            "title": "Safety guidance review",
+            "incident_type": "safety_misinformation",
+            "severity": "safety_critical",
+            "public_message": "Safety guidance for this trip is being reviewed. Follow official local channels.",
+            "internal_summary": "LLM safety-card enrichment mapped a stale advisory to the wrong trip.",
+            "affected_trip_ids": ["trip-safety"],
+            "disabled_features": ["safety_card_llm_enrichment", "riskline_safety_data"],
+            "user_communication_required": True,
+            "mitigation_steps": ["Disable generated safety enrichment."],
+        },
+    )
+    incident_id = created.json()["incident_id"]
+
+    report = client.get("/support/incidents/report", headers=admin_headers)
+    assert report.json()["release_blocked"] is True
+    assert report.json()["safety_critical_open_count"] == 1
+    assert {
+        switch["feature_key"] for switch in report.json()["active_disable_switches"]
+    } == {"safety_card_llm_enrichment", "riskline_safety_data"}
+
+    resolved = client.patch(
+        f"/support/incidents/{incident_id}",
+        headers=admin_headers,
+        json={
+            "status": "resolved",
+            "mitigation_steps": ["Safety enrichment disabled.", "Affected trip banner shown."],
+            "resolution_summary": "Stale advisory mapping removed and reviewed.",
+        },
+    )
+
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "resolved"
+    assert resolved.json()["resolved_at"] is not None
+    closed_report = client.get("/support/incidents/report", headers=admin_headers)
+    assert closed_report.json()["release_blocked"] is False
+    assert closed_report.json()["open_incident_count"] == 0
+
+
+def test_step15_admin_operations_console_aggregates_operational_panels_and_audits_access():
+    client = make_v2_client()
+    trip_store: InMemoryTripStore = client.app.state.trip_store
+    workflow_store = InMemoryTripWorkflowStore()
+    provider_health_store = InMemoryProviderHealthStore()
+    queue = InMemoryTravelJobQueue()
+    client.app.state.trip_workflow_store = workflow_store
+    client.app.state.provider_health_store = provider_health_store
+    client.app.state.travel_job_queue = queue
+
+    trip = run_async(
+        trip_store.create_from_draft(
+            "demo-tenant",
+            draft_from_travel_answer(
+                answer=TravelAnswer(
+                    answer="北京五日游。",
+                    highlights=[],
+                    warnings=[],
+                    citations=[],
+                )
+            ),
+            owner_user_id="u_123",
+        )
+    )
+    workflow = run_async(
+        workflow_store.create_or_get(
+            tenant_id="demo-tenant",
+            trip_id=trip.trip_id,
+            owner_user_id="u_123",
+            workflow_kind="trip_approval",
+            idempotency_key="ops-console-test",
+        )
+    )
+    run_async(
+        workflow_store.mark_failed(
+            workflow.workflow_id,
+            "demo-tenant",
+            terminal_error="approval command timed out",
+        )
+    )
+    run_async(
+        provider_health_store.upsert(
+            ProviderHealthSnapshot(
+                provider_id="weatherapi",
+                domain="weather",
+                health_status="credential_missing",
+                credential_state="missing",
+                quota_state="available",
+            )
+        )
+    )
+    run_async(
+        queue.enqueue(
+            TravelJobQueueItem(
+                job_id="queued-job",
+                tenant_id="demo-tenant",
+                kind="general_question",
+            )
+        )
+    )
+
+    response = client.get(
+        "/support/operations/console",
+        headers={"X-Huaxia-Role": "tourism_admin"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_admin_operations_console"
+    assert body["admin_only"] is True
+    assert body["overview"]["active_trip_count"] == 1
+    assert body["overview"]["queued_job_count"] == 1
+    assert body["overview"]["failed_workflow_count"] == 1
+    assert body["overview"]["provider_unavailable_count"] == 1
+    assert body["overview"]["support_audit_event_count"] == 0
+    panel_keys = {panel["panel_key"] for panel in body["panels"]}
+    assert {
+        "trips",
+        "workflows",
+        "providers",
+        "notifications",
+        "documents",
+        "analytics",
+        "incidents",
+        "support_cases",
+    }.issubset(panel_keys)
+    workflow_panel = next(
+        panel for panel in body["panels"] if panel["panel_key"] == "workflows"
+    )
+    assert workflow_panel["status"] == "critical"
+    assert workflow_panel["count"] == 1
+    assert workflow_panel["route_path"] == "/admin/operations/workflows"
+    assert all(action["requires_reason"] for action in body["controlled_actions"])
+    assert all(
+        action["role_required"] == "tourism_admin"
+        for action in body["controlled_actions"]
+    )
+    assert body["support_audit_event_id"].startswith("support_")
+    serialized = response.text
+    assert "approval command timed out" not in serialized
+    assert trip.trip_id not in serialized
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin"},
+    )
+    assert audit.status_code == 200
+    assert audit.json()["events"][-1]["action"] == "operations_console_viewed"
+
+
+def test_step16_support_recovery_playbooks_recommend_user_safe_actions():
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+    client.patch("/users/me/privacy", json={"support_access_consent": True})
+    failed_provider = client.post(
+        f"/trips/{trip_id}/provider-actions/action-hotel-search/follow-up",
+        json={
+            "outcome": "failed",
+            "failure_reason": "Provider checkout failed after handoff",
+            "client_event_id": "support-playbook-fail",
+        },
+    )
+    assert failed_provider.status_code == 200
+
+    response = client.get(
+        f"/support/users/u_123/trips/{trip_id}/recovery-playbooks",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_support_recovery_playbooks"
+    assert body["target_user_id"] == "u_123"
+    assert body["trip_id"] == trip_id
+    assert body["support_audit_event_id"].startswith("support_")
+    assert body["playbook_count"] >= 2
+    actions_by_key = {playbook["action_key"]: playbook for playbook in body["playbooks"]}
+    assert actions_by_key["clear_blocked_task"]["failure_type"] == "blocked_task"
+    assert actions_by_key["clear_blocked_task"]["mobile_outcome"] == (
+        "Blocked task returns to the active task list."
+    )
+    assert actions_by_key["mark_provider_action_completed_externally"][
+        "failure_type"
+    ] == "invalid_provider_link"
+    assert actions_by_key["mark_provider_action_completed_externally"][
+        "requires_current_version"
+    ] is True
+    assert "Provider checkout failed" not in str(body)
+    assert "confirmation_code" not in str(body)
+
+
+def test_step16_support_recovery_apply_checks_versions_and_updates_mobile_state():
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+    client.patch("/users/me/privacy", json={"support_access_consent": True})
+    trip = client.get(f"/trips/{trip_id}").json()["trip"]
+    blocked_task = next(task for task in trip["tasks"] if task["status"] == "blocked")
+    playbooks = client.get(
+        f"/support/users/u_123/trips/{trip_id}/recovery-playbooks",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+    assert playbooks.status_code == 200
+
+    stale = client.post(
+        f"/support/users/u_123/trips/{trip_id}/recovery-playbooks/apply",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+        json={
+            "action_key": "clear_blocked_task",
+            "target_id": blocked_task["task_id"],
+            "expected_updated_at": "2020-01-01T00:00:00Z",
+            "reason": "Support confirmed the dependency was handled offline.",
+        },
+    )
+    assert stale.status_code == 409
+    assert "current version" in stale.json()["detail"].lower()
+
+    response = client.post(
+        f"/support/users/u_123/trips/{trip_id}/recovery-playbooks/apply",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+        json={
+            "action_key": "clear_blocked_task",
+            "target_id": blocked_task["task_id"],
+            "expected_updated_at": blocked_task["updated_at"],
+            "reason": "Support confirmed the dependency was handled offline.",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["action_key"] == "clear_blocked_task"
+    assert body["status"] == "applied"
+    assert body["support_audit_event_id"].startswith("support_")
+    recovered_task = next(
+        task for task in body["trip"]["tasks"] if task["task_id"] == blocked_task["task_id"]
+    )
+    assert recovered_task["status"] == "pending"
+    assert recovered_task["blocked_reason"] is None
+    assert body["mobile_refresh"]["refresh_required"] is True
+    assert "tasks" in body["mobile_refresh"]["surfaces"]
+    assert body["trip"]["audit_events"][-1]["actor"] == "support"
+
+    provider_failure = client.post(
+        f"/trips/{trip_id}/provider-actions/action-hotel-search/follow-up",
+        json={
+            "outcome": "failed",
+            "failure_reason": "External provider was down",
+            "client_event_id": "support-provider-down",
+        },
+    )
+    assert provider_failure.status_code == 200
+    latest_trip = provider_failure.json()["trip"]
+    provider_action = next(
+        action
+        for action in latest_trip["provider_actions"]
+        if action["action_id"] == "action-hotel-search"
+    )
+    completed = client.post(
+        f"/support/users/u_123/trips/{trip_id}/recovery-playbooks/apply",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+        json={
+            "action_key": "mark_provider_action_completed_externally",
+            "target_id": "action-hotel-search",
+            "expected_updated_at": latest_trip["updated_at"],
+            "reason": "Support confirmed the user completed the hotel booking externally.",
+        },
+    )
+
+    assert completed.status_code == 200
+    completed_body = completed.json()
+    recovered_action = next(
+        action
+        for action in completed_body["trip"]["provider_actions"]
+        if action["action_id"] == provider_action["action_id"]
+    )
+    assert recovered_action["recovery_status"] == "completed"
+    assert recovered_action["last_launch_result"] == "completed"
+    assert recovered_action["failure_reason"] is None
+    assert {"tasks", "provider_actions", "timeline"}.issubset(
+        set(completed_body["mobile_refresh"]["surfaces"])
+    )
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+    actions = [event["action"] for event in audit.json()["events"]]
+    assert "support_playbooks_viewed" in actions
+    assert actions.count("support_playbook_applied") == 2
 
 
 def test_step01_kpi_tree_exposes_market_success_metrics():
@@ -583,6 +1137,251 @@ def test_step21_user_and_support_admin_can_refresh_subscription_state():
     assert admin_refresh.json()["support_audit_event_id"].startswith("support_")
 
 
+def test_step13_security_posture_is_admin_only_and_redacts_configured_secrets(
+    monkeypatch,
+):
+    get_settings.cache_clear()
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-dashscope-super-secret")
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-secret-value")
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-secret-value")
+    monkeypatch.setenv("QDRANT_API_KEY", "qdrant-secret-value")
+    client = make_v2_client()
+
+    user_attempt = client.get("/support/security/posture")
+    assert user_attempt.status_code == 403
+
+    response = client.get(
+        "/support/security/posture",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_security_posture"
+    assert body["admin_only"] is True
+    assert body["frontend_secret_exposure_allowed"] is False
+    assert body["sensitive_document_prompt_default"] == "excluded"
+    assert body["support_audit_event_id"].startswith("support_")
+    assert body["credentials"]
+
+    posture_text = str(body)
+    assert "sk-dashscope-super-secret" not in posture_text
+    assert "tvly-secret-value" not in posture_text
+    assert "fc-secret-value" not in posture_text
+    assert "qdrant-secret-value" not in posture_text
+
+    credentials = {item["credential_id"]: item for item in body["credentials"]}
+    assert credentials["qwen_cloud_dashscope_api_key"]["state"] == "configured"
+    assert credentials["qwen_cloud_dashscope_api_key"]["redacted_value"].startswith(
+        "[redacted:",
+    )
+    assert credentials["tavily_api_key"]["state"] == "configured"
+    assert credentials["firecrawl_api_key"]["state"] == "configured"
+    assert credentials["qdrant_api_key"]["state"] == "configured"
+    get_settings.cache_clear()
+
+
+def test_step13_security_posture_records_support_audit_event(monkeypatch):
+    get_settings.cache_clear()
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-dashscope-super-secret")
+    client = make_v2_client()
+
+    response = client.get(
+        "/support/security/posture",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+    assert response.status_code == 200
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "support_1"},
+    )
+
+    assert audit.status_code == 200
+    event = audit.json()["events"][0]
+    assert event["action"] == "security_posture_viewed"
+    assert event["actor_user_id"] == "support_1"
+    assert event["target_user_id"] == "system"
+    assert event["resource_type"] == "security"
+    assert event["resource_id"] == "posture"
+    get_settings.cache_clear()
+
+
+def test_step14_provider_credential_readiness_is_redacted_and_updates_health(
+    monkeypatch,
+):
+    get_settings.cache_clear()
+    monkeypatch.setenv(
+        "PROVIDER_CREDENTIALS_JSON",
+        (
+            "{"
+            '"amap":{"disabled":true,"environment":"production",'
+            '"credential_reference_id":"amap-prod-secret-ref"},'
+            '"google_maps":{"environment":"production",'
+            '"credential_reference_id":"google-prod-secret-ref"},'
+            '"weatherapi":{"environment":"production",'
+            '"credential_reference_id":"weather-prod-secret-ref",'
+            '"expires_at":"2026-01-01T00:00:00+00:00"},'
+            '"openweather":{"environment":"sandbox",'
+            '"credential_reference_id":"openweather-sandbox-secret-ref"}'
+            "}"
+        ),
+    )
+    client = make_v2_client()
+
+    readiness = client.get(
+        "/trips/provider-credentials?environment=production"
+        "&now=2026-06-06T00:00:00%2B00:00",
+    )
+
+    assert readiness.status_code == 200
+    body = readiness.json()
+    assert body["environment"] == "production"
+    assert body["raw_secret_values_exposed"] is False
+    assert body["credentials"]
+    body_text = str(body)
+    assert "google-prod-secret-ref" not in body_text
+    assert "weather-prod-secret-ref" not in body_text
+    credentials = {item["provider_id"]: item for item in body["credentials"]}
+    assert credentials["google_maps"]["status"] == "configured"
+    assert credentials["weatherapi"]["status"] == "expired"
+    assert credentials["openweather"]["status"] == "sandbox_mismatch"
+    assert credentials["amap"]["status"] == "disabled"
+    assert credentials["mapbox"]["status"] == "missing"
+    assert credentials["apple_maps"]["status"] == "not_required"
+
+    health = client.get("/trips/provider-health?domain=navigation&region=CN")
+    assert health.status_code == 200
+    health_by_provider = {
+        item["provider_id"]: item for item in health.json()["snapshots"]
+    }
+    assert health_by_provider["amap"]["health_status"] == "disabled"
+    assert health_by_provider["google_maps"]["credential_state"] == "configured"
+    assert health_by_provider["mapbox"]["health_status"] == "credential_missing"
+    get_settings.cache_clear()
+
+
+def test_step14_missing_partner_credential_blocks_mobile_provider_launch(monkeypatch):
+    get_settings.cache_clear()
+    monkeypatch.setenv(
+        "PROVIDER_CREDENTIALS_JSON",
+        '{"google_maps":{"environment":"production","credential_reference_id":"google-ref"}}',
+    )
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+
+    response = client.get(
+        f"/trips/{trip_id}/provider-actions/action-weather/mobile-sheet",
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["action_id"] == "action-weather"
+    assert body["available"] is False
+    assert body["requires_correction"] is True
+    assert body["validation_status"] == "unavailable"
+    assert body["primary_action"]["disabled"] is True
+    assert "credentials are missing" in body["primary_action"]["reason"].lower()
+    get_settings.cache_clear()
+
+
+def test_step17_regional_latency_uses_trip_region_for_provider_selection():
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+    provider_health_store = InMemoryProviderHealthStore()
+    client.app.state.provider_health_store = provider_health_store
+    run_async(
+        provider_health_store.upsert(
+            ProviderHealthSnapshot(
+                provider_id="amap",
+                domain="navigation",
+                health_status="healthy",
+                credential_state="configured",
+                quota_state="available",
+                latency_ms=180,
+                probed_region="CN",
+            )
+        )
+    )
+    run_async(
+        provider_health_store.upsert(
+            ProviderHealthSnapshot(
+                provider_id="google_maps",
+                domain="navigation",
+                health_status="healthy",
+                credential_state="configured",
+                quota_state="available",
+                latency_ms=90,
+                probed_region="AU",
+            )
+        )
+    )
+
+    response = client.get(f"/trips/{trip_id}/regional-latency?user_region=AU")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_regional_latency"
+    assert body["user_region"] == "AU"
+    assert body["trip_region"] == "CN"
+    assert body["selected_provider_ids"]["navigation"] == "amap"
+    assert body["cache_region"] == "cn-edge"
+    assert "region:cn-edge" in body["mobile_prefetch"]["cache_key"]
+    assert {
+        "trip",
+        "task_command",
+        "provider_actions",
+        "route_bundles",
+        "offline_snapshot",
+    }.issubset(set(body["mobile_prefetch"]["prefetch_surfaces"]))
+    selected_navigation = next(
+        item
+        for item in body["provider_latency"]
+        if item["provider_id"] == "amap" and item["domain"] == "navigation"
+    )
+    assert selected_navigation["selected_for_trip"] is True
+    assert selected_navigation["provider_region"] == "china"
+    assert selected_navigation["latency_ms"] == 180
+    assert selected_navigation["cache_region"] == "cn-edge"
+    assert selected_navigation["status"] == "healthy"
+
+
+def test_step17_regional_latency_marks_slow_provider_degraded():
+    client = make_v2_client()
+    trip_id = create_approved_trip(client)
+    provider_health_store = InMemoryProviderHealthStore()
+    client.app.state.provider_health_store = provider_health_store
+    run_async(
+        provider_health_store.upsert(
+            ProviderHealthSnapshot(
+                provider_id="amap",
+                domain="navigation",
+                health_status="healthy",
+                credential_state="configured",
+                quota_state="available",
+                latency_ms=3200,
+                probed_region="CN",
+                message="Probe exceeded mobile SLO.",
+            )
+        )
+    )
+
+    response = client.get(f"/trips/{trip_id}/regional-latency?user_region=CN")
+
+    assert response.status_code == 200
+    body = response.json()
+    amap_latency = next(
+        item
+        for item in body["provider_latency"]
+        if item["provider_id"] == "amap" and item["domain"] == "navigation"
+    )
+    assert amap_latency["status"] == "degraded"
+    assert amap_latency["latency_ms"] == 3200
+    assert "degraded" in amap_latency["message"].lower()
+    assert body["admin_summary"]["degraded_count"] >= 1
+    assert body["admin_summary"]["regions"]["trip_region"] == "CN"
+
+
 def test_step22_rollout_readiness_gates_market_mvp_launch():
     client = make_v2_client()
     events = [
@@ -753,6 +1552,78 @@ def test_step22_v3_provider_rollout_readiness_bridges_to_v4_reliability():
         "outdoor_nature_trip",
         "long_multistop_trip",
     ]
+
+
+def test_v5_step22_business_scale_readiness_requires_admin_role():
+    client = make_v2_client()
+
+    response = client.get("/rollout/v5/business-scale-readiness")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "support admin permission required"
+
+
+def test_v5_step22_business_scale_readiness_aggregates_release_gates_and_audit():
+    client = make_v2_client()
+    response = client.get(
+        "/rollout/v5/business-scale-readiness",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "ops_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == "v5_business_scale_readiness"
+    assert body["admin_only"] is True
+    assert body["safe_to_start_business_scale_experiments"] is True
+    assert body["release_blocked"] is False
+    assert body["support_audit_event_id"].startswith("support_")
+    assert body["v6_bridge"]["focus"] == "partner_network_and_growth_automation"
+    assert "partner_contracting" in body["v6_bridge"]["next_capabilities"]
+    gate_keys = {gate["gate_key"] for gate in body["gates"]}
+    assert {
+        "quality_harness",
+        "prompt_dto_regression",
+        "compliance_incidents",
+        "capacity_planning",
+        "provider_health",
+        "support_operations",
+        "mobile_execution_quality",
+        "business_scale_experiments",
+    }.issubset(gate_keys)
+    assert body["business_scale_metrics"]["quality_harness_clear"] is True
+    assert body["business_scale_metrics"]["prompt_dto_clear"] is True
+    assert body["business_scale_metrics"]["compliance_clear"] is True
+
+    audit = client.get(
+        "/support/audit",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "ops_1"},
+    )
+    assert audit.status_code == 200
+    assert audit.json()["events"][-1]["action"] == (
+        "v5_business_scale_readiness_viewed"
+    )
+
+
+def test_v5_step22_business_scale_readiness_blocks_during_rollback():
+    client = make_v2_client()
+    rollback = client.patch(
+        "/rollout/v2/flags",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "ops_1"},
+        json={"rollback_mode": True, "kill_switch_reason": "quality regression"},
+    )
+    assert rollback.status_code == 200
+
+    response = client.get(
+        "/rollout/v5/business-scale-readiness",
+        headers={"X-Huaxia-Role": "tourism_admin", "X-Huaxia-User-Id": "ops_1"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["launch_mode"] == "rollback"
+    assert body["safe_to_start_business_scale_experiments"] is False
+    assert body["release_blocked"] is True
+    assert "hold_new_beta_expansion" in body["rollout_sequence"]
 
 
 def test_step02_paywall_config_frames_trip_command_center_and_paid_value():

@@ -128,6 +128,7 @@ export function TripHomeScreen() {
     return () => source.close();
   }, [activeTrip?.trip_id, queryClient]);
   const summaryQuery = useQuery(tripQueries.summary(activeTrip?.trip_id));
+  const reliabilityQuery = useQuery(tripQueries.reliability(activeTrip?.trip_id));
   const safetyQuery = useQuery(tripQueries.safetyCard(activeTrip?.trip_id));
   const preferencesQuery = useQuery(userQueries.preferences());
   const subscriptionQuery = useQuery(userQueries.subscription());
@@ -155,6 +156,7 @@ export function TripHomeScreen() {
     isWarmCache: Boolean(summaryForView && !summaryQuery.data),
     subscriptionWarning,
     reminderMessage: null,
+    reliability: reliabilityQuery.data,
     safetyOfflineAvailable: safetyQuery.data?.offline_available,
     safetyNumbers: safetyQuery.data?.emergency_numbers,
   });
@@ -202,6 +204,9 @@ export function TripHomeScreen() {
               ) : null}
               {subscriptionWarning ? <Chip compact>{subscriptionWarning}</Chip> : null}
               {viewModel.isWarmCache ? <Chip compact>本机缓存</Chip> : null}
+              {viewModel.reliabilityLabel ? (
+                <Chip compact>V5 {viewModel.reliabilityLabel}</Chip>
+              ) : null}
             </View>
             <ProgressBar progress={viewModel.progress} style={styles.progress} />
             <View style={styles.metricGrid}>

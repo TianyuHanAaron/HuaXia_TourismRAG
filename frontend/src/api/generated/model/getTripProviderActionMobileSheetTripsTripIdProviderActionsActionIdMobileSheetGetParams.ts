@@ -7,4 +7,5 @@
 
 export type GetTripProviderActionMobileSheetTripsTripIdProviderActionsActionIdMobileSheetGetParams = {
 task_id?: string | null;
+now?: string | null;
 };

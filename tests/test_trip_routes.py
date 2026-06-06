@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from huaxia_tourismrag.api.routes import router, trip_router
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 
 from huaxia_tourismrag.schemas.evidence import (
     ActivityItem,
@@ -12,6 +12,14 @@ from huaxia_tourismrag.schemas.evidence import (
     TravelQuestion,
 )
 from huaxia_tourismrag.services.job_store import InMemoryTravelJobStore
+from huaxia_tourismrag.schemas.market import SubscriptionState
+from huaxia_tourismrag.services.market_store import InMemoryMarketStore
+from huaxia_tourismrag.services.provider_circuit_breaker import (
+    InMemoryProviderCircuitBreakerStore,
+)
+from huaxia_tourismrag.services.route_bundle_freshness import (
+    InMemoryRouteBundleFreshnessStore,
+)
 from huaxia_tourismrag.services.trip_store import InMemoryTripStore
 
 
@@ -19,6 +27,7 @@ def make_trip_client() -> TestClient:
     app = FastAPI()
     app.state.travel_job_store = InMemoryTravelJobStore()
     app.state.trip_store = InMemoryTripStore()
+    app.state.market_store = InMemoryMarketStore()
     app.include_router(router)
     app.include_router(trip_router)
     return TestClient(app)
@@ -300,6 +309,92 @@ def test_trip_task_patch_provider_launch_and_archive_flow():
     assert all(trip["trip_id"] != trip_id for trip in listed.json()["trips"])
 
 
+def test_execution_events_record_task_patch_and_provider_launch():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    task_id = next(
+        task["task_id"]
+        for task in approved["tasks"]
+        if task["status"] == "pending"
+    )
+    action_id = approved["provider_actions"][0]["action_id"]
+
+    patched = client.patch(
+        f"/trips/{trip_id}/tasks/{task_id}",
+        json={"status": "completed", "client_mutation_id": "task-complete-1"},
+    )
+    launched = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/launch",
+        json={"launch_channel": "browser", "client_event_id": "launch-1"},
+    )
+    events = client.get(f"/trips/{trip_id}/execution-events")
+
+    assert patched.status_code == 200
+    assert launched.status_code == 200
+    assert events.status_code == 200
+    body = events.json()
+    assert body["trip_id"] == trip_id
+    task_event = next(
+        event for event in body["events"] if event["event_type"] == "task_updated"
+    )
+    launch_event = next(
+        event
+        for event in body["events"]
+        if event["event_type"] == "provider_action_launched"
+    )
+    assert task_event["category"] == "task"
+    assert task_event["payload"]["task_id"] == task_id
+    assert task_event["correlation_id"] == "task-complete-1"
+    assert task_event["visibility"] == "user"
+    assert launch_event["category"] == "provider"
+    assert launch_event["payload"]["action_id"] == action_id
+    assert launch_event["correlation_id"] == "launch-1"
+
+
+def test_mobile_recent_activity_filters_sensitive_document_payload():
+    client = make_trip_client()
+    client.app.state.market_store._subscriptions["u_123"] = SubscriptionState(
+        user_id="u_123",
+        tier="plus",
+        status="active",
+        source="app_store",
+        entitlements=["document_vault"],
+    )
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+
+    document = client.post(
+        f"/trips/{trip_id}/documents",
+        json={
+            "category": "id_passport",
+            "title": "护照首页",
+            "file_name": "passport.pdf",
+            "content_type": "application/pdf",
+            "storage_ref": "secure-local://passport.pdf",
+            "local_reference": "expo-cache://passport.pdf",
+            "sensitive": True,
+        },
+    )
+    events = client.get(f"/trips/{trip_id}/execution-events")
+    activity = client.get(f"/trips/{trip_id}/execution-events/mobile-activity")
+
+    assert document.status_code == 201
+    assert events.status_code == 200
+    document_event = next(
+        event
+        for event in events.json()["events"]
+        if event["event_type"] == "document_added"
+    )
+    assert document_event["visibility"] == "private"
+    assert "storage_ref" not in document_event["payload"]
+    assert activity.status_code == 200
+    assert all(
+        item["event_type"] != "document_added"
+        for item in activity.json()["activities"]
+    )
+
+
 def test_provider_action_follow_up_endpoint_recovers_launch_and_updates_task():
     client = make_trip_client()
     trip_id = create_draft_trip(client)
@@ -367,6 +462,151 @@ def test_provider_recovery_endpoint_exposes_failed_action_without_sensitive_docu
     assert state["failure_reason"] == "provider checkout unavailable"
     assert "try_another" in state["recovery_options"]
     assert "document" not in state
+
+
+def test_failed_provider_follow_up_opens_circuit_and_mobile_sheet_uses_fallback():
+    client = make_trip_client()
+    client.app.state.provider_circuit_breaker_store = InMemoryProviderCircuitBreakerStore(
+        failure_threshold=1,
+        cooldown_seconds=300,
+        window_seconds=300,
+    )
+    trip_id = create_dated_draft_trip(client)
+    client.patch(
+        f"/trips/{trip_id}",
+        json={"preferred_hotel_platform": "booking_com", "lodging_area": "王府井/东单"},
+    )
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    action_id = "action-hotel-search"
+    task_id = next(
+        task["task_id"]
+        for task in approved["tasks"]
+        if action_id in task["provider_action_ids"]
+    )
+
+    launched = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/launch",
+        json={"launch_channel": "browser"},
+    )
+    assert launched.status_code == 200
+    failed = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/follow-up",
+        json={
+            "outcome": "failed",
+            "failure_reason": "provider checkout unavailable",
+            "task_id": task_id,
+        },
+    )
+    assert failed.status_code == 200
+
+    breakers = client.get("/trips/provider-circuit-breakers?domain=hotel")
+    assert breakers.status_code == 200
+    booking_breaker = next(
+        snapshot
+        for snapshot in breakers.json()["snapshots"]
+        if snapshot["provider_id"] == "booking_com"
+    )
+    assert booking_breaker["state"] == "open"
+    assert booking_breaker["failure_count"] == 1
+    assert booking_breaker["reason"] == "provider checkout unavailable"
+
+    sheet = client.get(f"/trips/{trip_id}/provider-actions/{action_id}/mobile-sheet")
+
+    assert sheet.status_code == 200
+    body = sheet.json()
+    assert body["validation_status"] == "needs_fallback"
+    assert body["available"] is True
+    assert body["primary_action"]["launch_channel"] == "fallback_browser"
+    assert body["requires_correction"] is True
+    assert body["correction_prompt"] == "Review provider context or use the fallback option."
+
+
+def test_route_bundle_endpoint_marks_stale_route_and_manual_revalidation_refreshes():
+    client = make_trip_client()
+    route_store = InMemoryRouteBundleFreshnessStore()
+    client.app.state.route_bundle_freshness_store = route_store
+    trip_id = create_dated_draft_trip(client)
+    added = client.post(
+        f"/trips/{trip_id}/draft/milestones",
+        json={
+            "title": "北京南站",
+            "description": "晚上乘车前往车站。",
+            "day": 1,
+            "city": "北京",
+            "date": "2026-09-26",
+            "start_time": "18:00:00",
+        },
+    )
+    assert added.status_code == 201
+    route_store.record_refresh(
+        trip_id=trip_id,
+        route_bundle_id="route-day-1",
+        provider_id="google_maps",
+        at=datetime.fromisoformat("2026-09-26T09:00:00+00:00"),
+        reason="initial_generation",
+    )
+
+    stale = client.get(
+        f"/trips/{trip_id}/route-bundles?now=2026-09-26T12:30:00Z"
+    )
+
+    assert stale.status_code == 200
+    stale_bundle = stale.json()["route_bundles"][0]
+    assert stale_bundle["route_bundle_id"] == "route-day-1"
+    assert stale_bundle["freshness_status"] == "stale"
+    assert stale_bundle["refresh_reason"] == "same_day_route_window_expired"
+    assert stale_bundle["handoff_ready"] is False
+
+    refreshed = client.post(
+        f"/trips/{trip_id}/route-bundles/route-day-1/revalidate?now=2026-09-26T12:30:00Z"
+    )
+
+    assert refreshed.status_code == 200
+    fresh_bundle = refreshed.json()["route_bundles"][0]
+    assert fresh_bundle["freshness_status"] == "fresh"
+    assert fresh_bundle["refresh_reason"] == "manual_refresh"
+    assert fresh_bundle["revalidation_attempts"] == 2
+    assert fresh_bundle["handoff_ready"] is True
+
+
+def test_stale_route_bundle_demotes_mobile_map_action_to_fallback():
+    client = make_trip_client()
+    route_store = InMemoryRouteBundleFreshnessStore()
+    client.app.state.route_bundle_freshness_store = route_store
+    trip_id = create_dated_draft_trip(client)
+    client.post(
+        f"/trips/{trip_id}/draft/milestones",
+        json={
+            "title": "北京南站",
+            "description": "晚上乘车前往车站。",
+            "day": 1,
+            "city": "北京",
+            "date": "2026-09-26",
+            "start_time": "18:00:00",
+        },
+    )
+    route_store.record_refresh(
+        trip_id=trip_id,
+        route_bundle_id="route-day-1",
+        provider_id="google_maps",
+        at=datetime.fromisoformat("2026-09-26T09:00:00+00:00"),
+        reason="initial_generation",
+    )
+    approved = client.post(f"/trips/{trip_id}/approve")
+    assert approved.status_code == 200
+
+    sheet = client.get(
+        f"/trips/{trip_id}/provider-actions/action-route-day-1/mobile-sheet"
+        "?now=2026-09-26T12:30:00Z"
+    )
+
+    assert sheet.status_code == 200
+    body = sheet.json()
+    assert body["validation_status"] == "needs_fallback"
+    assert body["available"] is True
+    assert body["primary_action"]["launch_channel"] == "fallback_browser"
+    assert body["requires_correction"] is True
+    assert any(row["key"] == "route_freshness" and row["value"] == "stale" for row in body["context_rows"])
 
 
 def test_mobile_provider_action_sheet_endpoint_returns_compact_payload():
@@ -778,7 +1018,7 @@ def test_offline_task_updates_apply_valid_mutations_and_report_conflicts():
     body = response.json()
     assert body["applied_count"] == 1
     assert body["conflict_count"] == 1
-    assert body["results"][0]["status"] == "applied"
+    assert body["results"][0]["status"] == "accepted"
     assert body["results"][1]["status"] == "conflict"
     trip = client.get(f"/trips/{trip_id}").json()["trip"]
     completed_task = next(task for task in trip["tasks"] if task["task_id"] == valid_task["task_id"])
@@ -789,6 +1029,81 @@ def test_offline_task_updates_apply_valid_mutations_and_report_conflicts():
         event for event in trip["audit_events"] if event["metadata"].get("client_mutation_id") == "offline-1"
     ]
     assert task_events[-1]["metadata"]["offline_queued"] == "true"
+
+
+def test_offline_task_updates_are_idempotent_for_duplicate_mutation_replay():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    task = approved["tasks"][0]
+    body = {
+        "mutations": [
+            {
+                "mutation_id": "offline-replay-1",
+                "task_id": task["task_id"],
+                "client_created_at": "2026-09-20T07:30:00Z",
+                "patch": {
+                    "status": "completed",
+                    "expected_updated_at": task["updated_at"],
+                    "client_mutation_id": "offline-replay-1",
+                    "offline_queued": True,
+                },
+            }
+        ]
+    }
+
+    first = client.post(f"/trips/{trip_id}/offline-task-updates", json=body)
+    second = client.post(f"/trips/{trip_id}/offline-task-updates", json=body)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_body = first.json()
+    second_body = second.json()
+    assert first_body["results"][0]["status"] == "accepted"
+    assert second_body["results"][0]["status"] == "duplicate"
+    assert second_body["applied_count"] == 0
+    assert second_body["duplicate_count"] == 1
+    assert second_body["results"][0]["accepted_duplicate_of"] == "offline-replay-1"
+    trip = client.get(f"/trips/{trip_id}").json()["trip"]
+    replay_events = [
+        event
+        for event in trip["audit_events"]
+        if event["metadata"].get("client_mutation_id") == "offline-replay-1"
+    ]
+    assert len(replay_events) == 1
+
+
+def test_offline_task_updates_report_missing_task_as_conflict_not_failed():
+    client = make_trip_client()
+    trip_id = create_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+
+    response = client.post(
+        f"/trips/{trip_id}/offline-task-updates",
+        json={
+            "mutations": [
+                {
+                    "mutation_id": "offline-missing-1",
+                    "task_id": "deleted-or-unknown-task",
+                    "client_created_at": "2026-09-20T07:31:00Z",
+                    "patch": {
+                        "status": "completed",
+                        "client_mutation_id": "offline-missing-1",
+                        "offline_queued": True,
+                    },
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied_count"] == 0
+    assert body["conflict_count"] == 1
+    assert body["failed_count"] == 0
+    assert body["results"][0]["status"] == "conflict"
+    assert body["results"][0]["conflict_policy"] == "missing_task"
+    assert body["results"][0]["server_task"] is None
 
 
 def test_local_transport_plan_endpoint_returns_mode_aware_provider_options():
@@ -884,6 +1199,423 @@ def test_reminder_candidates_exclude_completed_tasks_and_respect_quiet_hours():
     assert departure_candidate["tap_target"] == (
         f"/trips/{trip_id}/tasks/task-confirm-departure-route"
     )
+
+
+def test_notification_delivery_records_permission_denied_fallback_and_dedupes():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+    candidate = client.get(
+        f"/trips/{trip_id}/reminder-candidates",
+        params={"now": "2026-09-01T00:00:00Z"},
+    ).json()["candidates"][0]
+    payload = {
+        "device_id": "ios-sim-1",
+        "timezone": "Asia/Shanghai",
+        "permission_state": "denied",
+        "quiet_hours_start": "22:00",
+        "quiet_hours_end": "07:00",
+        "attempts": [
+            {
+                "task_id": candidate["task_id"],
+                "dedupe_key": f"{trip_id}:{candidate['task_id']}:primary",
+                "planned_for": candidate["reminder_at"],
+                "provider_id": "expo_notifications",
+            }
+        ],
+    }
+
+    first = client.post(f"/trips/{trip_id}/notification-deliveries", json=payload)
+    second = client.post(f"/trips/{trip_id}/notification-deliveries", json=payload)
+    listed = client.get(f"/trips/{trip_id}/notification-deliveries")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert listed.status_code == 200
+    first_body = first.json()
+    second_body = second.json()
+    assert first_body["fallback_count"] == 1
+    assert first_body["delivery_records"][0]["status"] == "fallback_in_app"
+    assert first_body["delivery_records"][0]["permission_state"] == "denied"
+    assert first_body["in_app_alerts"][0]["task_id"] == candidate["task_id"]
+    assert first_body["in_app_alerts"][0]["visible"] is True
+    assert second_body["duplicate_count"] == 1
+    assert second_body["delivery_records"][0]["status"] == "skipped_duplicate"
+    listed_body = listed.json()
+    assert len(listed_body["delivery_records"]) == 1
+    assert len(listed_body["in_app_alerts"]) == 1
+
+
+def test_notification_delivery_adjusts_quiet_hours_and_records_provider_response():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+    task_id = "task-confirm-departure-route"
+
+    response = client.post(
+        f"/trips/{trip_id}/notification-deliveries",
+        json={
+            "device_id": "android-1",
+            "timezone": "Asia/Shanghai",
+            "permission_state": "granted",
+            "quiet_hours_start": "22:00",
+            "quiet_hours_end": "07:00",
+            "attempts": [
+                {
+                    "task_id": task_id,
+                    "dedupe_key": f"{trip_id}:{task_id}:quiet",
+                    "planned_for": "2026-09-26T23:30:00+08:00",
+                    "provider_id": "expo_notifications",
+                    "provider_message_id": "expo-local-1",
+                    "provider_response": {"identifier": "expo-local-1"},
+                    "requested_status": "scheduled",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    record = body["delivery_records"][0]
+    assert record["status"] == "scheduled"
+    assert record["quiet_hours_adjusted"] is True
+    assert record["scheduled_for"].startswith("2026-09-27T07:00:00")
+    assert record["timezone"] == "Asia/Shanghai"
+    assert record["provider_response"]["identifier"] == "expo-local-1"
+    assert body["fallback_count"] == 0
+
+
+def test_observability_traces_provider_launch_with_safe_diagnostic_payload():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    action_id = approved["provider_actions"][0]["action_id"]
+
+    launched = client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/launch",
+        json={
+            "launch_channel": "browser",
+            "client_event_id": "provider-launch-trace-1",
+            "target_url": "https://maps.example/route?token=secret-token&destination=hotel",
+        },
+        headers={"X-Request-ID": "request-provider-1"},
+    )
+    traces = client.get(f"/trips/{trip_id}/observability/traces")
+
+    assert launched.status_code == 200
+    assert traces.status_code == 200
+    body = traces.json()
+    provider_trace = next(
+        trace
+        for trace in body["traces"]
+        if trace["operation_type"] == "provider_action"
+    )
+    assert provider_trace["trip_id"] == trip_id
+    assert provider_trace["action_id"] == action_id
+    assert provider_trace["correlation_id"] == "provider-launch-trace-1"
+    assert provider_trace["request_id"] == "request-provider-1"
+    assert provider_trace["status"] == "ok"
+    assert provider_trace["diagnostic_id"].startswith("obs_")
+    assert provider_trace["log_search_url"].endswith("provider-launch-trace-1")
+    assert "secret-token" not in str(provider_trace)
+    assert provider_trace["redacted_payload"]["target_url"].endswith("destination=hotel")
+    assert provider_trace["redacted_payload"]["target_url"].startswith("https://maps.example/route")
+
+
+def test_observability_traces_notifications_offline_sync_and_documents():
+    client = make_trip_client()
+    client.app.state.market_store._subscriptions["u_123"] = SubscriptionState(
+        user_id="u_123",
+        tier="plus",
+        status="active",
+        source="app_store",
+        entitlements=["document_vault"],
+    )
+    trip_id = create_dated_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    task = approved["tasks"][0]
+
+    notification = client.post(
+        f"/trips/{trip_id}/notification-deliveries",
+        json={
+            "device_id": "ios-debug-1",
+            "timezone": "Asia/Shanghai",
+            "permission_state": "granted",
+            "attempts": [
+                {
+                    "task_id": task["task_id"],
+                    "dedupe_key": "notification-trace-1",
+                    "planned_for": "2026-09-26T09:00:00+08:00",
+                    "provider_id": "expo_notifications",
+                    "provider_message_id": "expo-secret-message-id",
+                    "provider_response": {
+                        "authorization": "Bearer secret",
+                        "identifier": "expo-secret-message-id",
+                    },
+                    "requested_status": "scheduled",
+                }
+            ],
+        },
+        headers={"X-Request-ID": "request-notification-1"},
+    )
+    offline = client.post(
+        f"/trips/{trip_id}/offline-task-updates",
+        json={
+            "mutations": [
+                {
+                    "mutation_id": "offline-trace-1",
+                    "task_id": task["task_id"],
+                    "patch": {
+                        "status": "completed",
+                        "expected_updated_at": task["updated_at"],
+                        "client_mutation_id": "offline-trace-1",
+                        "offline_queued": True,
+                    },
+                }
+            ]
+        },
+        headers={"X-Request-ID": "request-offline-1"},
+    )
+    document = client.post(
+        f"/trips/{trip_id}/documents",
+        json={
+            "category": "id_passport",
+            "title": "护照首页",
+            "file_name": "passport-secret.pdf",
+            "content_type": "application/pdf",
+            "storage_ref": "secure://documents/passport-secret.pdf",
+            "local_reference": "expo-cache://passport-secret.pdf",
+            "sensitive": True,
+        },
+        headers={"X-Request-ID": "request-document-1"},
+    )
+    traces = client.get(f"/trips/{trip_id}/observability/traces")
+
+    assert notification.status_code == 200
+    assert offline.status_code == 200
+    assert document.status_code == 201
+    assert traces.status_code == 200
+    trace_text = str(traces.json())
+    assert "Bearer secret" not in trace_text
+    assert "passport-secret.pdf" not in trace_text
+    assert "secure://documents" not in trace_text
+    operations = {
+        trace["operation_type"]: trace
+        for trace in traces.json()["traces"]
+        if trace["correlation_id"] in {
+            "notification-trace-1",
+            "offline-trace-1",
+            "document-import-trace-1",
+        }
+        or trace["operation_type"] == "document_import"
+    }
+    assert operations["notification"]["correlation_id"] == "notification-trace-1"
+    assert operations["notification"]["request_id"] == "request-notification-1"
+    assert operations["offline_sync"]["correlation_id"] == "offline-trace-1"
+    assert operations["offline_sync"]["request_id"] == "request-offline-1"
+    assert operations["document_import"]["request_id"] == "request-document-1"
+    assert operations["document_import"]["status"] == "ok"
+
+
+def test_observability_trace_filters_by_operation_type_and_correlation_id():
+    client = make_trip_client()
+    trip_id = create_dated_draft_trip(client)
+    approved = client.post(f"/trips/{trip_id}/approve").json()["trip"]
+    action_id = approved["provider_actions"][0]["action_id"]
+
+    client.post(
+        f"/trips/{trip_id}/provider-actions/{action_id}/launch",
+        json={"launch_channel": "browser", "client_event_id": "provider-filter-1"},
+    )
+    by_operation = client.get(
+        f"/trips/{trip_id}/observability/traces",
+        params={"operation_type": "provider_action"},
+    )
+    by_correlation = client.get(
+        f"/trips/{trip_id}/observability/traces",
+        params={"correlation_id": "provider-filter-1"},
+    )
+
+    assert by_operation.status_code == 200
+    assert by_correlation.status_code == 200
+    assert {trace["operation_type"] for trace in by_operation.json()["traces"]} == {
+        "provider_action"
+    }
+    assert [trace["correlation_id"] for trace in by_correlation.json()["traces"]] == [
+        "provider-filter-1"
+    ]
+
+
+def test_trip_retention_snapshot_flags_completed_trip_sensitive_documents_and_bookings():
+    client = make_trip_client()
+    client.app.state.market_store._subscriptions["u_123"] = SubscriptionState(
+        user_id="u_123",
+        tier="plus",
+        status="active",
+        source="app_store",
+        entitlements=["document_vault"],
+    )
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+    document = client.post(
+        f"/trips/{trip_id}/documents",
+        json={
+            "category": "id_passport",
+            "title": "护照首页",
+            "file_name": "passport.pdf",
+            "content_type": "application/pdf",
+            "storage_ref": "secure://documents/passport.pdf",
+            "local_reference": "expo-cache://passport.pdf",
+            "sensitive": True,
+        },
+    )
+    booking = client.post(
+        f"/trips/{trip_id}/bookings",
+        json={
+            "category": "hotel",
+            "title": "北京酒店",
+            "confirmation_code": "SECRET-HOTEL-123",
+            "provider": "booking_com",
+            "source_document_id": document.json()["trip"]["documents"][0]["document_id"],
+        },
+    )
+    trip = run(client.app.state.trip_store.get(trip_id, "demo-tenant", "u_123"))
+    trip.status = "completed"
+    trip.updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+
+    snapshot = client.get(
+        f"/trips/{trip_id}/retention",
+        params={"now": "2026-03-15T00:00:00Z"},
+    )
+
+    assert document.status_code == 201
+    assert booking.status_code == 201
+    assert snapshot.status_code == 200
+    body = snapshot.json()
+    assert body["trip_id"] == trip_id
+    assert body["status"] == "due_for_archive"
+    assert body["sensitive_document_count"] == 1
+    assert body["booking_reference_count"] == 1
+    assert body["sensitive_data_removed"] is False
+    assert body["support_hold"] is False
+    assert "archive" in body["user_message"].lower()
+
+
+def test_trip_retention_apply_archives_and_redacts_sensitive_metadata_with_audit_event():
+    client = make_trip_client()
+    client.app.state.market_store._subscriptions["u_123"] = SubscriptionState(
+        user_id="u_123",
+        tier="plus",
+        status="active",
+        source="app_store",
+        entitlements=["document_vault"],
+    )
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+    document = client.post(
+        f"/trips/{trip_id}/documents",
+        json={
+            "category": "id_passport",
+            "title": "护照首页",
+            "file_name": "passport.pdf",
+            "content_type": "application/pdf",
+            "storage_ref": "secure://documents/passport.pdf",
+            "local_reference": "expo-cache://passport.pdf",
+            "sensitive": True,
+        },
+    )
+    document_id = document.json()["trip"]["documents"][0]["document_id"]
+    client.post(
+        f"/trips/{trip_id}/bookings",
+        json={
+            "category": "hotel",
+            "title": "北京酒店",
+            "confirmation_code": "SECRET-HOTEL-123",
+            "provider": "booking_com",
+            "source_document_id": document_id,
+            "notes": "contains private check-in notes",
+        },
+    )
+    trip = run(client.app.state.trip_store.get(trip_id, "demo-tenant", "u_123"))
+    trip.status = "completed"
+    trip.updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+
+    applied = client.post(
+        f"/trips/{trip_id}/retention/apply",
+        json={"now": "2026-03-15T00:00:00Z", "reason": "post-trip cleanup"},
+    )
+    events = client.get(f"/trips/{trip_id}/execution-events")
+
+    assert applied.status_code == 200
+    body = applied.json()
+    retained_trip = body["trip"]
+    assert retained_trip["status"] == "archived"
+    assert body["snapshot"]["status"] == "redacted"
+    assert body["snapshot"]["sensitive_data_removed"] is True
+    redacted_document = retained_trip["documents"][0]
+    assert redacted_document["document_id"] == document_id
+    assert redacted_document["file_name"] is None
+    assert redacted_document["storage_ref"] is None
+    assert redacted_document["local_reference"] is None
+    redacted_booking = retained_trip["bookings"][0]
+    assert redacted_booking["confirmation_code"] is None
+    assert redacted_booking["source_document_id"] is None
+    audit_event = retained_trip["audit_events"][-1]
+    assert audit_event["event_type"] == "retention_policy_applied"
+    assert audit_event["metadata"]["document_redacted_count"] == "1"
+    assert audit_event["metadata"]["booking_redacted_count"] == "1"
+    assert body["audit_event_id"] == audit_event["event_id"]
+    assert "SECRET-HOTEL-123" not in str(retained_trip)
+    assert "secure://documents" not in str(retained_trip)
+    assert any(
+        event["event_type"] == "retention_policy_applied"
+        for event in events.json()["events"]
+    )
+
+
+def test_trip_retention_support_hold_prevents_archival_and_redaction():
+    client = make_trip_client()
+    client.app.state.market_store._subscriptions["u_123"] = SubscriptionState(
+        user_id="u_123",
+        tier="plus",
+        status="active",
+        source="app_store",
+        entitlements=["document_vault"],
+    )
+    trip_id = create_dated_draft_trip(client)
+    client.post(f"/trips/{trip_id}/approve")
+    document = client.post(
+        f"/trips/{trip_id}/documents",
+        json={
+            "category": "insurance",
+            "title": "旅行保险",
+            "file_name": "insurance.pdf",
+            "storage_ref": "secure://documents/insurance.pdf",
+            "local_reference": "expo-cache://insurance.pdf",
+            "sensitive": True,
+        },
+    )
+    trip = run(client.app.state.trip_store.get(trip_id, "demo-tenant", "u_123"))
+    trip.status = "completed"
+    trip.updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+
+    held = client.post(
+        f"/trips/{trip_id}/retention/apply",
+        json={
+            "now": "2026-03-15T00:00:00Z",
+            "support_hold": True,
+            "reason": "open support case",
+        },
+    )
+
+    assert document.status_code == 201
+    assert held.status_code == 200
+    body = held.json()
+    assert body["snapshot"]["status"] == "held"
+    assert body["trip"]["status"] == "completed"
+    assert body["trip"]["documents"][0]["storage_ref"] == "secure://documents/insurance.pdf"
+    assert body["trip"]["audit_events"][-1]["event_type"] == "retention_hold_set"
+    assert body["actions"] == ["support_hold_set"]
 
 
 def test_create_trip_from_running_job_is_rejected():

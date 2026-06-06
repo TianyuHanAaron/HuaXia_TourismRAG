@@ -21,4 +21,6 @@ export interface OfflineQueuedTaskMutation {
      */
   task_id: string;
   patch: TripTaskPatchRequest;
+  client_created_at?: string | null;
+  client_updated_at?: string | null;
 }

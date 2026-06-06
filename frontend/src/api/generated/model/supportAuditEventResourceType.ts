@@ -11,6 +11,10 @@ export type SupportAuditEventResourceType = typeof SupportAuditEventResourceType
 export const SupportAuditEventResourceType = {
   user: 'user',
   job: 'job',
+  trip: 'trip',
+  task: 'task',
   subscription: 'subscription',
   provider_action: 'provider_action',
+  security: 'security',
+  operations: 'operations',
 } as const;

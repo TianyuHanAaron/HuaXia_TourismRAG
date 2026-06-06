@@ -645,6 +645,12 @@ def validate_provider_action(
 
     registry = registry or default_provider_registry()
     action = _normalize_provider_webview_policy(action)
+    if (
+        not action.available
+        and action.validation_status == "unavailable"
+        and any(error.startswith("provider_health:") for error in action.validation_errors)
+    ):
+        return action
     missing_context = [
         field
         for field in action.required_context

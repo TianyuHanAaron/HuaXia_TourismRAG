@@ -29,3 +29,50 @@ Every critical state mutation writes a structured event with enough context for 
 
 ## Dependencies
 Depends on V2 audit events and V3 provider audit concepts.
+
+## Implemented Slice
+
+Step 07 is implemented as a projected execution-event layer over the existing V2 `Trip.audit_events` model.
+
+Backend additions:
+
+- Added `TripExecutionEvent`, `TripExecutionEventListResponse`, `TripRecentActivityItem`, and `TripRecentActivityResponse` DTOs.
+- Added `trip_execution_events.py` with an in-memory append-only projection store.
+- Added audit-event projection with category mapping for task, provider, document, booking, calendar, trip, support, notification, and workflow events.
+- Added actor typing for user, system, support, provider, and worker events.
+- Added correlation-id extraction from `client_event_id`, `client_mutation_id`, action id, task id, document id, booking id, or audit event id.
+- Added sensitive payload redaction for document/file/reference fields.
+- Added user-visible recent-activity projection that excludes private events.
+
+Backend endpoints:
+
+- `GET /trips/{trip_id}/execution-events`
+  - supports `visibility`, `category`, and `limit`.
+  - returns structured execution events.
+- `GET /trips/{trip_id}/execution-events/mobile-activity`
+  - supports `limit`.
+  - returns mobile-safe recent activity items.
+
+Mutation recording:
+
+- Trip approval and archiving project execution events.
+- Task creation, task patch, and offline task sync project execution events.
+- Provider action launch and follow-up project execution events.
+- Calendar export projects execution events by reloading the updated trip.
+- Document and booking create, patch, and delete project execution events.
+
+Mobile additions:
+
+- Added execution-event and recent-activity TypeScript DTOs.
+- Added Zod validation for execution-event responses.
+- Added typed API functions for execution events and mobile recent activity.
+- Added TanStack Query keys/options with immediate stale time and reconnect refresh.
+- Added `v5-execution-events:check` guard script and included it in the aggregate mobile test script.
+
+Deferred work:
+
+- Redis-backed execution event projection storage.
+- Dedicated notification delivery events.
+- Support-store event joins into the trip execution timeline.
+- Admin event timeline UI.
+- Analytics projections derived directly from execution events.
