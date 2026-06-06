@@ -1,6 +1,10 @@
 import '@google/model-viewer';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import LanguageIcon from '@mui/icons-material/Language';
-import { Box, Button, Container, IconButton, Link, Stack, Typography } from '@mui/material';
+import PlaylistAddCheckOutlinedIcon from '@mui/icons-material/PlaylistAddCheckOutlined';
+import TravelExploreOutlinedIcon from '@mui/icons-material/TravelExploreOutlined';
+import { Box, Button, Chip, Container, Divider, IconButton, Link, Stack, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getGetTravelJobStatusTourismJobsJobIdGetQueryOptions,
@@ -18,7 +22,15 @@ import { SalesHandoffDialog } from './features/handoff/SalesHandoffDialog';
 import { TripComposer } from './features/travel/TripComposer';
 import { TripCommandCenter } from './features/trips/TripCommandCenter';
 import { VoiceInputPanel } from './features/voice/VoiceInputPanel';
+import { HuaxiaActionButton } from './components/HuaxiaActionButton';
+import { HuaxiaSectionHeader } from './components/HuaxiaSectionHeader';
 import { HuaxiaSurface } from './components/HuaxiaSurface';
+import { getV6ProductCopy } from './app/v6ProductionUi';
+import {
+  buildWebPlanningContextSummary,
+  getWebPlanningShellCopy,
+  type WebPlanningRailItem,
+} from './app/webPlanningShell';
 import { useUIStore } from './state/uiStore';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -42,6 +54,7 @@ export default function App() {
   const avatarImage = getAssetById('xiaxia_avatar_3d');
   const avatarModel = getAssetById('xiaxia_avatar_model_glb');
   const supportsEventSource = typeof window !== 'undefined' && Boolean(window.EventSource);
+  const shellCopy = useMemo(() => getWebPlanningShellCopy(language), [language]);
   const jobQuery = useGetTravelJobStatusTourismJobsJobIdGet(activeJobId ?? '', {
     query: {
       enabled: Boolean(activeJobId && (!supportsEventSource || sseFailedJobId === activeJobId)),
@@ -141,6 +154,17 @@ export default function App() {
 
   const currentJob = streamedJob?.job_id === activeJobId ? streamedJob : jobQuery.data;
   const waitingActive = Boolean(activeJobId && currentJob?.status !== 'completed');
+  const contextSummary = useMemo(
+    () => buildWebPlanningContextSummary({ job: currentJob, answer: latestAnswer }),
+    [currentJob, latestAnswer],
+  );
+
+  const scrollToTarget = (href: string) => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    document.querySelector(href)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <Box
@@ -150,87 +174,227 @@ export default function App() {
         backgroundImage: `linear-gradient(90deg, rgba(248,243,236,0.88), rgba(248,243,236,0.72)), url(${assetUrl(background.path)})`,
       }}
     >
-      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
-        <Stack spacing={3}>
-          <HuaxiaSurface className="hero-panel animated-presence">
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ alignItems: 'center' }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography
-                  variant="h2"
-                  sx={{
-                    fontSize: { xs: 34, md: 48, lg: 54 },
-                    lineHeight: 1.06,
-                    mb: 1.25,
-                    maxWidth: 920,
-                  }}
+      <Container maxWidth={false} sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
+        <Stack spacing={2.5}>
+          <HuaxiaSurface
+            component="header"
+            className="web-planning-topbar animated-presence"
+            v6Pattern="command_card"
+            sx={{ p: { xs: 2, md: 2.25 } }}
+          >
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={2}
+              sx={{ alignItems: { xs: 'flex-start', md: 'center' }, justifyContent: 'space-between' }}
+            >
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                <CompactAvatarButton
+                  avatarModelPath={avatarModel?.path}
+                  avatarImagePath={avatarImage?.path}
+                  ariaLabel={shellCopy.voiceAriaLabel}
+                  onClick={() => setVoicePanelOpen(true)}
+                />
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 900 }}>
+                    {shellCopy.compactIdentity}
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontSize: { xs: 30, md: 36 }, lineHeight: 1.08 }}>
+                    {shellCopy.title}
+                  </Typography>
+                  <Typography color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.55 }}>
+                    {shellCopy.subtitle}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                <HuaxiaActionButton
+                  startIcon={<LanguageIcon />}
+                  variant="outlined"
+                  onClick={() => setLanguage(language === 'zh-CN' ? 'en' : 'zh-CN')}
                 >
-                  {language === 'zh-CN' ? '华夏旅行社专属 AI 旅行顾问' : 'HuaXia Travel Agency AI Advisor'}
-                </Typography>
-                <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 820, lineHeight: 1.65 }}>
-                  {language === 'zh-CN'
-                    ? '嗨，我是夏夏。把旅行灵感丢给我吧：想去哪儿、玩几天、和谁去、预算大概多少，知道多少说多少。我会把路线、住宿片区、本地味道、预约风险和引用来源一起理清楚。'
-                    : 'Hi, I’m Xiaxia. Share where you want to go, for how long, with whom, and roughly how much you want to spend. I’ll organize route logic, stay areas, local flavor, booking risks, and traceable references.'}
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                  <Button
-                    startIcon={<LanguageIcon />}
-                    variant="outlined"
-                    onClick={() => setLanguage(language === 'zh-CN' ? 'en' : 'zh-CN')}
-                  >
-                    {language === 'zh-CN' ? 'English' : '中文'}
-                  </Button>
-                  <Button variant="contained" onClick={() => setVoicePanelOpen(true)}>
-                    {language === 'zh-CN' ? '点击头像也可语音输入' : 'Tap avatar for voice input'}
-                  </Button>
-                </Stack>
-              </Box>
-              <IconButton
-                className="avatar-shell"
-                onClick={() => setVoicePanelOpen(true)}
-                aria-label={language === 'zh-CN' ? '打开语音输入' : 'Open voice input'}
-              >
-                {avatarModel ? (
-                  <model-viewer
-                    src={assetUrl(avatarModel.path)}
-                    poster={avatarImage ? assetUrl(avatarImage.path) : undefined}
-                    alt="Xiaxia avatar"
-                    interaction-prompt="none"
-                    camera-orbit="0deg 78deg 2.75m"
-                    min-camera-orbit="0deg 78deg 2.75m"
-                    max-camera-orbit="0deg 78deg 2.75m"
-                    camera-target="0m 0.72m 0m"
-                    field-of-view="32deg"
-                    disable-zoom
-                    exposure="0.95"
-                    style={{ width: '330px', height: '350px', maxWidth: '34vw' }}
-                  />
-                ) : (
-                  <Box
-                    component="img"
-                    alt="Xiaxia avatar"
-                    src={avatarImage ? assetUrl(avatarImage.path) : undefined}
-                    sx={{ width: { xs: 190, md: 260 }, borderRadius: 2 }}
-                  />
-                )}
-              </IconButton>
+                  {shellCopy.languageToggleLabel}
+                </HuaxiaActionButton>
+                <HuaxiaActionButton variant="contained" onClick={() => setVoicePanelOpen(true)}>
+                  {shellCopy.voiceCta}
+                </HuaxiaActionButton>
+              </Stack>
             </Stack>
           </HuaxiaSurface>
 
-          <TripComposer onRequestTextChange={setOriginalRequest} />
-          <JobProgressPanel job={currentJob ?? undefined} language={language} />
-          <EngagementWaitingRoom
-            feed={currentJob?.engagement_feed}
-            language={language}
-            active={waitingActive}
-          />
-          <CheckpointPanel answer={latestAnswer} language={language} />
-          <AnswerView
-            answer={latestAnswer}
-            language={language}
-            sourceJobId={latestCompletedJobId}
-          />
-          <TripCommandCenter language={language} />
-          <CreditsPanel language={language} />
+          <Box
+            className="web-planning-shell"
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                lg: '230px minmax(0, 1fr) 360px',
+                xl: '250px minmax(0, 1fr) 390px',
+              },
+              gap: 2.5,
+              alignItems: 'start',
+            }}
+          >
+            <Box
+              component="nav"
+              aria-label="Planning workspace navigation"
+              className="web-planning-rail"
+              sx={{
+                position: { lg: 'sticky' },
+                top: { lg: 20 },
+                zIndex: 1,
+              }}
+            >
+              <HuaxiaSurface sx={{ p: 1.5 }} v6Pattern="rail">
+                <Stack spacing={1}>
+                  {shellCopy.rail.map((item) => (
+                    <RailButton key={item.id} item={item} onSelect={scrollToTarget} />
+                  ))}
+                </Stack>
+              </HuaxiaSurface>
+            </Box>
+
+            <Box component="main" aria-label="Planning workspace" className="web-planning-center">
+              <Stack spacing={2.5}>
+                <HuaxiaSurface id="composer" className="composer-card animated-presence" ariaLabel="trip composer">
+                  <Stack spacing={2}>
+                    <HuaxiaSectionHeader
+                      title={shellCopy.composerQuestion}
+                      description={
+                        language === 'zh-CN'
+                          ? '用快速表单锁定结构，或用自由描述保留旅行动机和取舍。'
+                          : 'Use the quick form for structure, or free text to preserve goals and tradeoffs.'
+                      }
+                    />
+                    <TripComposer onRequestTextChange={setOriginalRequest} />
+                  </Stack>
+                </HuaxiaSurface>
+
+                <CheckpointPanel answer={latestAnswer} language={language} />
+
+                <Box id="answer-workspace">
+                  <Stack spacing={1.5} sx={{ mb: latestAnswer ? 1.5 : 0 }}>
+                    <HuaxiaSectionHeader
+                      title={shellCopy.answerQuestion}
+                      description={
+                        language === 'zh-CN'
+                          ? '行程正文保持最大权重；时间线、专题、引用和校验用于审核路线质量。'
+                          : 'The itinerary stays dominant; timeline, topics, sources, and checks support route review.'
+                      }
+                    />
+                  </Stack>
+                  {latestAnswer ? (
+                    <AnswerView
+                      answer={latestAnswer}
+                      language={language}
+                      sourceJobId={latestCompletedJobId}
+                    />
+                  ) : (
+                    <HuaxiaSurface sx={{ p: 2.25 }} v6Pattern="operational_group">
+                      <Typography color="text.secondary">
+                        {language === 'zh-CN'
+                          ? '生成完成后，这里会先展示核心行程，再逐步补齐专题内容。'
+                          : 'After generation, the core itinerary appears here first, then topic sections hydrate progressively.'}
+                      </Typography>
+                    </HuaxiaSurface>
+                  )}
+                </Box>
+
+                <HuaxiaSurface id="draft-review" v6Pattern="command_card">
+                  <Stack spacing={1.5}>
+                    <HuaxiaSectionHeader
+                      title={shellCopy.draftQuestion}
+                      description={shellCopy.draftApprovalCopy}
+                      action={
+                        <HuaxiaActionButton variant="contained" startIcon={<PlaylistAddCheckOutlinedIcon />}>
+                          Approve and create checklist
+                        </HuaxiaActionButton>
+                      }
+                    />
+                    <Typography color="text.secondary" sx={{ lineHeight: 1.65 }}>
+                      {language === 'zh-CN'
+                        ? '批准后，桌面端保留审核能力；真正的每日执行会进入移动端指挥中心。'
+                        : 'After approval, web keeps the review workspace while mobile becomes the daily execution surface.'}
+                    </Typography>
+                  </Stack>
+                </HuaxiaSurface>
+
+                <Box id="saved-trips">
+                  <HuaxiaSectionHeader
+                    title={shellCopy.savedTripsQuestion}
+                    description={shellCopy.savedTripsCopy}
+                  />
+                  <Box sx={{ mt: 1.5 }}>
+                    <TripCommandCenter language={language} />
+                  </Box>
+                </Box>
+              </Stack>
+            </Box>
+
+            <Stack
+              component="aside"
+              aria-label="Planning evidence and progress context"
+              className="web-planning-context"
+              spacing={2}
+              sx={{
+                position: { lg: 'sticky' },
+                top: { lg: 20 },
+                minWidth: 0,
+              }}
+            >
+              <HuaxiaSurface sx={{ p: 2.25 }} v6Pattern="confidence_chip">
+                <Stack spacing={1.5}>
+                  <HuaxiaSectionHeader
+                    title={shellCopy.progressQuestion}
+                    description={shellCopy.evidenceEmpty}
+                  />
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                    <Chip label={`${shellCopy.activeStatusLabel}: ${contextSummary.statusLabel}`} />
+                    <Chip color="secondary" variant="outlined" label={contextSummary.progressLabel} />
+                    <Chip color="success" variant="outlined" label={contextSummary.citationCountLabel} />
+                  </Stack>
+                </Stack>
+              </HuaxiaSurface>
+
+              <JobProgressPanel job={currentJob ?? undefined} language={language} />
+              <EngagementWaitingRoom
+                feed={currentJob?.engagement_feed}
+                language={language}
+                active={waitingActive}
+              />
+
+              <HuaxiaSurface sx={{ p: 2.25 }} v6Pattern="operational_group">
+                <Stack spacing={1.5}>
+                  <HuaxiaSectionHeader
+                    title={shellCopy.evidenceQuestion}
+                    description={shellCopy.citationSupportCopy}
+                  />
+                  <Divider />
+                  <ContextLine icon={<FactCheckOutlinedIcon />} label="Warnings" value={contextSummary.warningCountLabel} />
+                  <ContextLine icon={<TravelExploreOutlinedIcon />} label="Provider readiness" value={contextSummary.providerReadinessLabel} />
+                  <ContextLine icon={<ArticleOutlinedIcon />} label="Sources" value={contextSummary.citationCountLabel} />
+                  {latestAnswer?.citations?.length ? (
+                    <Stack spacing={1}>
+                      {latestAnswer.citations.slice(0, 5).map((citation, index) => (
+                        <Typography
+                          key={`${citation}-${index}`}
+                          variant="body2"
+                          sx={{ userSelect: 'text', lineHeight: 1.65 }}
+                        >
+                          {citation}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography color="text.secondary" sx={{ lineHeight: 1.65 }}>
+                      {shellCopy.providerReadinessCopy}
+                    </Typography>
+                  )}
+                </Stack>
+              </HuaxiaSurface>
+
+              <CreditsPanel language={language} />
+            </Stack>
+          </Box>
         </Stack>
       </Container>
       <VoiceInputPanel language={language} />
@@ -239,12 +403,120 @@ export default function App() {
   );
 }
 
+function CompactAvatarButton({
+  avatarModelPath,
+  avatarImagePath,
+  ariaLabel,
+  onClick,
+}: {
+  avatarModelPath?: string;
+  avatarImagePath?: string;
+  ariaLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <IconButton
+      onClick={onClick}
+      aria-label={ariaLabel}
+      sx={{
+        flex: '0 0 auto',
+        width: 78,
+        height: 82,
+        borderRadius: 2,
+        backgroundColor: 'rgba(255,255,255,0.56)',
+        border: '1px solid rgba(31, 41, 51, 0.10)',
+      }}
+    >
+      {avatarModelPath ? (
+        <model-viewer
+          src={assetUrl(avatarModelPath)}
+          poster={avatarImagePath ? assetUrl(avatarImagePath) : undefined}
+          alt="Xiaxia avatar"
+          interaction-prompt="none"
+          camera-orbit="0deg 78deg 2.75m"
+          min-camera-orbit="0deg 78deg 2.75m"
+          max-camera-orbit="0deg 78deg 2.75m"
+          camera-target="0m 0.72m 0m"
+          field-of-view="32deg"
+          disable-zoom
+          exposure="0.95"
+          style={{ width: '74px', height: '78px' }}
+        />
+      ) : (
+        <Box
+          component="img"
+          alt="Xiaxia avatar"
+          src={avatarImagePath ? assetUrl(avatarImagePath) : undefined}
+          sx={{ width: 64, borderRadius: 2 }}
+        />
+      )}
+    </IconButton>
+  );
+}
+
+function RailButton({
+  item,
+  onSelect,
+}: {
+  item: WebPlanningRailItem;
+  onSelect: (href: string) => void;
+}) {
+  return (
+    <Button
+      fullWidth
+      aria-label={item.label}
+      onClick={() => onSelect(item.href)}
+      sx={{
+        justifyContent: 'flex-start',
+        py: 1.15,
+        px: 1.2,
+        textAlign: 'left',
+      }}
+    >
+      <Stack spacing={0.2} sx={{ alignItems: 'flex-start' }}>
+        <Typography variant="body2" sx={{ fontWeight: 900 }}>
+          {item.label}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {item.helper}
+        </Typography>
+      </Stack>
+    </Button>
+  );
+}
+
+function ContextLine({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <Stack direction="row" spacing={1.1} sx={{ alignItems: 'flex-start' }}>
+      <Box sx={{ color: 'secondary.main', display: 'grid', placeItems: 'center', pt: 0.2 }}>
+        {icon}
+      </Box>
+      <Box>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 900 }}>
+          {label}
+        </Typography>
+        <Typography variant="body2" sx={{ lineHeight: 1.55 }}>
+          {value}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
 function CreditsPanel({ language }: { language: 'zh-CN' | 'en' }) {
   const credits = assetCredits().filter((asset) => asset.attribution);
   return (
-    <HuaxiaSurface sx={{ p: 2, backgroundColor: 'rgba(255,255,255,0.52)' }}>
+    <HuaxiaSurface sx={{ p: 2, backgroundColor: 'rgba(255,255,255,0.52)' }} v6Pattern="operational_group">
       <Typography sx={{ mb: 1, fontWeight: 800 }}>
-        {language === 'zh-CN' ? '图片与模型鸣谢' : 'Media Credits'}
+        {getV6ProductCopy(language).mediaCreditsTitle}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
         {credits.map((asset) => (

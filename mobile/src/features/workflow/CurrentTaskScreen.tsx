@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Chip, Text, TextInput } from '../../components/PaperControls';
+import { Button, Chip, Text, TextInput } from '../../components/PaperControls';
 import { isAxiosError } from 'axios';
 
 import { recordAnalyticsEvent } from '../../api/analytics';
@@ -18,6 +18,8 @@ import {
   CommandCard,
   SectionHeader,
   TaskCard,
+  StatusChip,
+  type TripIconToken,
 } from '../../components/HuaXiaDesignSystem';
 import { Screen } from '../../components/Screen';
 import { VirtualizedCommandList } from '../../components/VirtualizedCommandList';
@@ -39,11 +41,20 @@ import {
 import { OfflineSyncBanner } from '../offline/OfflineSyncBanner';
 import { buildOfflineSyncBannerModel } from '../offline/offlineSyncUi';
 import { useTripUiStore, type TaskGroupKey } from '../../state/tripUiStore';
+import { markMobileFirstRowsRendered } from '../v6/v6PerformanceRendering';
 import {
   buildTaskCommandViewModel,
   type TaskCommandCardModel,
   type TaskCommandGroupModel,
+  type TaskCommandSummaryMetric,
 } from './taskCommandViewModel';
+import {
+  huaxiaColorTokens,
+  huaxiaRadiusTokens,
+  huaxiaSpacingTokens,
+  huaxiaTypographyTokens,
+  huaxiaTypographyWeightTokens,
+} from '../../../tamagui.config';
 
 const COMPLETED_TASK_LIMIT = 5;
 
@@ -54,6 +65,9 @@ export function CurrentTaskScreen() {
   const [queuedCount, setQueuedCount] = useState(0);
   const [queuedMutations, setQueuedMutations] = useState<QueuedTaskMutation[]>([]);
   const [conflictTaskIds, setConflictTaskIds] = useState<string[]>([]);
+  const [expandedGroupKeys, setExpandedGroupKeys] = useState<
+    Partial<Record<TaskGroupKey, boolean>>
+  >({});
   const queryClient = useQueryClient();
   const providerActionSheet = useTripUiStore((state) => state.providerActionSheet);
   const openProviderActionSheet = useTripUiStore(
@@ -260,12 +274,34 @@ export function CurrentTaskScreen() {
       taskGroupVisibility,
     ],
   );
+  const groupExpansionSignature = viewModel.taskGroups
+    .map((group) => `${group.key}:${group.collapsedByDefault}`)
+    .join('|');
+  useEffect(() => {
+    setExpandedGroupKeys((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const group of viewModel.taskGroups) {
+        if (!(group.key in next)) {
+          next[group.key] = !group.collapsedByDefault;
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [groupExpansionSignature, viewModel.taskGroups]);
   const visibleGroups = useMemo(
     () =>
       viewModel.taskGroups.filter(
-        (group) => group.visible && group.taskGroups.length,
+        (group) => group.visible && (group.taskGroups.length || group.key === 'now'),
       ),
     [viewModel.taskGroups],
+  );
+  const recordFirstRowsRendered = useCallback(
+    (label: string, visibleCount: number, totalCount: number) => {
+      markMobileFirstRowsRendered({ listLabel: label, visibleCount, totalCount });
+    },
+    [],
   );
   const offlineBannerModel = buildOfflineSyncBannerModel({
     hasNetworkError: query.isError,
@@ -293,13 +329,16 @@ export function CurrentTaskScreen() {
 
   return (
     <Screen
-      title="当前任务"
-      subtitle="只看现在相关的行动，不把整份行程墙塞给你。"
+      title={viewModel.screenQuestion}
+      subtitle="What needs action now? 只看可执行行动，不把整份行程墙塞给你。"
       scroll={false}
     >
       <VirtualizedCommandList<TaskCommandGroupModel>
         data={visibleGroups}
         keyExtractor={(group) => group.key}
+        accessibilityLabel="Current task command groups"
+        performanceLabel="task_command_groups"
+        onFirstRowsRendered={recordFirstRowsRendered}
         header={
           <>
             {query.isLoading ? <Text>正在整理当前任务...</Text> : null}
@@ -321,107 +360,209 @@ export function CurrentTaskScreen() {
               <ProviderActionSheet
                 action={selectedProviderAction.action}
                 routeBundle={selectedRouteBundle}
+                sourceTask={selectedProviderAction.sourceTask}
                 onLaunch={(action, request) =>
                   providerLaunchMutation.mutateAsync({ action, request })
                 }
                 onHandled={closeProviderActionSheet}
+                onEditContext={() => {
+                  if (!selectedProviderAction.sourceTaskId) {
+                    return;
+                  }
+                  router.push({
+                    pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
+                    params: { tripId, taskId: selectedProviderAction.sourceTaskId },
+                  });
+                }}
+                onRefreshRoute={() => routeQuery.refetch()}
               />
             ) : null}
-            <CommandCard compact>
-              <SectionHeader
-                title="任务分组"
-                subtitle={`当前显示 ${viewModel.visibleTaskCount} 个任务；本机待同步 ${viewModel.queuedTaskCount} 个。`}
-              />
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {viewModel.taskGroups.map((group) => (
-                  <Chip
-                    key={group.key}
-                    selected={group.visible}
-                    onPress={() => setTaskGroupVisible(group.key, !group.visible)}
-                  >
-                    {group.label}
-                  </Chip>
-                ))}
-              </View>
-              <Button mode="text" onPress={resetTaskGroupVisibility}>
-                重置分组显示
-              </Button>
-            </CommandCard>
-            <Card mode="outlined">
-              <Card.Content>
-                <Text variant="titleMedium">添加自定义任务</Text>
-                <TextInput
-                  label="任务标题"
-                  value={customTitle}
-                  onChangeText={setCustomTitle}
-                  dense
-                />
-                <TextInput
-                  label="补充说明"
-                  value={customInstruction}
-                  onChangeText={setCustomInstruction}
-                  multiline
-                  dense
-                />
-                <Button
-                  mode="contained"
-                  loading={addTaskMutation.isPending}
-                  disabled={!customTitle.trim() || addTaskMutation.isPending}
-                  onPress={() => addTaskMutation.mutate()}
-                >
-                  添加任务
-                </Button>
-              </Card.Content>
-            </Card>
+            <TaskCommandSummaryStrip metrics={viewModel.summaryStrip} />
+            <TaskGroupFilterRail
+              groups={viewModel.taskGroups}
+              visibleTaskCount={viewModel.visibleTaskCount}
+              queuedTaskCount={viewModel.queuedTaskCount}
+              onToggleVisible={setTaskGroupVisible}
+              onReset={resetTaskGroupVisibility}
+            />
           </>
         }
-        empty={<Text variant="bodySmall">当前分组没有任务。</Text>}
+        footer={
+          <CustomTaskComposer
+            customTitle={customTitle}
+            customInstruction={customInstruction}
+            loading={addTaskMutation.isPending}
+            onTitleChange={setCustomTitle}
+            onInstructionChange={setCustomInstruction}
+            onSubmit={() => addTaskMutation.mutate()}
+          />
+        }
+        empty={<Text variant="bodySmall">{viewModel.globalEmptyLabel}</Text>}
         renderItem={({ item: group }) => (
-          <Card key={group.key}>
-            <Card.Content>
-              <Text variant="titleMedium">{group.label}</Text>
-              {group.taskGroups.map((model) => (
-                <TaskCommandCard
-                  key={model.task.task_id}
-                  model={model}
-                  tripId={tripId}
-                  completePending={mutation.isPending}
-                  patchPending={patchMutation.isPending}
-                  onComplete={() =>
-                    mutation.mutate({
-                      taskId: model.task.task_id,
-                      expectedUpdatedAt: model.task.updated_at ?? null,
-                    })
-                  }
-                  onSkip={() =>
-                    patchMutation.mutate({
-                      taskId: model.task.task_id,
-                      patch: {
-                        status: 'skipped',
-                        expected_updated_at: model.task.updated_at ?? null,
-                      },
-                    })
-                  }
-                  onEdit={() =>
-                    router.push({
-                      pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
-                      params: { tripId, taskId: model.task.task_id },
-                    })
-                  }
-                  onSelectAction={(action, routeBundle) =>
-                    openProviderActionSheet({
-                      actionId: action.action_id,
-                      routeBundleId: routeBundle?.route_id ?? null,
-                      sourceTaskId: model.task.task_id,
-                    })
-                  }
-                />
-              ))}
-            </Card.Content>
-          </Card>
+          <TaskCommandGroupSection
+            group={group}
+            tripId={tripId}
+            expanded={Boolean(expandedGroupKeys[group.key])}
+            completePending={mutation.isPending}
+            patchPending={patchMutation.isPending}
+            onToggleGroup={() =>
+              setExpandedGroupKeys((current) => ({
+                ...current,
+                [group.key]: !current[group.key],
+              }))
+            }
+            onComplete={(model) =>
+              mutation.mutate({
+                taskId: model.task.task_id,
+                expectedUpdatedAt: model.task.updated_at ?? null,
+              })
+            }
+            onSkip={(model) =>
+              patchMutation.mutate({
+                taskId: model.task.task_id,
+                patch: {
+                  status: 'skipped',
+                  expected_updated_at: model.task.updated_at ?? null,
+                },
+              })
+            }
+            onEdit={(model) =>
+              router.push({
+                pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
+                params: { tripId, taskId: model.task.task_id },
+              })
+            }
+            onSelectAction={(model, action, routeBundle) =>
+              openProviderActionSheet({
+                actionId: action.action_id,
+                routeBundleId: routeBundle?.route_id ?? null,
+                sourceTaskId: model.task.task_id,
+              })
+            }
+          />
         )}
       />
     </Screen>
+  );
+}
+
+function TaskCommandSummaryStrip({ metrics }: { metrics: TaskCommandSummaryMetric[] }) {
+  return (
+    <View style={styles.summaryStrip}>
+      {metrics.map((metric) => (
+        <CommandCard key={metric.key} compact tone={metric.tone}>
+          <Text style={styles.metricValue}>{metric.value}</Text>
+          <Text style={styles.metricLabel}>{metric.label}</Text>
+        </CommandCard>
+      ))}
+    </View>
+  );
+}
+
+function TaskGroupFilterRail({
+  groups,
+  visibleTaskCount,
+  queuedTaskCount,
+  onToggleVisible,
+  onReset,
+}: {
+  groups: TaskCommandGroupModel[];
+  visibleTaskCount: number;
+  queuedTaskCount: number;
+  onToggleVisible: (group: TaskGroupKey, visible: boolean) => void;
+  onReset: () => void;
+}) {
+  return (
+    <CommandCard compact referencePattern="operational_group">
+      <SectionHeader
+        title="任务分组"
+        subtitle={`当前显示 ${visibleTaskCount} 个任务；本机待同步 ${queuedTaskCount} 个。`}
+      />
+      <View style={styles.chipRail}>
+        {groups.map((group) => (
+          <Chip
+            key={group.key}
+            selected={group.visible}
+            onPress={() => onToggleVisible(group.key, !group.visible)}
+          >
+            {group.groupSummaryLabel}
+          </Chip>
+        ))}
+      </View>
+      <Button mode="text" onPress={onReset}>
+        重置分组显示
+      </Button>
+    </CommandCard>
+  );
+}
+
+function TaskCommandGroupSection({
+  group,
+  tripId,
+  expanded,
+  completePending,
+  patchPending,
+  onToggleGroup,
+  onComplete,
+  onSkip,
+  onEdit,
+  onSelectAction,
+}: {
+  group: TaskCommandGroupModel;
+  tripId: string;
+  expanded: boolean;
+  completePending: boolean;
+  patchPending: boolean;
+  onToggleGroup: () => void;
+  onComplete: (model: TaskCommandCardModel) => void;
+  onSkip: (model: TaskCommandCardModel) => void;
+  onEdit: (model: TaskCommandCardModel) => void;
+  onSelectAction: (
+    model: TaskCommandCardModel,
+    action: TripProviderAction,
+    routeBundle?: RouteBundle | null,
+  ) => void;
+}) {
+  return (
+    <CommandCard compact referencePattern="operational_group">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${group.label} · ${group.groupSummaryLabel}`}
+        onPress={onToggleGroup}
+      >
+        <View style={styles.groupHeader}>
+          <View style={styles.groupHeaderText}>
+            <Text style={styles.groupTitle}>{group.label}</Text>
+            <Text style={styles.groupSubtitle}>{group.groupSummaryLabel}</Text>
+          </View>
+          <StatusChip label={expanded ? '已展开' : '已折叠'} tone={expanded ? 'primary' : 'muted'} />
+        </View>
+      </Pressable>
+      {expanded ? (
+        group.taskGroups.length ? (
+          <View style={styles.taskStack}>
+            {group.taskGroups.map((model) => (
+              <TaskCommandCard
+                key={model.task.task_id}
+                model={model}
+                tripId={tripId}
+                completePending={completePending}
+                patchPending={patchPending}
+                onComplete={() => onComplete(model)}
+                onSkip={() => onSkip(model)}
+                onEdit={() => onEdit(model)}
+                onSelectAction={(action, routeBundle) =>
+                  onSelectAction(model, action, routeBundle)
+                }
+              />
+            ))}
+          </View>
+        ) : (
+          <Text variant="bodySmall">{group.emptyLabel}</Text>
+        )
+      ) : null}
+    </CommandCard>
   );
 }
 
@@ -433,7 +574,7 @@ function resolveSelectedProviderAction({
   actionId: string | null;
   sourceTaskId: string | null;
   command?: TripTaskCommandResponse;
-}): { action: TripProviderAction; sourceTaskId: string | null } | null {
+}): { action: TripProviderAction; sourceTaskId: string | null; sourceTask: TripTask | null } | null {
   if (!actionId || !command?.provider_actions) {
     return null;
   }
@@ -442,13 +583,13 @@ function resolveSelectedProviderAction({
       (item) => item.action_id === actionId,
     );
     if (action) {
-      return { action, sourceTaskId };
+      return { action, sourceTaskId, sourceTask: findTaskById(command, sourceTaskId) };
     }
   }
   for (const [taskId, actions] of Object.entries(command.provider_actions)) {
     const action = actions.find((item) => item.action_id === actionId);
     if (action) {
-      return { action, sourceTaskId: taskId };
+      return { action, sourceTaskId: taskId, sourceTask: findTaskById(command, taskId) };
     }
   }
   return null;
@@ -510,9 +651,8 @@ function TaskCommandCard({
   const task = model.task;
   const isOpen = task.status === 'pending' || task.status === 'in_progress';
   const canSkip = isOpen || task.status === 'blocked';
-  const canLaunchAction = Boolean(model.primaryAction?.available) && task.status !== 'blocked';
   return (
-    <View style={{ marginTop: 10 }}>
+    <View style={styles.taskCardWrap}>
       <TaskCard
         title={task.title}
         instruction={task.instruction}
@@ -520,25 +660,31 @@ function TaskCommandCard({
         phaseLabel={model.phaseLabel}
         statusLabel={model.statusLabel}
         priorityLabel={model.priorityLabel}
+        iconToken={categoryIconToken(task.category)}
+        iconAccessibilityLabel={`${model.categoryLabel}任务`}
       >
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        <View style={styles.chipRail}>
           <Chip compact>{model.categoryLabel}</Chip>
-          <Chip compact>{model.syncLabel}</Chip>
+          <Chip compact>{model.syncHumanCopy}</Chip>
           <Chip compact>{model.reminderLabel}</Chip>
           {model.isOverdue ? <Chip compact>逾期</Chip> : null}
         </View>
         {model.blockedReason ? (
-          <Text variant="bodySmall">解锁原因：{model.blockedReason}</Text>
+          <Text variant="bodySmall">先处理阻塞：{model.blockedReason}</Text>
         ) : null}
-        <Text variant="bodySmall">同步状态：{model.syncState}</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-          {model.primaryAction ? (
+        {model.providerContextLabel ? (
+          <Text variant="bodySmall">{model.providerContextLabel}</Text>
+        ) : null}
+        {model.recoveryCopy ? (
+          <Text variant="bodySmall">{model.recoveryCopy}</Text>
+        ) : null}
+        <View style={styles.actionRail}>
+          {model.primaryAction && model.shouldShowPrimaryProviderAction ? (
             <Button
               mode="contained-tonal"
-              disabled={!canLaunchAction}
               onPress={() => onSelectAction(model.primaryAction as TripProviderAction, model.routeBundle)}
             >
-              {model.routeBundle ? `路线：${model.routeBundle.label}` : model.primaryAction.label}
+              {model.primaryActionLabel}
             </Button>
           ) : null}
           <Button
@@ -561,6 +707,23 @@ function TaskCommandCard({
   );
 }
 
+function categoryIconToken(category: string): TripIconToken {
+  const iconByCategory: Record<string, TripIconToken> = {
+    booking: 'calendar',
+    document: 'document',
+    packing: 'manual',
+    transport: 'route',
+    lodging: 'lodging',
+    ticket: 'ticket',
+    activity: 'place',
+    food_reservation: 'food',
+    safety: 'safety',
+    return: 'flight',
+    custom: 'manual',
+  };
+  return iconByCategory[category] ?? 'manual';
+}
+
 function SwipeActionRail({
   canComplete,
   canSkip,
@@ -579,10 +742,10 @@ function SwipeActionRail({
   onEdit: () => void;
 }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+    <View style={styles.actionRail}>
       {canComplete ? (
         <Button
-          accessibilityLabel="向右滑动完成任务"
+          accessibilityLabel="标记完成"
           loading={completePending}
           onPress={onComplete}
         >
@@ -591,17 +754,63 @@ function SwipeActionRail({
       ) : null}
       {canSkip ? (
         <Button
-          accessibilityLabel="向左滑动跳过或编辑任务"
+          accessibilityLabel="跳过这个任务"
           loading={patchPending}
           onPress={onSkip}
         >
           跳过
         </Button>
       ) : null}
-      <Button accessibilityLabel="向左滑动跳过或编辑任务" onPress={onEdit}>
+      <Button accessibilityLabel="编辑这个任务" onPress={onEdit}>
         编辑
       </Button>
     </View>
+  );
+}
+
+function CustomTaskComposer({
+  customTitle,
+  customInstruction,
+  loading,
+  onTitleChange,
+  onInstructionChange,
+  onSubmit,
+}: {
+  customTitle: string;
+  customInstruction: string;
+  loading: boolean;
+  onTitleChange: (value: string) => void;
+  onInstructionChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <CommandCard compact>
+      <SectionHeader
+        title="添加自定义任务"
+        subtitle="只在需要补充个人事项时使用，不影响上面的执行任务。"
+      />
+      <TextInput
+        label="任务标题"
+        value={customTitle}
+        onChangeText={onTitleChange}
+        dense
+      />
+      <TextInput
+        label="补充说明"
+        value={customInstruction}
+        onChangeText={onInstructionChange}
+        multiline
+        dense
+      />
+      <Button
+        mode="contained"
+        loading={loading}
+        disabled={!customTitle.trim() || loading}
+        onPress={onSubmit}
+      >
+        添加任务
+      </Button>
+    </CommandCard>
   );
 }
 
@@ -665,3 +874,59 @@ function shouldQueueOffline(error: unknown): boolean {
   }
   return !error.response;
 }
+
+const styles = StyleSheet.create({
+  summaryStrip: {
+    flexDirection: 'row',
+    gap: huaxiaSpacingTokens.sm,
+  },
+  metricValue: {
+    color: huaxiaColorTokens.ink,
+    fontSize: huaxiaTypographyTokens.title,
+    fontWeight: huaxiaTypographyWeightTokens.strong,
+    lineHeight: huaxiaTypographyTokens.titleLine,
+  },
+  metricLabel: {
+    color: huaxiaColorTokens.mutedInk,
+    fontSize: huaxiaTypographyTokens.metadata,
+    lineHeight: huaxiaTypographyTokens.metadataLine,
+  },
+  chipRail: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: huaxiaSpacingTokens.sm,
+  },
+  groupHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: huaxiaSpacingTokens.md,
+    justifyContent: 'space-between',
+  },
+  groupHeaderText: {
+    flex: 1,
+    gap: huaxiaSpacingTokens.xs,
+  },
+  groupTitle: {
+    color: huaxiaColorTokens.ink,
+    fontSize: huaxiaTypographyTokens.title,
+    fontWeight: huaxiaTypographyWeightTokens.strong,
+    lineHeight: huaxiaTypographyTokens.titleLine,
+  },
+  groupSubtitle: {
+    color: huaxiaColorTokens.mutedInk,
+    fontSize: huaxiaTypographyTokens.caption,
+    lineHeight: huaxiaTypographyTokens.captionLine,
+  },
+  taskStack: {
+    gap: huaxiaSpacingTokens.md,
+  },
+  taskCardWrap: {
+    marginTop: huaxiaSpacingTokens.sm,
+  },
+  actionRail: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: huaxiaSpacingTokens.sm,
+    marginTop: huaxiaSpacingTokens.sm,
+  },
+});

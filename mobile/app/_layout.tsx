@@ -24,6 +24,7 @@ export default function RootLayout() {
         language: preferences.language,
         displayDensity: preferences.displayDensity,
         onboardingStage: preferences.onboardingStage,
+        selectedTab: preferences.selectedTab,
         taskGroupVisibility: preferences.taskGroupVisibility,
       });
     }
@@ -39,6 +40,7 @@ export default function RootLayout() {
         language: state.language,
         displayDensity: state.displayDensity,
         onboardingStage: state.onboardingStage,
+        selectedTab: state.selectedTab,
         taskGroupVisibility: state.taskGroupVisibility,
       });
     });

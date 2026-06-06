@@ -56,6 +56,23 @@ export async function clearQueuedTaskMutations(tripId: string): Promise<void> {
   removeMmkvKey(queueKey(tripId));
 }
 
+export async function removeQueuedTaskMutation(params: {
+  tripId: string;
+  clientMutationId: string;
+}): Promise<QueuedTaskMutation[]> {
+  const queued = await readQueuedTaskMutations(params.tripId);
+  const next = queued.filter(
+    (mutation) => mutation.clientMutationId !== params.clientMutationId,
+  );
+  if (next.length) {
+    parseOfflineQueue(next);
+    writeJsonToMmkv(queueKey(params.tripId), next);
+  } else {
+    await clearQueuedTaskMutations(params.tripId);
+  }
+  return next;
+}
+
 export async function syncQueuedTaskMutations(
   tripId: string,
 ): Promise<OfflineTaskSyncResult> {

@@ -40,8 +40,7 @@ describe('TripComposer', () => {
     expect(screen.queryByText('山西省')).not.toBeInTheDocument();
   });
 
-  it('copies origin city to return city until the return city is manually specified', async () => {
-    const user = userEvent.setup();
+  it('copies origin city to return city until the return city is manually specified', () => {
     render(
       <AppProviders>
         <TripComposer onRequestTextChange={vi.fn()} />
@@ -51,14 +50,11 @@ describe('TripComposer', () => {
     const origin = screen.getByLabelText('出发城市');
     const returnCity = screen.getByLabelText('返回城市');
 
-    await user.clear(origin);
-    await user.type(origin, '北京市');
+    fireEvent.change(origin, { target: { value: '北京市' } });
     expect(returnCity).toHaveValue('北京市');
 
-    await user.clear(returnCity);
-    await user.type(returnCity, '上海市');
-    await user.clear(origin);
-    await user.type(origin, '广州市');
+    fireEvent.change(returnCity, { target: { value: '上海市' } });
+    fireEvent.change(origin, { target: { value: '广州市' } });
     expect(returnCity).toHaveValue('上海市');
   });
 

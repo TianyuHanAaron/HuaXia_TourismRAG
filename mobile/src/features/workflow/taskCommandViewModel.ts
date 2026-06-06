@@ -7,8 +7,10 @@ import type {
 } from '../../types/trip';
 import type { QueuedTaskMutation } from '../offline/offlineTaskQueue';
 import {
+  getOfflineSyncHumanCopy,
   syncStateForTask,
   syncStateLabel,
+  type OfflineSyncVisibleState,
   type OfflineTaskSyncState,
 } from '../offline/offlineSyncUi';
 import { reminderStatusForTask, type ReminderTone } from '../notifications/reminderUi';
@@ -22,12 +24,20 @@ export const taskCommandSyncStateOrder: TaskCommandSyncState[] = [
   'synced',
 ];
 
+export type TaskCommandSummaryMetric = {
+  key: 'now' | 'today' | 'blocked' | 'queued';
+  label: string;
+  value: number;
+  tone: 'default' | 'warning' | 'danger' | 'success';
+};
+
 export type TaskCommandCardModel = {
   task: TripTask;
   groupKey: TaskGroupKey;
   groupLabel: string;
   syncState: TaskCommandSyncState;
   syncLabel: string;
+  syncHumanCopy: string;
   primaryAction?: TripProviderAction;
   routeBundle?: RouteBundle | null;
   blockedReason?: string | null;
@@ -39,20 +49,30 @@ export type TaskCommandCardModel = {
   priorityLabel: string;
   reminderLabel: string;
   reminderTone: ReminderTone;
+  primaryActionLabel: string;
+  providerContextLabel: string | null;
+  shouldShowPrimaryProviderAction: boolean;
+  recoveryCopy: string | null;
 };
 
 export type TaskCommandGroupModel = {
   key: TaskGroupKey;
   label: string;
+  groupSummaryLabel: string;
   taskGroups: TaskCommandCardModel[];
   visible: boolean;
+  collapsedByDefault: boolean;
   emptyLabel: string;
 };
 
 export type TaskCommandViewModel = {
+  screenQuestion: string;
+  screenSubtitle: string;
+  summaryStrip: TaskCommandSummaryMetric[];
   taskGroups: TaskCommandGroupModel[];
   visibleTaskCount: number;
   queuedTaskCount: number;
+  globalEmptyLabel: string;
 };
 
 const GROUP_LABELS: Record<TaskGroupKey, string> = {
@@ -88,12 +108,8 @@ export function buildTaskCommandViewModel({
     ['blocked', command?.blocked ?? []],
     ['completed', command?.completed ?? []],
   ];
-  const taskGroups = groups.map(([key, tasks]) => ({
-    key,
-    label: GROUP_LABELS[key],
-    visible: taskGroupVisibility[key],
-    emptyLabel: `${GROUP_LABELS[key]}没有任务`,
-    taskGroups: tasks.map((task) =>
+  const taskGroups = groups.map(([key, tasks]) => {
+    const taskModels = tasks.map((task) =>
       buildTaskCardModel({
         task,
         groupKey: key,
@@ -105,14 +121,55 @@ export function buildTaskCommandViewModel({
         routeBundles,
         now,
       }),
-    ),
-  }));
+    );
+    return {
+      key,
+      label: GROUP_LABELS[key],
+      groupSummaryLabel: groupSummaryLabel(key, taskModels.length),
+      visible: taskGroupVisibility[key],
+      collapsedByDefault: collapsedByDefault(key, taskModels.length),
+      emptyLabel: groupEmptyLabel(key),
+      taskGroups: taskModels,
+    };
+  });
+  const nowCount = command?.now.length ?? 0;
+  const todayCount = command?.today.length ?? 0;
+  const blockedCount = command?.blocked.length ?? 0;
   return {
+    screenQuestion: '现在需要处理什么？',
+    screenSubtitle: '只显示当前可执行任务；完整行程留在时间线里。',
+    summaryStrip: [
+      {
+        key: 'now',
+        label: '现在',
+        value: nowCount,
+        tone: nowCount > 0 ? 'warning' : 'success',
+      },
+      {
+        key: 'today',
+        label: '今天',
+        value: todayCount,
+        tone: todayCount > 0 ? 'default' : 'success',
+      },
+      {
+        key: 'blocked',
+        label: '阻塞',
+        value: blockedCount,
+        tone: blockedCount > 0 ? 'danger' : 'success',
+      },
+      {
+        key: 'queued',
+        label: '待同步',
+        value: queuedTaskIds.size,
+        tone: queuedTaskIds.size > 0 ? 'warning' : 'success',
+      },
+    ],
     taskGroups,
     visibleTaskCount: taskGroups
       .filter((group) => group.visible)
       .reduce((count, group) => count + group.taskGroups.length, 0),
     queuedTaskCount: queuedTaskIds.size,
+    globalEmptyLabel: '现在没有必须处理的任务。',
   };
 }
 
@@ -144,14 +201,20 @@ function buildTaskCardModel({
     conflictTaskIds,
   });
   const reminderStatus = reminderStatusForTask(task);
+  const routeBundle = findRouteBundleForTask(task, primaryAction, routeBundles);
+  const shouldShowPrimaryProviderAction =
+    Boolean(primaryAction?.available) &&
+    primaryAction?.validation_status !== 'unavailable' &&
+    task.status !== 'blocked';
   return {
     task,
     groupKey,
     groupLabel,
     syncState,
     syncLabel: syncStateLabel(syncState),
+    syncHumanCopy: syncHumanCopy(syncState),
     primaryAction,
-    routeBundle: findRouteBundleForTask(task, primaryAction, routeBundles),
+    routeBundle,
     blockedReason: task.blocked_reason ?? null,
     isOverdue: isTaskOverdue(task, now),
     dueLabel: task.due_at ? `截止：${formatDueAt(task.due_at)}` : null,
@@ -161,7 +224,100 @@ function buildTaskCardModel({
     priorityLabel: priorityLabel(task.priority),
     reminderLabel: reminderStatus.label,
     reminderTone: reminderStatus.tone,
+    primaryActionLabel: primaryActionLabel(primaryAction, routeBundle),
+    providerContextLabel: providerContextLabel(primaryAction, routeBundle),
+    shouldShowPrimaryProviderAction,
+    recoveryCopy: recoveryCopy({ task, primaryAction, routeBundle, shouldShowPrimaryProviderAction }),
   };
+}
+
+function groupSummaryLabel(key: TaskGroupKey, count: number): string {
+  if (count === 0) {
+    if (key === 'now') {
+      return '现在没有必须处理的任务';
+    }
+    return `${GROUP_LABELS[key]}暂无任务`;
+  }
+  return `${GROUP_LABELS[key]} · ${count} 个任务`;
+}
+
+function groupEmptyLabel(key: TaskGroupKey): string {
+  if (key === 'now') {
+    return 'Nothing needs action right now. 现在没有必须处理的任务。';
+  }
+  return `${GROUP_LABELS[key]}没有任务。`;
+}
+
+function collapsedByDefault(key: TaskGroupKey, count: number): boolean {
+  if (count === 0) {
+    return true;
+  }
+  return key === 'upcoming' || key === 'completed';
+}
+
+function syncHumanCopy(syncState: TaskCommandSyncState): string {
+  return getOfflineSyncHumanCopy(visibleStateForSyncState(syncState), 'zh-CN').body;
+}
+
+function visibleStateForSyncState(
+  syncState: TaskCommandSyncState,
+): OfflineSyncVisibleState {
+  if (syncState === 'conflict') {
+    return 'needs_review';
+  }
+  return syncState;
+}
+
+function primaryActionLabel(
+  action: TripProviderAction | undefined,
+  routeBundle: RouteBundle | null,
+): string {
+  if (!action) {
+    return '查看详情';
+  }
+  if (routeBundle) {
+    return `打开已准备路线：${routeBundle.label}`;
+  }
+  return action.label;
+}
+
+function providerContextLabel(
+  action: TripProviderAction | undefined,
+  routeBundle: RouteBundle | null,
+): string | null {
+  if (!action) {
+    return null;
+  }
+  if (routeBundle) {
+    return `已准备 ${routeBundle.primary_provider} 路线 · ${routeBundle.label}`;
+  }
+  if (!action.available || action.validation_status === 'unavailable') {
+    return action.unavailable_reason ?? '这个服务商动作还缺少必要信息。';
+  }
+  return `${action.provider} · ${action.label}`;
+}
+
+function recoveryCopy({
+  task,
+  primaryAction,
+  routeBundle,
+  shouldShowPrimaryProviderAction,
+}: {
+  task: TripTask;
+  primaryAction?: TripProviderAction;
+  routeBundle: RouteBundle | null;
+  shouldShowPrimaryProviderAction: boolean;
+}): string | null {
+  if (task.status === 'blocked' && task.blocked_reason) {
+    return task.blocked_reason;
+  }
+  if (primaryAction && !shouldShowPrimaryProviderAction) {
+    return primaryAction.unavailable_reason ?? '这项动作需要补全信息后才能打开。';
+  }
+  if (primaryAction?.action_type === 'open_map_route' && !routeBundle) {
+    return '这条路线需要目的地后才能打开地图。';
+  }
+  return null;
 }
 
 function findRouteBundleForTask(

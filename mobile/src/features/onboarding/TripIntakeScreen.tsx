@@ -6,6 +6,7 @@ import { Controller, type Control, useForm } from 'react-hook-form';
 import { Button, Card, Chip, Divider, Text, TextInput } from '../../components/PaperControls';
 
 import { submitTravelFormJob } from '../../api/tourism';
+import { CommandCard, SectionHeader, StatusChip } from '../../components/HuaXiaDesignSystem';
 import { Screen } from '../../components/Screen';
 import {
   buildTravelFormRequest,
@@ -18,6 +19,13 @@ import {
   removeMmkvKey,
   writeJsonToMmkv,
 } from '../../storage/mmkvStorage';
+import {
+  buildTripIntakeSectionModels,
+  TRIP_INTAKE_DRAFT_SAFE_COPY_ZH,
+  TRIP_INTAKE_SAVE_DRAFT_COPY_ZH,
+  TRIP_INTAKE_SCREEN_QUESTION,
+  TRIP_INTAKE_SCREEN_QUESTION_ZH,
+} from './tripIntakeReviewUi';
 
 type Props = {
   onJobCreated?: (jobId: string) => void;
@@ -62,6 +70,7 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
   const [destinationInput, setDestinationInput] = useState('');
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [draftFeedback, setDraftFeedback] = useState<string | null>(null);
 
   const {
     control,
@@ -143,6 +152,16 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
     }
     return `${Math.floor((end - start) / 86_400_000) + 1} 天`;
   }, [watchedValues.startDate, watchedValues.endDate]);
+  const intakeSections = useMemo(
+    () =>
+      buildTripIntakeSectionModels({
+        durationLabel,
+        destinationCount: destinations.length,
+      }),
+    [destinations.length, durationLabel],
+  );
+  const [citySection, datesSection, budgetSection, interestsSection, serviceSection] =
+    intakeSections;
 
   function addDestination(value: string) {
     const text = value.trim();
@@ -177,6 +196,11 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
     });
   }
 
+  function saveDraft() {
+    writeJsonToMmkv(DRAFT_KEY, watchedValues);
+    setDraftFeedback(TRIP_INTAKE_SAVE_DRAFT_COPY_ZH);
+  }
+
   const onSubmit = handleSubmit((form) => {
     const effectiveForm: TripIntakeForm = {
       ...form,
@@ -191,12 +215,30 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
       style={styles.keyboardRoot}
     >
       <Screen
-        title="创建旅行"
-        subtitle="用结构化选项生成规划任务，选必需信息即可，其他偏好可以稍后补。"
+        title="创建旅行草稿"
+        subtitle="Tell HuaXia what kind of trip this should feel like. 先说旅行感觉和必要条件，细节可以稍后改。"
       >
+        <CommandCard tone="info" referencePattern="command_card" travelFlowMood="planning">
+          <SectionHeader
+            title={TRIP_INTAKE_SCREEN_QUESTION_ZH}
+            subtitle={`${TRIP_INTAKE_SCREEN_QUESTION} 现在只需要旅行的形状，不需要一次填完所有细节。`}
+            action={<StatusChip label="草稿阶段" tone="info" />}
+          />
+          <Text variant="bodyMedium">{TRIP_INTAKE_DRAFT_SAFE_COPY_ZH}</Text>
+          <Text variant="bodySmall" style={styles.muted}>
+            日期可以先保持灵活；只添加必须覆盖的地点，其他细节可以在草稿里慢慢调。
+          </Text>
+        </CommandCard>
+
         <Card>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">1. 城市和目的地</Text>
+            <View style={styles.sectionTitleRow}>
+              <Text variant="titleMedium">{citySection.title}</Text>
+              {citySection.statusLabel ? <Chip semanticTone="info">{citySection.statusLabel}</Chip> : null}
+            </View>
+            <Text variant="bodySmall" style={styles.muted}>
+              {citySection.helper}
+            </Text>
             <View style={styles.twoColumn}>
               <Controller
                 control={control}
@@ -241,6 +283,9 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
                 </Chip>
               ))}
             </View>
+            <Text variant="bodySmall" style={styles.muted}>
+              只添加必须覆盖的地点；推荐点会在草稿里给你替换空间。
+            </Text>
             <View style={styles.destinationInputRow}>
               <TextInput
                 mode="outlined"
@@ -267,9 +312,9 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
 
         <Card>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">2. 时间和同行人</Text>
+            <Text variant="titleMedium">{datesSection.title}</Text>
             <Text variant="bodySmall" style={styles.muted}>
-              {durationLabel}
+              {datesSection.helper}
             </Text>
             <View style={styles.twoColumn}>
               <ControlledTextInput
@@ -294,7 +339,10 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
 
         <Card>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">3. 偏好</Text>
+            <Text variant="titleMedium">{budgetSection.title}</Text>
+            <Text variant="bodySmall" style={styles.muted}>
+              {budgetSection.helper}
+            </Text>
             <ChoiceRow
               title="预算"
               value={watchedValues.budgetLevel ?? 'unknown'}
@@ -383,6 +431,11 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
                 )
               }
             />
+            <Divider />
+            <Text variant="titleMedium">{interestsSection.title}</Text>
+            <Text variant="bodySmall" style={styles.muted}>
+              {interestsSection.helper}
+            </Text>
             <Text variant="labelLarge">想要的体验</Text>
             <View style={styles.row}>
               {interestOptions.map(([value, label]) => (
@@ -400,7 +453,10 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
 
         <Card>
           <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium">4. 默认服务偏好</Text>
+            <Text variant="titleMedium">{serviceSection.title}</Text>
+            <Text variant="bodySmall" style={styles.muted}>
+              {serviceSection.helper}
+            </Text>
             <ChoiceRow
               title="地图"
               value={watchedValues.preferredMapProvider ?? 'unknown'}
@@ -476,25 +532,34 @@ export function TripIntakeScreen({ onJobCreated }: Props) {
         {createdJobId ? (
           <Card>
             <Card.Content style={styles.cardContent}>
-              <Text variant="titleMedium">规划任务已提交</Text>
+              <Text variant="titleMedium">正在生成可审批草稿</Text>
               <Text variant="bodyMedium">Job ID: {createdJobId}</Text>
               <Text variant="bodySmall" style={styles.muted}>
-                后续步骤会接入进度和 engagement UI，把结果转成可审批旅行草稿。
+                你可以先离开这个页面。批准草稿前，不会创建任务、提醒或服务跳转。
               </Text>
             </Card.Content>
           </Card>
         ) : null}
         <View style={styles.stickyActions}>
-          <Text variant="bodySmall" style={styles.muted}>
-            草稿会自动保存在本机。可选项不会阻止提交。
-          </Text>
+          {draftFeedback ? (
+            <Text variant="bodySmall" style={styles.success}>
+              {draftFeedback}
+            </Text>
+          ) : (
+            <Text variant="bodySmall" style={styles.muted}>
+              草稿会自动保存在本机。可选项不会阻止提交。
+            </Text>
+          )}
+          <Button mode="outlined" disabled={submitMutation.isPending} onPress={saveDraft}>
+            保存草稿
+          </Button>
           <Button
             mode="contained"
             loading={submitMutation.isPending}
             disabled={submitMutation.isPending}
             onPress={onSubmit}
           >
-            生成旅行方案
+            生成旅行草稿
           </Button>
         </View>
       </Screen>
@@ -654,6 +719,13 @@ const styles = StyleSheet.create({
   choiceGroup: {
     gap: 8,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   stickyActions: {
     gap: 8,
     paddingTop: 4,
@@ -664,5 +736,8 @@ const styles = StyleSheet.create({
   },
   muted: {
     color: '#6c7880',
+  },
+  success: {
+    color: '#067647',
   },
 });

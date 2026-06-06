@@ -2,6 +2,7 @@ import HourglassTopIcon from '@mui/icons-material/HourglassTop';
 import { Box, Chip, LinearProgress, Stack, Typography } from '@mui/material';
 
 import type { TravelJobStatusResponse } from '../../api/generated/model';
+import { getV6RecoveryCopy, v6PlanningProgressCopy } from '../../app/v6HciCopy';
 import { HuaxiaSurface } from '../../components/HuaxiaSurface';
 
 const stageLabels = {
@@ -42,13 +43,14 @@ export function JobProgressPanel({ job, language }: Props) {
   const stage = job.current_stage ?? job.status;
   const copy = stageLabels[language];
   const stageText = copy[stage as keyof typeof copy] ?? stage;
+  const progressCopy = v6PlanningProgressCopy[language];
   const title =
-    language === 'zh-CN'
-      ? `夏夏正在生成深度方案 · ${percent}% · ${stageText}`
-      : `Xiaxia is building your trip · ${percent}% · ${stageText}`;
+    job.status === 'failed'
+      ? `${progressCopy.failedTitle} · ${percent}% · ${stageText}`
+      : `${progressCopy.titlePrefix} · ${percent}% · ${stageText}`;
 
   return (
-    <HuaxiaSurface className="animated-presence" sx={{ p: 2 }}>
+    <HuaxiaSurface className="animated-presence" sx={{ p: 2 }} v6Pattern="confidence_chip">
       <Stack spacing={1.2}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}>
           <Typography sx={{ fontWeight: 850 }}>{title}</Typography>
@@ -64,7 +66,7 @@ export function JobProgressPanel({ job, language }: Props) {
         </Box>
         {job.error ? (
           <Typography color="error" variant="body2">
-            {job.error}
+            {getV6RecoveryCopy('planning_failed', language)} {progressCopy.retryHint}
           </Typography>
         ) : null}
       </Stack>

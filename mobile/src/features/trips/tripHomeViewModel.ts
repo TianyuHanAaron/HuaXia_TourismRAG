@@ -1,9 +1,22 @@
 import type {
+  SafetyCardResponse,
   Trip,
   TripReliabilitySnapshotResponse,
   TripSummaryResponse,
   TripTask,
 } from '../../types/trip';
+import { buildSafetyTripHomeRiskReminder } from '../safety/safetyUi';
+import {
+  deriveV6MobileTravelFlowMood,
+  type V6MobileTravelFlowMood,
+} from '../v6/v6TravelFlowMood';
+import {
+  buildV6ActiveTripTabHref,
+  type V6ActiveTripTab,
+} from '../v6/v6NavigationShell';
+
+const TRIP_HOME_CONTEXTUAL_ALERT_POLICY =
+  'Trip Home 只显示一个最重要提醒 / one highest-priority contextual alert.';
 
 export type TripHomeAlert = {
   title: string;
@@ -19,11 +32,29 @@ export type TripHomeNextBestAction = {
   taskId?: string | null;
 };
 
+export type TripHomeAction = {
+  label: string;
+  href: string;
+  tab?: V6ActiveTripTab;
+  semanticTone: 'primary' | 'secondary' | 'muted' | 'warning' | 'success';
+};
+
+export type TripHomeReadinessMetric = {
+  key: 'today' | 'open' | 'blocked' | 'overdue';
+  label: string;
+  value: number;
+  tone: 'default' | 'warning' | 'danger' | 'success';
+};
+
 export type TripHomeViewModel = {
   tripId: string;
   title: string;
   destination: string;
   status: string;
+  travelFlowMood: V6MobileTravelFlowMood;
+  phaseQuestion: string;
+  phasePrimaryAction: string;
+  phaseSecondaryFocus: string;
   currentPhaseTitle: string | null;
   progress: number;
   openTaskCount: number;
@@ -31,6 +62,11 @@ export type TripHomeViewModel = {
   overdueTaskCount: number;
   blockedTaskCount: number;
   nextBestAction: TripHomeNextBestAction;
+  primaryCta: TripHomeAction;
+  secondaryActions: TripHomeAction[];
+  readinessMetrics: TripHomeReadinessMetric[];
+  progressLabel: string;
+  syncStatusLabel: string | null;
   contextualAlert: TripHomeAlert | null;
   reliabilityLabel: string | null;
   isWarmCache: boolean;
@@ -44,8 +80,10 @@ export function buildTripHomeViewModel({
   subscriptionWarning,
   reminderMessage,
   reliability,
+  safetyCard,
   safetyOfflineAvailable,
   safetyNumbers,
+  language = 'zh-CN',
 }: {
   trip?: Trip | null;
   summary?: TripSummaryResponse | null;
@@ -53,8 +91,10 @@ export function buildTripHomeViewModel({
   subscriptionWarning?: string | null;
   reminderMessage?: string | null;
   reliability?: TripReliabilitySnapshotResponse | null;
+  safetyCard?: SafetyCardResponse | null;
   safetyOfflineAvailable?: boolean;
   safetyNumbers?: string[];
+  language?: 'zh-CN' | 'en';
 }): TripHomeViewModel | null {
   if (!trip && !summary) {
     return null;
@@ -84,6 +124,7 @@ export function buildTripHomeViewModel({
     subscriptionWarning,
     reminderMessage,
     reliability,
+    safetyCard,
     safetyOfflineAvailable,
     safetyNumbers,
   });
@@ -92,12 +133,41 @@ export function buildTripHomeViewModel({
     nextTask,
     urgency: effectiveSummary.next_task_urgency,
   });
+  const travelFlowMood = deriveV6MobileTravelFlowMood({
+    tripStatus: effectiveSummary.status,
+    currentPhaseType: effectiveSummary.current_phase?.phase_type ?? null,
+    nextTaskUrgency: effectiveSummary.next_task_urgency,
+    language,
+  });
+  const primaryCta = buildPrimaryCta({
+    tripId: effectiveSummary.trip_id,
+    status: effectiveSummary.status,
+    nextTask,
+    nextTaskUrgency: effectiveSummary.next_task_urgency,
+    language,
+  });
+  const secondaryActions = buildSecondaryActions({
+    tripId: effectiveSummary.trip_id,
+    status: effectiveSummary.status,
+    language,
+  });
+  const readinessMetrics = buildReadinessMetrics({
+    todayTaskCount: effectiveSummary.today_task_count,
+    openTaskCount,
+    blockedTaskCount: effectiveSummary.blocked_task_count,
+    overdueTaskCount: effectiveSummary.overdue_task_count,
+    language,
+  });
 
   return {
     tripId: effectiveSummary.trip_id,
     title: effectiveSummary.title,
     destination: effectiveSummary.destination ?? trip?.draft.destination ?? '当前旅行',
     status: effectiveSummary.status,
+    travelFlowMood,
+    phaseQuestion: travelFlowMood.phaseQuestion,
+    phasePrimaryAction: travelFlowMood.phasePrimaryAction,
+    phaseSecondaryFocus: travelFlowMood.secondaryFocus,
     currentPhaseTitle: effectiveSummary.current_phase?.title ?? null,
     progress,
     openTaskCount,
@@ -105,11 +175,202 @@ export function buildTripHomeViewModel({
     overdueTaskCount: effectiveSummary.overdue_task_count,
     blockedTaskCount: effectiveSummary.blocked_task_count,
     nextBestAction,
+    primaryCta,
+    secondaryActions,
+    readinessMetrics,
+    progressLabel: progressLabel(progress, language),
+    syncStatusLabel: buildTripHomeSyncLabel({
+      updatedAt: effectiveSummary.updated_at,
+      isWarmCache,
+      language,
+    }),
     contextualAlert,
     reliabilityLabel: reliability ? reliabilityLabel(reliability) : null,
     isWarmCache,
     updatedAt: effectiveSummary.updated_at ?? null,
   };
+}
+
+function buildPrimaryCta({
+  tripId,
+  status,
+  nextTask,
+  nextTaskUrgency,
+  language,
+}: {
+  tripId: string;
+  status: string;
+  nextTask: TripTask | null;
+  nextTaskUrgency: TripSummaryResponse['next_task_urgency'];
+  language: 'zh-CN' | 'en';
+}): TripHomeAction {
+  if (status === 'draft' || status === 'reviewing') {
+    return {
+      label: language === 'en' ? 'Approve trip and create checklist' : '审批行程并创建清单',
+      href: `/trips/${tripId}/review`,
+      semanticTone: 'primary',
+    };
+  }
+  if (status === 'completed') {
+    return {
+      label: language === 'en' ? 'Review trip documents' : '查看旅行文件',
+      href: buildV6ActiveTripTabHref(tripId, 'documents'),
+      tab: 'documents',
+      semanticTone: 'success',
+    };
+  }
+  if (status === 'archived' || status === 'cancelled') {
+    return {
+      label: language === 'en' ? 'Review timeline' : '查看只读时间线',
+      href: buildV6ActiveTripTabHref(tripId, 'timeline'),
+      tab: 'timeline',
+      semanticTone: 'muted',
+    };
+  }
+  if (nextTask?.task_id) {
+    return {
+      label:
+        nextTaskUrgency === 'blocked'
+          ? language === 'en'
+            ? 'Review blocker'
+            : '查看阻塞原因'
+          : language === 'en'
+            ? 'Handle next step'
+            : '处理下一步',
+      href: `/trips/${tripId}/tasks/${nextTask.task_id}`,
+      semanticTone: nextTaskUrgency === 'blocked' ? 'warning' : 'primary',
+    };
+  }
+  return {
+    label: language === 'en' ? 'Review next phase' : '查看下一阶段',
+    href: buildV6ActiveTripTabHref(tripId, 'timeline'),
+    tab: 'timeline',
+    semanticTone: 'secondary',
+  };
+}
+
+function buildSecondaryActions({
+  tripId,
+  status,
+  language,
+}: {
+  tripId: string;
+  status: string;
+  language: 'zh-CN' | 'en';
+}): TripHomeAction[] {
+  const labels = {
+    timeline: language === 'en' ? 'Timeline' : '时间线',
+    tasks: language === 'en' ? 'Tasks' : '任务',
+    documents: language === 'en' ? 'Documents' : '文件',
+    safety: language === 'en' ? 'Safety' : '安全',
+    reminders: language === 'en' ? 'Reminders' : '提醒',
+    settings: language === 'en' ? 'Settings' : '设置',
+  };
+  const isReadOnly = status === 'archived' || status === 'cancelled';
+  return [
+    {
+      label: labels.timeline,
+      href: buildV6ActiveTripTabHref(tripId, 'timeline'),
+      tab: 'timeline',
+      semanticTone: 'secondary',
+    },
+    {
+      label: labels.tasks,
+      href: buildV6ActiveTripTabHref(tripId, 'tasks'),
+      tab: 'tasks',
+      semanticTone: isReadOnly ? 'muted' : 'secondary',
+    },
+    {
+      label: labels.documents,
+      href: buildV6ActiveTripTabHref(tripId, 'documents'),
+      tab: 'documents',
+      semanticTone: 'secondary',
+    },
+    {
+      label: labels.safety,
+      href: `/trips/${tripId}/safety`,
+      semanticTone: 'secondary',
+    },
+    {
+      label: labels.reminders,
+      href: `/trips/${tripId}/modals/reminders/settings`,
+      semanticTone: isReadOnly ? 'muted' : 'secondary',
+    },
+    {
+      label: labels.settings,
+      href: buildV6ActiveTripTabHref(tripId, 'settings'),
+      tab: 'settings',
+      semanticTone: 'muted',
+    },
+  ];
+}
+
+function buildReadinessMetrics({
+  todayTaskCount,
+  openTaskCount,
+  blockedTaskCount,
+  overdueTaskCount,
+  language,
+}: {
+  todayTaskCount: number;
+  openTaskCount: number;
+  blockedTaskCount: number;
+  overdueTaskCount: number;
+  language: 'zh-CN' | 'en';
+}): TripHomeReadinessMetric[] {
+  return [
+    {
+      key: 'today',
+      label: language === 'en' ? 'Today' : '今天',
+      value: todayTaskCount,
+      tone: todayTaskCount > 0 ? 'default' : 'success',
+    },
+    {
+      key: 'open',
+      label: language === 'en' ? 'Open' : '待办',
+      value: openTaskCount,
+      tone: openTaskCount > 0 ? 'default' : 'success',
+    },
+    {
+      key: 'blocked',
+      label: language === 'en' ? 'Blocked' : '阻塞',
+      value: blockedTaskCount,
+      tone: blockedTaskCount > 0 ? 'danger' : 'success',
+    },
+    {
+      key: 'overdue',
+      label: language === 'en' ? 'Overdue' : '逾期',
+      value: overdueTaskCount,
+      tone: overdueTaskCount > 0 ? 'danger' : 'success',
+    },
+  ];
+}
+
+function progressLabel(progress: number, language: 'zh-CN' | 'en'): string {
+  const percent = Math.round(progress * 100);
+  return language === 'en' ? `${percent}% under control` : `${percent}% 已纳入执行`;
+}
+
+function buildTripHomeSyncLabel({
+  updatedAt,
+  isWarmCache,
+  language,
+}: {
+  updatedAt?: string | null;
+  isWarmCache: boolean;
+  language: 'zh-CN' | 'en';
+}): string | null {
+  if (isWarmCache) {
+    return language === 'en'
+      ? 'Showing saved trip. It will refresh when online.'
+      : '正在显示已保存旅行，联网后会自动刷新。';
+  }
+  if (!updatedAt) {
+    return null;
+  }
+  return language === 'en'
+    ? `Synced ${formatUpdatedAt(updatedAt, language)}`
+    : `已同步 ${formatUpdatedAt(updatedAt, language)}`;
 }
 
 function buildFallbackSummary(trip: Trip): TripSummaryResponse {
@@ -145,6 +406,7 @@ function buildContextualAlert({
   subscriptionWarning,
   reminderMessage,
   reliability,
+  safetyCard,
   safetyOfflineAvailable,
   safetyNumbers = [],
 }: {
@@ -154,9 +416,13 @@ function buildContextualAlert({
   subscriptionWarning?: string | null;
   reminderMessage?: string | null;
   reliability?: TripReliabilitySnapshotResponse | null;
+  safetyCard?: SafetyCardResponse | null;
   safetyOfflineAvailable?: boolean;
   safetyNumbers?: string[];
 }): TripHomeAlert | null {
+  void TRIP_HOME_CONTEXTUAL_ALERT_POLICY;
+  const safetyReminder = buildSafetyTripHomeRiskReminder({ safetyCard });
+  // one highest-priority contextual alert; safety can occupy the same single card, never an alert feed.
   if (
     reliability?.overall_status === 'critical' ||
     reliability?.overall_status === 'degraded'
@@ -197,6 +463,9 @@ function buildContextualAlert({
       body: summary.urgent_warnings[0],
       tone: 'warning',
     };
+  }
+  if (safetyReminder) {
+    return safetyReminder;
   }
   if (subscriptionWarning) {
     return {
@@ -307,6 +576,19 @@ function formatDueAt(value: string): string {
     return value;
   }
   return date.toLocaleString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatUpdatedAt(value: string, language: 'zh-CN' | 'en'): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString(language, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

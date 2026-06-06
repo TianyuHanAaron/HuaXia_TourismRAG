@@ -488,6 +488,10 @@ export async function approveTrip(tripId: string): Promise<TripResponse> {
   return apiPost(`/trips/${tripId}/approve`, {}, TripResponseSchema);
 }
 
+export async function archiveTrip(tripId: string): Promise<TripResponse> {
+  return apiPost(`/trips/${tripId}/archive`, {}, TripResponseSchema);
+}
+
 export async function completeTask(tripId: string, taskId: string): Promise<TripResponse> {
   return patchTask(tripId, taskId, { status: 'completed' });
 }

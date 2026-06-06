@@ -9,11 +9,15 @@ describe('Huaxia shared UI components', () => {
   it('renders a named elevated surface', () => {
     render(
       <AppProviders>
-        <HuaxiaSurface ariaLabel="trip panel">content</HuaxiaSurface>
+        <HuaxiaSurface ariaLabel="trip panel" v6Pattern="command_card">
+          content
+        </HuaxiaSurface>
       </AppProviders>,
     );
 
-    expect(screen.getByLabelText('trip panel')).toHaveTextContent('content');
+    const surface = screen.getByLabelText('trip panel');
+    expect(surface).toHaveTextContent('content');
+    expect(surface).toHaveAttribute('data-v6-pattern', 'command_card');
   });
 
   it('renders section title and helper copy', () => {

@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import {
   FlatList,
   type ListRenderItem,
@@ -17,6 +17,12 @@ type VirtualizedCommandListProps<T> = {
   empty?: ReactElement | null;
   contentPadding?: boolean;
   style?: ViewStyle;
+  performanceLabel?: string;
+  accessibilityLabel?: string;
+  initialNumToRender?: number;
+  maxToRenderPerBatch?: number;
+  windowSize?: number;
+  onFirstRowsRendered?: (label: string, visibleCount: number, totalCount: number) => void;
 };
 
 export function VirtualizedCommandList<T>({
@@ -28,26 +34,41 @@ export function VirtualizedCommandList<T>({
   empty,
   contentPadding = true,
   style,
+  performanceLabel = 'virtualized_command_list',
+  accessibilityLabel,
+  initialNumToRender = 8,
+  maxToRenderPerBatch = 8,
+  windowSize = 7,
+  onFirstRowsRendered,
 }: VirtualizedCommandListProps<T>) {
+  useEffect(() => {
+    onFirstRowsRendered?.(
+      performanceLabel,
+      Math.min(data.length, initialNumToRender),
+      data.length,
+    );
+  }, [data.length, initialNumToRender, onFirstRowsRendered, performanceLabel]);
+
   return (
     <FlatList
+      accessibilityLabel={accessibilityLabel ?? performanceLabel}
       data={data}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       ListHeaderComponent={header ?? null}
       ListFooterComponent={footer ?? null}
       ListEmptyComponent={empty ?? null}
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.content,
         contentPadding ? styles.contentPadding : null,
         !data.length ? styles.emptyContent : null,
       ]}
-      initialNumToRender={8}
-      maxToRenderPerBatch={8}
+      initialNumToRender={initialNumToRender}
+      maxToRenderPerBatch={maxToRenderPerBatch}
       updateCellsBatchingPeriod={50}
-      windowSize={7}
+      windowSize={windowSize}
       removeClippedSubviews
-      keyboardShouldPersistTaps="handled"
       style={[styles.root, style]}
     />
   );

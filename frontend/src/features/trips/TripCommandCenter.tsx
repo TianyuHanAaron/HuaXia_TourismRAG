@@ -4,6 +4,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LaunchIcon from '@mui/icons-material/Launch';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import RouteIcon from '@mui/icons-material/Route';
+import SecurityIcon from '@mui/icons-material/Security';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import {
   Alert,
   Box,
@@ -31,20 +33,27 @@ import {
   useApproveTripDraftTripsTripIdApprovePost,
   useArchiveTripTripsTripIdArchivePost,
   useExportTripCalendarEventsTripsTripIdCalendarExportPost,
+  useGetSupportOperationsConsoleSupportOperationsConsoleGet,
   useGetTripCalendarEventsTripsTripIdCalendarEventsGet,
   useGetTripSafetyCardTripsTripIdSafetyCardGet,
   useLaunchTripProviderActionTripsTripIdProviderActionsActionIdLaunchPost,
+  useListProviderHealthTripsProviderHealthGet,
   useListTripsTripsGet,
   usePatchTripTaskTripsTripIdTasksTaskIdPatch,
 } from '../../api/generated/huaxia';
-import type { Trip, TripTask } from '../../api/generated/model';
+import type { Trip, TripProviderAction, TripTask } from '../../api/generated/model';
 import { apiClient } from '../../api/httpClient';
 import { HuaxiaActionButton } from '../../components/HuaxiaActionButton';
 import { HuaxiaSectionHeader } from '../../components/HuaxiaSectionHeader';
 import { HuaxiaSurface } from '../../components/HuaxiaSurface';
+import { HuaxiaProgressiveList } from '../../components/huaxia/HuaxiaProgressiveList';
+import { getTripLengthCategory } from '../../app/v6PerformanceRendering';
+
+export type WebCommandCenterRole = 'traveler' | 'support' | 'admin';
 
 type Props = {
   language: 'zh-CN' | 'en';
+  role?: WebCommandCenterRole;
 };
 
 type PaywallConfig = {
@@ -62,6 +71,29 @@ const copy = {
   'zh-CN': {
     title: '旅行指挥中心',
     description: '把已生成的行程变成可执行清单：审核、批准、订票、住宿、出发、每日行动和返程。',
+    travelerQuestion: '哪些旅行需要关注？',
+    supportTitle: '支持恢复控制台',
+    supportDescription: '仅在有授权原因和访问范围时查看恢复信息；旅客界面继续使用可理解的提示。',
+    supportAccessOff: '该用户的支持访问尚未开启。',
+    openSupportView: '打开支持视图',
+    auditTimeline: '旅行审计时间线',
+    failedJobRecovery: '失败任务恢复',
+    providerDiagnostic: '服务商动作诊断',
+    privacyMetadata: '隐私安全文件元数据',
+    showTravelerWording: '显示旅客文案',
+    recoveryConsequence: '此恢复操作将更新任务状态。',
+    retryJob: '重试规划任务',
+    adminTitle: '运营控制台',
+    adminDescription: '查看服务商健康、任务队列、质量指标和发布状态；敏感内容默认不可见。',
+    providerHealth: '服务商健康',
+    jobOperations: '任务运营',
+    qualityMonitor: '质量监控',
+    rolloutMonitor: '发布监控',
+    noSecrets: '此控制台不显示服务商密钥。',
+    activeTrips: '活跃旅行',
+    blockedTasks: '阻塞任务',
+    providerIssues: '服务商需检查',
+    documentIssues: '敏感文件仅元数据',
     empty: '暂无已保存的旅行。生成行程后可以创建旅行草稿。',
     approve: '批准并生成清单',
     approved: '已生成执行清单',
@@ -90,10 +122,37 @@ const copy = {
     safetyCard: '安全与应急',
     safetyCardDescription: '离线可读的保守安全卡；紧急情况优先联系当地应急服务。',
     staleWarning: '时效提醒',
+    showingTrips: (visible: number, total: number) => `先显示 ${visible}/${total} 个旅行，避免一次渲染过多详情。`,
+    loadMoreTrips: '加载更多旅行',
   },
   en: {
     title: 'Trip Command Center',
     description: 'Turn generated itineraries into executable checklists: review, approve, book, prepare, travel, and return.',
+    travelerQuestion: 'Which trips need attention?',
+    supportTitle: 'Support recovery console',
+    supportDescription:
+      'Inspect recovery state only after access and reason are confirmed; traveler wording stays plain and recoverable.',
+    supportAccessOff: 'Support access is off for this user.',
+    openSupportView: 'Open support view',
+    auditTimeline: 'Trip audit timeline',
+    failedJobRecovery: 'Failed job recovery',
+    providerDiagnostic: 'Provider action diagnostic',
+    privacyMetadata: 'Privacy-safe document metadata',
+    showTravelerWording: 'Show traveler wording',
+    recoveryConsequence: 'This recovery action will update the task status.',
+    retryJob: 'Retry planning job',
+    adminTitle: 'Operations console',
+    adminDescription:
+      'Monitor provider health, job operations, quality, and rollout state without exposing sensitive data.',
+    providerHealth: 'Provider health',
+    jobOperations: 'Job operations',
+    qualityMonitor: 'Quality monitor',
+    rolloutMonitor: 'Rollout monitor',
+    noSecrets: 'No provider secrets are shown here.',
+    activeTrips: 'Active trips',
+    blockedTasks: 'Blocked tasks',
+    providerIssues: 'Provider actions need review',
+    documentIssues: 'Sensitive docs metadata only',
     empty: 'No saved trips yet. Create a trip draft after generating an itinerary.',
     approve: 'Approve and create checklist',
     approved: 'Execution checklist ready',
@@ -122,10 +181,12 @@ const copy = {
     safetyCard: 'Safety and Emergency',
     safetyCardDescription: 'Offline-readable conservative safety card; contact local emergency services first in urgent situations.',
     staleWarning: 'Freshness note',
+    showingTrips: (visible: number, total: number) => `Showing ${visible}/${total} trips first so action cards stay responsive.`,
+    loadMoreTrips: 'Load more trips',
   },
 };
 
-export function TripCommandCenter({ language }: Props) {
+export function TripCommandCenter({ language, role = 'traveler' }: Props) {
   const text = copy[language];
   const query = useListTripsTripsGet();
   const paywallQuery = useQuery({
@@ -135,16 +196,38 @@ export function TripCommandCenter({ language }: Props) {
       return response.data;
     },
   });
-  const trips = query.data?.trips ?? [];
+  const trips = useMemo(() => query.data?.trips ?? [], [query.data?.trips]);
+  const summary = useMemo(() => buildCommandCenterSummary(trips), [trips]);
+  const tripListPerformanceDetail = useMemo(
+    () => ({
+      total_count: trips.length,
+      trip_length_category: getTripLengthCategory(Math.max(...trips.map((trip) => trip.phases?.length ?? 0), 0)),
+      role,
+    }),
+    [role, trips],
+  );
+  const header =
+    role === 'support'
+      ? { eyebrow: language === 'zh-CN' ? '支持恢复' : 'Support Recovery', title: text.supportTitle, description: text.supportDescription }
+      : role === 'admin'
+        ? { eyebrow: language === 'zh-CN' ? '运营' : 'Operations', title: text.adminTitle, description: text.adminDescription }
+        : { eyebrow: language === 'zh-CN' ? '执行层' : 'Execution Layer', title: text.title, description: text.description };
 
   return (
     <HuaxiaSurface className="trip-command-center animated-presence">
       <Stack spacing={2.5}>
         <HuaxiaSectionHeader
-          eyebrow={language === 'zh-CN' ? '执行层' : 'Execution Layer'}
-          title={text.title}
-          description={text.description}
+          eyebrow={header.eyebrow}
+          title={header.title}
+          description={header.description}
         />
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+          <Chip size="small" color="primary" variant="outlined" label={text.travelerQuestion} />
+          <Chip size="small" label={`${text.activeTrips}: ${summary.activeTrips}`} />
+          <Chip size="small" label={`${text.blockedTasks}: ${summary.blockedTasks}`} />
+          <Chip size="small" label={`${text.providerIssues}: ${summary.providerIssues}`} />
+          <Chip size="small" label={`${text.documentIssues}: ${summary.documentIssues}`} />
+        </Stack>
         {paywallQuery.data ? (
           <Alert severity="info">
             <Typography sx={{ fontWeight: 900 }}>
@@ -184,14 +267,202 @@ export function TripCommandCenter({ language }: Props) {
         {!query.isLoading && trips.length === 0 ? (
           <Alert severity="info">{text.empty}</Alert>
         ) : null}
-        <Stack spacing={2}>
-          {trips.map((trip) => (
-            <TripCard key={trip.trip_id} trip={trip} language={language} />
-          ))}
-        </Stack>
+        {trips.length > 0 ? (
+          <HuaxiaProgressiveList
+            data={trips}
+            keyExtractor={(trip) => trip.trip_id}
+            listLabel={language === 'zh-CN' ? '旅行列表' : 'Trip list'}
+            loadMoreLabel={text.loadMoreTrips}
+            showingLabel={text.showingTrips}
+            performanceDetail={tripListPerformanceDetail}
+            renderItem={(trip) => <TripCard trip={trip} language={language} />}
+          />
+        ) : null}
+        {role === 'support' ? <SupportRecoveryPanel trips={trips} language={language} /> : null}
+        {role === 'admin' ? <AdminOperationsPanel language={language} /> : null}
       </Stack>
     </HuaxiaSurface>
   );
+}
+
+function buildCommandCenterSummary(trips: Trip[]) {
+  const activeTrips = trips.filter((trip) => !['archived', 'cancelled', 'completed'].includes(trip.status ?? '')).length;
+  const blockedTasks = trips.reduce(
+    (count, trip) => count + (trip.tasks ?? []).filter((task) => task.status === 'blocked').length,
+    0,
+  );
+  const providerIssues = trips.reduce(
+    (count, trip) =>
+      count +
+      (trip.provider_actions ?? []).filter(
+        (action) => !action.available || ['unavailable', 'needs_fallback'].includes(action.validation_status ?? ''),
+      ).length,
+    0,
+  );
+  const documentIssues = trips.reduce(
+    (count, trip) => count + (trip.documents ?? []).filter((document) => document.sensitive || document.prompt_excluded).length,
+    0,
+  );
+
+  return { activeTrips, blockedTasks, providerIssues, documentIssues };
+}
+
+function SupportRecoveryPanel({ trips, language }: { trips: Trip[]; language: 'zh-CN' | 'en' }) {
+  const text = copy[language];
+  const action = findFirstProviderIssue(trips);
+  const task = trips.flatMap((trip) => trip.tasks ?? []).find((item) => item.blocked_reason);
+  const travelerWording =
+    task?.blocked_reason ??
+    action?.unavailable_reason ??
+    (language === 'zh-CN' ? '此操作需要补充目的地后才能打开。' : 'This route needs a destination before opening maps.');
+  const internalDiagnostic = action
+    ? `${language === 'zh-CN' ? '服务商动作校验失败' : 'Provider action validation failed'}: ${lowerFirst(
+        action.validation_errors?.[0] ?? action.unavailable_reason ?? 'Missing launch context.',
+      )}`
+    : language === 'zh-CN'
+      ? '暂无服务商动作诊断。'
+      : 'No provider action diagnostic yet.';
+
+  return (
+    <HuaxiaSurface v6Pattern="recovery_action" ariaLabel={text.supportTitle} sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack spacing={2}>
+        <Alert severity="warning">
+          <Typography sx={{ fontWeight: 900 }}>{text.supportAccessOff}</Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            {language === 'zh-CN'
+              ? '开启支持会话前，需要记录原因并确认可查看范围。'
+              : 'Record a reason and confirm the visibility scope before opening a support session.'}
+          </Typography>
+        </Alert>
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+          <HuaxiaActionButton startIcon={<SupportAgentIcon />} variant="outlined">
+            {text.openSupportView}
+          </HuaxiaActionButton>
+          <HuaxiaActionButton startIcon={<RouteIcon />} variant="outlined">
+            {text.retryJob}
+          </HuaxiaActionButton>
+        </Stack>
+        <Stack
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+            gap: 1.5,
+          }}
+        >
+          <OperatorDiagnosticCard title={text.auditTimeline} value={`${trips.flatMap((trip) => trip.audit_events ?? []).length}`} />
+          <OperatorDiagnosticCard title={text.failedJobRecovery} value={language === 'zh-CN' ? '可安全重试' : 'Safe retry review'} />
+          <OperatorDiagnosticCard title={text.providerDiagnostic} value={internalDiagnostic} />
+          <OperatorDiagnosticCard title={text.privacyMetadata} value={language === 'zh-CN' ? '仅显示元数据' : 'Metadata only'} />
+        </Stack>
+        <Box>
+          <Chip size="small" color="primary" variant="outlined" label={text.showTravelerWording} />
+          <Typography sx={{ mt: 1, fontWeight: 900 }}>{travelerWording}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+            {internalDiagnostic}
+          </Typography>
+        </Box>
+        <Alert severity="info">{text.recoveryConsequence}</Alert>
+      </Stack>
+    </HuaxiaSurface>
+  );
+}
+
+function AdminOperationsPanel({ language }: { language: 'zh-CN' | 'en' }) {
+  const text = copy[language];
+  const operationsQuery = useGetSupportOperationsConsoleSupportOperationsConsoleGet();
+  const providerHealthQuery = useListProviderHealthTripsProviderHealthGet();
+  const overview = operationsQuery.data?.overview;
+  const panels = operationsQuery.data?.panels ?? [];
+  const providers = providerHealthQuery.data?.snapshots ?? [];
+
+  return (
+    <HuaxiaSurface v6Pattern="operational_group" ariaLabel={text.adminTitle} sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack spacing={2}>
+        <Alert severity="info" icon={<SecurityIcon />}>
+          {text.noSecrets}
+        </Alert>
+        <Stack
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr))' },
+            gap: 1.25,
+          }}
+        >
+          <OperatorDiagnosticCard title={text.activeTrips} value={`${overview?.active_trip_count ?? 0}`} />
+          <OperatorDiagnosticCard title={text.providerHealth} value={`${overview?.provider_unavailable_count ?? 0}`} />
+          <OperatorDiagnosticCard title={text.jobOperations} value={`${overview?.failed_workflow_count ?? 0}`} />
+          <OperatorDiagnosticCard title={text.qualityMonitor} value={`${overview?.support_audit_event_count ?? 0}`} />
+        </Stack>
+        <Stack spacing={1.25}>
+          <Typography sx={{ fontWeight: 900 }}>{text.providerHealth}</Typography>
+          {panels.map((panel) => (
+            <Box
+              key={panel.panel_key}
+              sx={{
+                border: '1px solid rgba(31, 42, 51, 0.12)',
+                borderRadius: 2,
+                p: 1.5,
+              }}
+            >
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between' }}>
+                <Typography sx={{ fontWeight: 900 }}>{panel.title}</Typography>
+                <Chip size="small" color={panel.status === 'critical' ? 'error' : 'warning'} label={panel.status} />
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                {panel.primary_metric_label}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 0.75 }}>
+                {panel.description}
+              </Typography>
+            </Box>
+          ))}
+          {providers.map((provider) => (
+            <Box key={provider.provider_id} sx={{ borderLeft: '3px solid #2f7d80', pl: 1.25 }}>
+              <Typography sx={{ fontWeight: 900 }}>
+                {provider.provider_id} · {provider.health_status}
+              </Typography>
+              {provider.message ? (
+                <Typography variant="body2" color="text.secondary">
+                  {provider.message}
+                </Typography>
+              ) : null}
+            </Box>
+          ))}
+        </Stack>
+        <Typography variant="body2" color="text.secondary">
+          {text.rolloutMonitor}: V6 web/mobile UI flags stay separate from support recovery actions.
+        </Typography>
+      </Stack>
+    </HuaxiaSurface>
+  );
+}
+
+function OperatorDiagnosticCard({ title, value }: { title: string; value: string }) {
+  return (
+    <Box
+      sx={{
+        border: '1px solid rgba(31, 42, 51, 0.12)',
+        borderRadius: 2,
+        p: 1.5,
+        bgcolor: 'rgba(255,255,255,0.72)',
+      }}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 900, textTransform: 'uppercase' }}>
+        {title}
+      </Typography>
+      <Typography sx={{ mt: 0.75, fontWeight: 900, lineHeight: 1.35 }}>{value}</Typography>
+    </Box>
+  );
+}
+
+function findFirstProviderIssue(trips: Trip[]): TripProviderAction | undefined {
+  return trips
+    .flatMap((trip) => trip.provider_actions ?? [])
+    .find((action) => !action.available || action.validation_errors?.length || action.unavailable_reason);
+}
+
+function lowerFirst(value: string) {
+  return value ? `${value.charAt(0).toLocaleLowerCase()}${value.slice(1)}` : value;
 }
 
 function TripCard({ trip, language }: { trip: Trip; language: 'zh-CN' | 'en' }) {

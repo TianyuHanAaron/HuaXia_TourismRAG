@@ -109,6 +109,25 @@ describe('App SSE job stream', () => {
     expect(queryEnabled).toBe(false);
   });
 
+  it('uses the V6 desktop planning shell framing on the first screen', () => {
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Trip planning workspace' })).toBeInTheDocument();
+    expect(screen.getByText('Create the plan, inspect the evidence, approve the checklist.')).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Planning workspace navigation' })).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: 'Planning workspace' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Planning evidence and progress context' })).toBeInTheDocument();
+    expect(screen.getByText('What trip should HuaXia plan?')).toBeInTheDocument();
+    expect(screen.getByText('What is happening now?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inspect evidence' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Approve and create checklist' }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/AI 旅行顾问|AI travel planner|AI Advisor/i)).not.toBeInTheDocument();
+  });
+
   it('updates progress from job_status events', () => {
     render(
       <AppProviders>
@@ -123,7 +142,7 @@ describe('App SSE job stream', () => {
       );
     });
 
-    expect(screen.getByText('夏夏正在生成深度方案 · 50% · 检索证据')).toBeInTheDocument();
+    expect(screen.getByText('正在构建第一版可用行程 · 50% · 检索证据')).toBeInTheDocument();
   });
 
   it('stores the final answer and clears the active job on completed events', () => {

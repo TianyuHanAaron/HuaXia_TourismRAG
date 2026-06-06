@@ -33,7 +33,6 @@ import { HuaxiaSectionHeader } from '../../components/HuaxiaSectionHeader';
 import { HuaxiaSurface } from '../../components/HuaxiaSurface';
 import { useUIStore } from '../../state/uiStore';
 import { formatActivityTime } from '../../utils/format';
-import { downloadPdf } from './pdfExport';
 
 type Props = {
   answer: TravelAnswer | null;
@@ -140,6 +139,7 @@ export function AnswerView({ answer, language, sourceJobId }: Props) {
   const handleDownloadPdf = async () => {
     setPdfGenerating(true);
     try {
+      const { downloadPdf } = await import('./pdfExport');
       await downloadPdf(answer, language);
     } finally {
       setPdfGenerating(false);

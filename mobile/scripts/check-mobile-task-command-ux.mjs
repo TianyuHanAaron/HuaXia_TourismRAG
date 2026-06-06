@@ -55,18 +55,18 @@ assertContains(
 );
 assertContains(
   'src/features/workflow/CurrentTaskScreen.tsx',
-  /accessibilityLabel=["']向右滑动完成/,
-  'complete affordance must have an explicit swipe-right accessibility label.',
+  /accessibilityLabel=["'](?:向右滑动完成|标记完成|Mark complete)/,
+  'complete affordance must have an explicit human accessibility label.',
 );
 assertContains(
   'src/features/workflow/CurrentTaskScreen.tsx',
-  /accessibilityLabel=["']向左滑动跳过或编辑/,
-  'skip/edit affordance must have an explicit swipe-left accessibility label.',
+  /accessibilityLabel=["'](?:向左滑动跳过或编辑|跳过这个任务|Skip this task)/,
+  'skip/edit affordance must have an explicit human accessibility label.',
 );
 assertContains(
   'src/features/workflow/CurrentTaskScreen.tsx',
-  /model\.syncState/,
-  'task cards must show sync state.',
+  /model\.(?:syncState|syncHumanCopy)/,
+  'task cards must show sync state using display-safe copy.',
 );
 assertContains(
   'src/features/workflow/CurrentTaskScreen.tsx',

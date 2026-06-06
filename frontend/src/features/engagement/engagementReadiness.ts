@@ -7,6 +7,7 @@ import {
   EngagementCardCardType as EngagementTopic,
   TravelFormRequestAttractionPreferencesItem,
 } from '../../api/generated/model';
+import { isUnsafeProgressivePlaceholder } from '../../app/v6ProgressiveData';
 
 const nonDestinationCardEntities = new Set<string>(
   Object.values(TravelFormRequestAttractionPreferencesItem),
@@ -36,7 +37,10 @@ export function getRenderableEngagementBatches(
       cards: batch.cards.filter(
         (card) =>
           !nonDestinationCardEntities.has(card.entity) &&
-          !card.card_id.startsWith('preview-'),
+          !card.card_id.startsWith('preview-') &&
+          !isUnsafeProgressivePlaceholder(card.entity) &&
+          !isUnsafeProgressivePlaceholder(card.title) &&
+          !isUnsafeProgressivePlaceholder(card.body),
       ),
     }))
     .filter((batch) => batch.cards.length > 0)

@@ -5,8 +5,20 @@ import { Button, Card, Chip, Divider, Text } from '../../components/PaperControl
 import { invalidateTripsOverview } from '../../api/queryInvalidation';
 import { createSampleTrip } from '../../api/trips';
 import { startGuestSession, updateOnboardingState } from '../../api/user';
+import { CommandCard, SectionHeader, StatusChip, StickyActionBar } from '../../components/HuaXiaDesignSystem';
 import { Screen } from '../../components/Screen';
 import { useTripUiStore } from '../../state/tripUiStore';
+import { getV6MobileProductCopy } from '../v6/v6ProductionUi';
+import {
+  buildSampleCommandCenterPreview,
+  COMMAND_CENTER_PROMISE,
+  COMMAND_CENTER_PROMISE_ZH,
+  EXECUTABLE_CHECKLIST_COPY,
+  EXECUTABLE_CHECKLIST_COPY_ZH,
+  PERMISSION_PROMPT_SAFETY_COPY,
+  PERMISSION_PROMPT_SAFETY_COPY_ZH,
+  type SampleCommandCenterPreview,
+} from './onboardingEmptyStateUi';
 import { TripIntakeScreen } from './TripIntakeScreen';
 
 type Props = {
@@ -19,6 +31,8 @@ export function OnboardingScreen({ onReady }: Props) {
   const setLanguage = useTripUiStore((state) => state.setLanguage);
   const onboardingStage = useTripUiStore((state) => state.onboardingStage);
   const setOnboardingStage = useTripUiStore((state) => state.setOnboardingStage);
+  const v6Copy = getV6MobileProductCopy(language);
+  const samplePreview = buildSampleCommandCenterPreview(language);
 
   const guestMutation = useMutation({
     mutationFn: startGuestSession,
@@ -85,11 +99,11 @@ export function OnboardingScreen({ onReady }: Props) {
 
   return (
     <Screen
-      title="华夏旅行指挥中心"
-      subtitle="不是只给一段行程，而是把旅行从想法到回家拆成可执行任务。"
+      title={v6Copy.productName}
+      subtitle={v6Copy.onboardingSubtitle}
     >
-      <Card mode="elevated">
-        <Card.Content style={styles.cardContent}>
+      <CommandCard tone="info" referencePattern="command_card" travelFlowMood="planning">
+        <View style={styles.cardContent}>
           <View style={styles.row}>
             <Chip selected={language === 'zh-CN'} onPress={() => setLanguage('zh-CN')}>
               中文
@@ -98,47 +112,125 @@ export function OnboardingScreen({ onReady }: Props) {
               English
             </Chip>
           </View>
-          <Text variant="headlineSmall" style={styles.title}>
-            你的旅行操作台
-          </Text>
+          <SectionHeader
+            title={
+              language === 'en' ? COMMAND_CENTER_PROMISE : COMMAND_CENTER_PROMISE_ZH
+            }
+            subtitle={
+              language === 'en'
+                ? `${EXECUTABLE_CHECKLIST_COPY} Create a plan, approve it, then follow the checklist as the trip unfolds.`
+                : `${EXECUTABLE_CHECKLIST_COPY_ZH} 先创建方案、再审核批准，之后按旅行展开跟着清单走。`
+            }
+            action={<StatusChip label={language === 'en' ? 'First run' : '首次使用'} tone="info" />}
+          />
           <Text variant="bodyMedium" style={styles.copy}>
-            华夏会先生成可审核的行程草稿。你批准后，它会变成手机里的任务清单：
-            订交通、订住宿、准备证件、打包、出发、到站、入住、每日活动和返程。
+            {v6Copy.onboardingBody}
+          </Text>
+          <Text variant="bodySmall" style={styles.muted}>
+            {language === 'en'
+              ? PERMISSION_PROMPT_SAFETY_COPY
+              : PERMISSION_PROMPT_SAFETY_COPY_ZH}
           </Text>
           <Divider />
-          <Card mode="outlined">
-            <Card.Content style={styles.cardContent}>
-              <Text variant="titleMedium">先看一个可删除示例</Text>
-              <Text variant="bodyMedium">
-                示例会创建一趟北京五日旅行指挥中心，让你直接看到时间线、下一步任务、
-                安全卡和 provider action 的位置。它会标记为示例数据，可以随时删除。
-              </Text>
-            </Card.Content>
-          </Card>
-          <View style={styles.actions}>
-            <Button
-              mode="contained"
-              loading={sampleMutation.isPending}
-              disabled={busy}
-              onPress={openSampleCommandCenter}
-            >
-              打开示例指挥中心
-            </Button>
-            <Button mode="outlined" disabled={busy} onPress={openTripIntake}>
-              创建真实旅行
-            </Button>
-          </View>
-          <Button disabled={busy} onPress={skipOnboarding}>
-            跳过，直接进入
-          </Button>
-          {busy ? (
+          <SampleCommandCenterPreviewCard preview={samplePreview} body={v6Copy.sampleBody} />
+          {sampleMutation.isError || guestMutation.isError || onboardingMutation.isError ? (
+            <Card mode="outlined">
+              <Card.Content style={styles.cardContent}>
+                <Text variant="titleMedium">
+                  {language === 'en' ? 'Sample setup hit a snag' : '示例准备遇到问题'}
+                </Text>
+                <Text variant="bodySmall" style={styles.muted}>
+                  {language === 'en'
+                    ? 'Your trip idea is safe. Try again or create a real trip instead.'
+                    : '你的旅行想法没有丢失。可以重试，也可以直接创建真实旅行。'}
+                </Text>
+                <Button
+                  mode="outlined"
+                  disabled={busy}
+                  onPress={() => {
+                    sampleMutation.reset();
+                    guestMutation.reset();
+                    onboardingMutation.reset();
+                    void openSampleCommandCenter();
+                  }}
+                >
+                  {language === 'en' ? 'Try again' : '重试 Try again'}
+                </Button>
+              </Card.Content>
+            </Card>
+          ) : null}
+          {sampleMutation.isPending ? (
             <Text variant="bodySmall" style={styles.muted}>
-              正在准备首次体验...
+              {language === 'en'
+                ? 'Preparing sample command center.'
+                : '正在准备示例指挥中心 Preparing sample command center.'}
             </Text>
           ) : null}
-        </Card.Content>
-      </Card>
+          <StickyActionBar>
+            <View style={styles.actions}>
+              <Button mode="contained" disabled={busy} onPress={openTripIntake}>
+                {language === 'en' ? 'Create real trip' : '创建真实旅行 Create real trip'}
+              </Button>
+              <Button
+                mode="outlined"
+                loading={sampleMutation.isPending}
+                disabled={busy}
+                onPress={openSampleCommandCenter}
+              >
+                {language === 'en'
+                  ? 'Open sample command center'
+                  : '打开示例指挥中心 Open sample command center'}
+              </Button>
+            </View>
+            <Button disabled={busy} onPress={skipOnboarding}>
+              {language === 'en' ? 'Skip for now' : '暂时跳过 Skip for now'}
+            </Button>
+          </StickyActionBar>
+        </View>
+      </CommandCard>
     </Screen>
+  );
+}
+
+function SampleCommandCenterPreviewCard({
+  preview,
+  body,
+}: {
+  preview: SampleCommandCenterPreview;
+  body: string;
+}) {
+  return (
+    <Card mode="outlined">
+      <Card.Content style={styles.cardContent}>
+        <View style={styles.row}>
+          <Text variant="titleMedium">{preview.title}</Text>
+          <Chip compact semanticTone="info">
+            {preview.sampleLabel}
+          </Chip>
+        </View>
+        <Text variant="bodyMedium">{body}</Text>
+        <View style={styles.previewGrid}>
+          <PreviewLine label="Next" value={preview.nextTask} />
+          <PreviewLine label="Timeline" value={preview.timelinePreview} />
+          <PreviewLine label="Documents" value={preview.documentPreview} />
+          <PreviewLine label="Provider" value={preview.providerActionPreview} />
+        </View>
+        <Text variant="bodySmall" style={styles.muted}>
+          {preview.safeModeCopy}
+        </Text>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function PreviewLine({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.previewLine}>
+      <Chip compact>{label}</Chip>
+      <Text variant="bodySmall" style={styles.previewText}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -163,6 +255,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     flexWrap: 'wrap',
+  },
+  previewGrid: {
+    gap: 8,
+  },
+  previewLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  previewText: {
+    flex: 1,
+    color: '#394650',
   },
   muted: {
     color: '#6c7880',

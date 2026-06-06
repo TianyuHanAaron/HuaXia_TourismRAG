@@ -30,12 +30,22 @@ function assertContains(relativePath, pattern, message) {
 }
 
 const tabsLayout = 'app/trips/[tripId]/(tabs)/_layout.tsx';
+const tabsLayoutSource = exists(tabsLayout) ? read(tabsLayout) : '';
+const usesV6TabModel = /v6ActiveTripTabs\.map/.test(tabsLayoutSource);
 for (const tabName of ['index', 'timeline', 'tasks', 'documents', 'settings']) {
-  assertContains(
-    tabsLayout,
-    new RegExp(`Tabs\\.Screen name=["']${tabName}["']`),
-    `bottom tab ${tabName} must be declared.`,
-  );
+  if (usesV6TabModel) {
+    assertContains(
+      'src/features/v6/v6NavigationShell.ts',
+      new RegExp(`routeName:\\s*["']${tabName}["']`),
+      `bottom tab ${tabName} must be declared in the V6 tab model.`,
+    );
+  } else {
+    assertContains(
+      tabsLayout,
+      new RegExp(`Tabs\\.Screen name=["']${tabName}["']`),
+      `bottom tab ${tabName} must be declared.`,
+    );
+  }
 }
 
 const rootLayout = 'app/_layout.tsx';
@@ -65,26 +75,42 @@ for (const file of [
   assertExists(file, 'declared modal route must have a screen file.');
 }
 
-assertContains(
-  'src/features/trips/TripHomeScreen.tsx',
-  /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/tasks/,
-  'home primary task action must route through bottom tabs.',
-);
-assertContains(
-  'src/features/trips/TripHomeScreen.tsx',
-  /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/timeline/,
-  'home timeline action must route through bottom tabs.',
-);
-assertContains(
-  'src/features/trips/TripHomeScreen.tsx',
-  /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/documents/,
-  'home document action must route through bottom tabs.',
-);
-assertContains(
-  'src/features/trips/TripHomeScreen.tsx',
-  /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/settings/,
-  'home settings action must route through bottom tabs.',
-);
+const tripHomeSource = exists('src/features/trips/TripHomeScreen.tsx')
+  ? read('src/features/trips/TripHomeScreen.tsx')
+  : '';
+const usesTripHomeActionModel =
+  /viewModel\.primaryCta/.test(tripHomeSource) &&
+  /viewModel\.secondaryActions/.test(tripHomeSource);
+if (usesTripHomeActionModel) {
+  for (const tabName of ['tasks', 'timeline', 'documents', 'settings']) {
+    assertContains(
+      'src/features/trips/tripHomeViewModel.ts',
+      new RegExp(`buildV6ActiveTripTabHref\\(tripId,\\s*['"]${tabName}['"]\\)`),
+      `home ${tabName} action must route through the active-trip tab href builder.`,
+    );
+  }
+} else {
+  assertContains(
+    'src/features/trips/TripHomeScreen.tsx',
+    /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/tasks/,
+    'home primary task action must route through bottom tabs.',
+  );
+  assertContains(
+    'src/features/trips/TripHomeScreen.tsx',
+    /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/timeline/,
+    'home timeline action must route through bottom tabs.',
+  );
+  assertContains(
+    'src/features/trips/TripHomeScreen.tsx',
+    /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/documents/,
+    'home document action must route through bottom tabs.',
+  );
+  assertContains(
+    'src/features/trips/TripHomeScreen.tsx',
+    /\/trips\/\$\{(?:activeTrip\.trip_id|viewModel\.tripId)\}\/\(tabs\)\/settings/,
+    'home settings action must route through bottom tabs.',
+  );
+}
 assertContains(
   'src/features/trips/TripHomeScreen.tsx',
   /StickyActionBar/,

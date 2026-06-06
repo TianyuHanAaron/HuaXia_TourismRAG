@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import type { V6ActiveTripTab } from '../features/v6/v6NavigationShell';
+
 export type TaskGroupKey = 'now' | 'today' | 'upcoming' | 'blocked' | 'completed';
 export type DisplayDensity = 'comfortable' | 'compact';
 export type OnboardingStage = 'promise' | 'intake';
@@ -12,12 +14,14 @@ export type ProviderActionSheetState = {
 
 type TripUiState = {
   selectedTripId: string | null;
+  selectedTab: V6ActiveTripTab;
   language: 'zh-CN' | 'en';
   displayDensity: DisplayDensity;
   onboardingStage: OnboardingStage;
   taskGroupVisibility: Record<TaskGroupKey, boolean>;
   providerActionSheet: ProviderActionSheetState;
   setSelectedTripId: (tripId: string | null) => void;
+  setSelectedTab: (selectedTab: V6ActiveTripTab) => void;
   setLanguage: (language: 'zh-CN' | 'en') => void;
   setDisplayDensity: (displayDensity: DisplayDensity) => void;
   setOnboardingStage: (onboardingStage: OnboardingStage) => void;
@@ -49,6 +53,7 @@ const closedProviderActionSheet: ProviderActionSheetState = {
 
 const initialTripUiState = {
   selectedTripId: null,
+  selectedTab: 'home' as V6ActiveTripTab,
   language: 'zh-CN' as const,
   displayDensity: 'comfortable' as const,
   onboardingStage: 'promise' as const,
@@ -59,6 +64,7 @@ const initialTripUiState = {
 export const useTripUiStore = create<TripUiState>((set) => ({
   ...initialTripUiState,
   setSelectedTripId: (selectedTripId) => set({ selectedTripId }),
+  setSelectedTab: (selectedTab) => set({ selectedTab }),
   setLanguage: (language) => set({ language }),
   setDisplayDensity: (displayDensity) => set({ displayDensity }),
   setOnboardingStage: (onboardingStage) => set({ onboardingStage }),

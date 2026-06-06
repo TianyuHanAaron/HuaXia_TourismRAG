@@ -1,5 +1,9 @@
 import { createMMKV } from 'react-native-mmkv';
 
+import {
+  normalizeV6ActiveTripTab,
+  type V6ActiveTripTab,
+} from '../features/v6/v6NavigationShell';
 import type { TaskGroupKey } from '../state/tripUiStore';
 
 export const SCHEMA_VERSION = 1;
@@ -15,6 +19,7 @@ export type PersistedTripUiPreferences = {
   language: 'zh-CN' | 'en';
   displayDensity: 'comfortable' | 'compact';
   onboardingStage: 'promise' | 'intake';
+  selectedTab: V6ActiveTripTab;
   taskGroupVisibility: Record<TaskGroupKey, boolean>;
 };
 
@@ -101,6 +106,7 @@ function parseTripUiPreferences(value: unknown): PersistedTripUiPreferences {
   const language = value.language === 'en' ? 'en' : 'zh-CN';
   const displayDensity = value.displayDensity === 'compact' ? 'compact' : 'comfortable';
   const onboardingStage = value.onboardingStage === 'intake' ? 'intake' : 'promise';
+  const selectedTab = normalizeV6ActiveTripTab(value.selectedTab);
   const visibilityInput = isRecord(value.taskGroupVisibility)
     ? value.taskGroupVisibility
     : {};
@@ -115,6 +121,7 @@ function parseTripUiPreferences(value: unknown): PersistedTripUiPreferences {
     language,
     displayDensity,
     onboardingStage,
+    selectedTab,
     taskGroupVisibility,
   };
 }

@@ -1,5 +1,6 @@
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Chip, List, Text } from '../../components/PaperControls';
@@ -7,6 +8,14 @@ import { Button, Card, Chip, List, Text } from '../../components/PaperControls';
 import { tripQueries } from '../../api/queryOptions';
 import { Screen } from '../../components/Screen';
 import type { SafetyCardResponse } from '../../types/trip';
+import {
+  buildSafetyScreenViewModel,
+  SAFETY_SCREEN_QUESTION_ZH,
+  type SafetyEmergencyActionModel,
+  type SafetyRiskNoteModel,
+  type SafetyScreenViewModel,
+  type SafetyTone,
+} from './safetyUi';
 
 export function SafetyScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -27,37 +36,74 @@ export function SafetyScreen() {
           </Card.Content>
         </Card>
       ) : null}
-      {card ? <SafetyCardView card={card} /> : null}
+      {card ? <SafetyCardView card={card} networkAvailable={!query.isError} /> : null}
     </Screen>
   );
 }
 
-function SafetyCardView({ card }: { card: SafetyCardResponse }) {
+function SafetyCardView({
+  card,
+  networkAvailable,
+}: {
+  card: SafetyCardResponse;
+  networkAvailable: boolean;
+}) {
+  const [localNote, setLocalNote] = useState<string | null>(null);
+  const viewModel = buildSafetyScreenViewModel({ card, networkAvailable });
+
+  const handleActionPress = (action: SafetyEmergencyActionModel) => {
+    if (action.disabled) {
+      return;
+    }
+    if (action.url) {
+      openUrl(action.url);
+      return;
+    }
+    setLocalNote(action.targetLabel);
+  };
+
   return (
     <>
       <Card>
         <Card.Content style={styles.section}>
           <View style={styles.row}>
             <Text variant="titleMedium" style={styles.title}>
-              {card.destination ?? '当前旅行'}
+              {viewModel.title}
             </Text>
-            <Chip compact>{card.is_international ? '境外' : '境内'}</Chip>
+            <Chip compact>{viewModel.tripScopeChip}</Chip>
           </View>
+          <Text variant="bodySmall">{SAFETY_SCREEN_QUESTION_ZH}</Text>
           <Text variant="bodyMedium" style={styles.warning}>
-            {card.stale_warning}
+            {viewModel.urgentDisclaimer}
           </Text>
           <View style={styles.chips}>
-            {card.offline_available ? <Chip compact>可离线阅读</Chip> : null}
-            {card.insurance_references.length ? <Chip compact>已附保险</Chip> : null}
+            <Chip compact>{viewModel.offlineChip}</Chip>
+            <Chip compact>{viewModel.freshnessChip}</Chip>
+            <Chip compact>{viewModel.generatedAtLabel}</Chip>
           </View>
         </Card.Content>
       </Card>
+
+      <EmergencyActionGrid
+        viewModel={viewModel}
+        onActionPress={handleActionPress}
+      />
+
+      {localNote ? (
+        <Card mode="outlined">
+          <Card.Content style={styles.section}>
+            <Text variant="titleSmall">本地说明</Text>
+            <Text variant="bodyMedium">{localNote}</Text>
+          </Card.Content>
+        </Card>
+      ) : null}
 
       <Card>
         <Card.Content style={styles.section}>
           <Text variant="titleMedium" style={styles.title}>
             应急联系人
           </Text>
+          <Text variant="bodySmall">{viewModel.contactCountLabel}</Text>
           {card.emergency_contacts.map((contact) => (
             <List.Item
               key={`${contact.label}-${contact.phone ?? 'note'}`}
@@ -75,38 +121,7 @@ function SafetyCardView({ card }: { card: SafetyCardResponse }) {
         </Card.Content>
       </Card>
 
-      <Card>
-        <Card.Content style={styles.section}>
-          <Text variant="titleMedium" style={styles.title}>
-            应急操作
-          </Text>
-          {card.emergency_actions.map((action) => (
-            <List.Item
-              key={action.action_id}
-              title={action.label}
-              description={action.note}
-              right={() =>
-                action.url ? (
-                  <Button mode="text" onPress={() => openUrl(action.url!)}>
-                    打开
-                  </Button>
-                ) : null
-              }
-            />
-          ))}
-          {card.embassy ? (
-            <List.Item
-              title={card.embassy.label}
-              description={card.embassy.note}
-              right={() => (
-                <Button mode="text" onPress={() => openUrl(card.embassy!.search_url)}>
-                  查询
-                </Button>
-              )}
-            />
-          ) : null}
-        </Card.Content>
-      </Card>
+      <SafetyRiskNotes notes={viewModel.riskNotes} />
 
       {card.insurance_references.length ? (
         <Card>
@@ -123,22 +138,95 @@ function SafetyCardView({ card }: { card: SafetyCardResponse }) {
         </Card>
       ) : null}
 
-      <Card>
-        <Card.Content style={styles.section}>
-          <Text variant="titleMedium" style={styles.title}>
-            旅行提醒
-          </Text>
-          {card.safety_notes.map((note) => (
-            <Text key={note} variant="bodyMedium" style={styles.note}>
-              {note}
+      <SafetySourceFooter viewModel={viewModel} />
+    </>
+  );
+}
+
+function EmergencyActionGrid({
+  viewModel,
+  onActionPress,
+}: {
+  viewModel: SafetyScreenViewModel;
+  onActionPress: (action: SafetyEmergencyActionModel) => void;
+}) {
+  return (
+    <Card>
+      <Card.Content style={styles.section}>
+        <Text variant="titleMedium" style={styles.title}>
+          应急操作
+        </Text>
+        <Text variant="bodySmall">{viewModel.emergencyNumbersLabel}</Text>
+        {viewModel.emptyCallNote ? (
+          <Text variant="bodySmall" style={styles.warning}>{viewModel.emptyCallNote}</Text>
+        ) : null}
+        <View style={styles.actionGrid}>
+          {viewModel.emergencyActions.map((action) => (
+            <Button
+              key={action.actionId}
+              mode={action.tone === 'danger' ? 'contained' : 'contained-tonal'}
+              semanticTone={toneToSemantic(action.tone)}
+              accessibilityLabel={action.accessibilityLabel}
+              disabled={action.disabled}
+              onPress={() => onActionPress(action)}
+              style={styles.emergencyButton}
+            >
+              {action.localizedLabel}
+            </Button>
+          ))}
+        </View>
+        {viewModel.emergencyActions
+          .filter((action) => action.disabledReason)
+          .map((action) => (
+            <Text key={`${action.actionId}-disabled`} variant="bodySmall" style={styles.source}>
+              {action.disabledReason}
             </Text>
           ))}
+      </Card.Content>
+    </Card>
+  );
+}
+
+function SafetyRiskNotes({ notes }: { notes: SafetyRiskNoteModel[] }) {
+  if (!notes.length) {
+    return null;
+  }
+  return (
+    <Card>
+      <Card.Content style={styles.section}>
+        <Text variant="titleMedium" style={styles.title}>
+          今日风险与提醒
+        </Text>
+        {notes.map((note) => (
+          <View key={note.id} style={[styles.riskNote, toneBorderStyle(note.tone)]}>
+            <View style={styles.row}>
+              <Text variant="titleSmall" style={styles.title}>{note.title}</Text>
+              <Chip compact>{toneLabel(note.tone)}</Chip>
+            </View>
+            <Text variant="bodyMedium">{note.body}</Text>
+            <Text variant="bodySmall" style={styles.source}>{note.sourceLabel}</Text>
+          </View>
+        ))}
+      </Card.Content>
+    </Card>
+  );
+}
+
+function SafetySourceFooter({ viewModel }: { viewModel: SafetyScreenViewModel }) {
+  return (
+    <Card mode="outlined">
+        <Card.Content style={styles.section}>
+          <Text variant="titleMedium" style={styles.title}>
+            来源与边界
+          </Text>
           <Text variant="bodySmall" style={styles.source}>
-            {card.source_note}
+            {viewModel.sourceFooter}
+          </Text>
+          <Text variant="bodySmall" style={styles.source}>
+            {viewModel.paywallBypassCopy}
           </Text>
         </Card.Content>
       </Card>
-    </>
   );
 }
 
@@ -169,6 +257,28 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  emergencyButton: {
+    minWidth: 148,
+  },
+  riskNote: {
+    borderLeftWidth: 4,
+    gap: 6,
+    paddingLeft: 10,
+  },
+  riskWarning: {
+    borderLeftColor: '#c98217',
+  },
+  riskDanger: {
+    borderLeftColor: '#c13a2b',
+  },
+  riskInfo: {
+    borderLeftColor: '#2f7b83',
+  },
   note: {
     lineHeight: 21,
   },
@@ -177,3 +287,42 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+function toneToSemantic(tone: SafetyTone): 'primary' | 'warning' | 'danger' | 'success' | 'muted' {
+  if (tone === 'danger') {
+    return 'danger';
+  }
+  if (tone === 'warning') {
+    return 'warning';
+  }
+  if (tone === 'success') {
+    return 'success';
+  }
+  if (tone === 'muted') {
+    return 'muted';
+  }
+  return 'primary';
+}
+
+function toneLabel(tone: SafetyTone): string {
+  if (tone === 'danger') {
+    return '严重';
+  }
+  if (tone === 'warning') {
+    return '注意';
+  }
+  if (tone === 'success') {
+    return '已准备';
+  }
+  return '提示';
+}
+
+function toneBorderStyle(tone: SafetyTone) {
+  if (tone === 'danger') {
+    return styles.riskDanger;
+  }
+  if (tone === 'warning') {
+    return styles.riskWarning;
+  }
+  return styles.riskInfo;
+}

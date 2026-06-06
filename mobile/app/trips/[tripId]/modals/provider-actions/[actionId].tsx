@@ -12,6 +12,7 @@ import type {
   RouteBundle,
   TripProviderAction,
   TripProviderActionLaunchRequest,
+  TripTask,
 } from '../../../../../src/types/trip';
 
 export default function ProviderActionModalRoute() {
@@ -32,6 +33,7 @@ export default function ProviderActionModalRoute() {
     actionId,
     tripQuery.data?.trip.provider_actions ?? [],
   );
+  const sourceTask = findTask(sourceTaskId, tripQuery.data?.trip.tasks ?? []);
   const routeBundle = findRouteBundle({
     routeBundleId,
     sourceTaskId,
@@ -84,10 +86,22 @@ export default function ProviderActionModalRoute() {
         <ProviderActionSheet
           action={action}
           routeBundle={routeBundle}
+          sourceTask={sourceTask}
           onLaunch={(selectedAction, request) =>
             providerLaunchMutation.mutateAsync({ selectedAction, request })
           }
           onHandled={() => router.back()}
+          onEditContext={() => {
+            if (!sourceTaskId) {
+              router.replace(`/trips/${tripId}/(tabs)/tasks`);
+              return;
+            }
+            router.push({
+              pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
+              params: { tripId, taskId: sourceTaskId },
+            });
+          }}
+          onRefreshRoute={() => routeQuery.refetch()}
         />
       ) : null}
     </Screen>
@@ -102,6 +116,13 @@ function findProviderAction(
     return null;
   }
   return actions.find((action) => action.action_id === actionId) ?? null;
+}
+
+function findTask(taskId: string | null, tasks: TripTask[]): TripTask | null {
+  if (!taskId) {
+    return null;
+  }
+  return tasks.find((task) => task.task_id === taskId) ?? null;
 }
 
 function findRouteBundle({

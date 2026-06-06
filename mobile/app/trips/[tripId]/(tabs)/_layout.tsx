@@ -1,28 +1,71 @@
-import { Tabs } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Tabs, usePathname } from 'expo-router';
+import { useEffect } from 'react';
 
-import { huaxiaColorTokens } from '../../../../tamagui.config';
+import {
+  getV6ActiveTripTabFromPath,
+  getV6ActiveTripTabLabel,
+  getV6ActiveTripTabRouteName,
+  v6ActiveTripTabs,
+} from '../../../../src/features/v6/v6NavigationShell';
+import { useTripUiStore } from '../../../../src/state/tripUiStore';
+import {
+  huaxiaColorTokens,
+  huaxiaTypographyTokens,
+  huaxiaTypographyWeightTokens,
+} from '../../../../tamagui.config';
 
 const tabBarStyle = {
   backgroundColor: huaxiaColorTokens.surface,
   borderTopColor: huaxiaColorTokens.border,
+  minHeight: 64,
+  paddingBottom: 6,
+  paddingTop: 6,
 };
 
 export default function ActiveTripTabsLayout() {
+  const pathname = usePathname();
+  const language = useTripUiStore((state) => state.language);
+  const selectedTab = useTripUiStore((state) => state.selectedTab);
+  const setSelectedTab = useTripUiStore((state) => state.setSelectedTab);
+  const selectedRouteName = getV6ActiveTripTabRouteName(selectedTab);
+
+  useEffect(() => {
+    setSelectedTab(getV6ActiveTripTabFromPath(pathname));
+  }, [pathname, setSelectedTab]);
+
   return (
     <Tabs
+      initialRouteName={selectedRouteName}
       screenOptions={{
         headerShown: false,
+        lazy: true,
         tabBarActiveTintColor: huaxiaColorTokens.primaryPressed,
         tabBarInactiveTintColor: huaxiaColorTokens.mutedInk,
-        tabBarLabelStyle: { fontWeight: '700' },
+        tabBarLabelStyle: {
+          fontSize: huaxiaTypographyTokens.metadata,
+          fontWeight: huaxiaTypographyWeightTokens.button,
+          lineHeight: huaxiaTypographyTokens.metadataLine,
+        },
         tabBarStyle,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="timeline" options={{ title: 'Timeline' }} />
-      <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
-      <Tabs.Screen name="documents" options={{ title: 'Documents' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      {v6ActiveTripTabs.map((tab) => (
+        <Tabs.Screen
+          key={tab.id}
+          name={tab.routeName}
+          listeners={{
+            focus: () => setSelectedTab(tab.id),
+          }}
+          options={{
+            title: getV6ActiveTripTabLabel(tab.id, language),
+            tabBarAccessibilityLabel: `${getV6ActiveTripTabLabel(tab.id, language)} · ${tab.question[language]}`,
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name={tab.iconName} size={size} color={color} />
+            ),
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

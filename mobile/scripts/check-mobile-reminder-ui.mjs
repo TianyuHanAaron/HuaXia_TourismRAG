@@ -58,8 +58,14 @@ assertContains(
   /ReminderSettingsScreen/,
   'reminder settings modal route must render the dedicated reminder settings screen.',
 );
+const tripHomeSource = exists('src/features/trips/TripHomeScreen.tsx')
+  ? read('src/features/trips/TripHomeScreen.tsx')
+  : '';
+const tripHomeUsesActionModel = /viewModel\.secondaryActions/.test(tripHomeSource);
 assertContains(
-  'src/features/trips/TripHomeScreen.tsx',
+  tripHomeUsesActionModel
+    ? 'src/features/trips/tripHomeViewModel.ts'
+    : 'src/features/trips/TripHomeScreen.tsx',
   /modals\/reminders\/settings/,
   'Trip Home must open reminder education/settings instead of requesting permission inline.',
 );
@@ -74,7 +80,9 @@ assertContains(
   'current task cards must show reminder status.',
 );
 assertContains(
-  'src/features/workflow/TaskDetailScreen.tsx',
+  exists('src/features/workflow/taskDetailViewModel.ts')
+    ? 'src/features/workflow/taskDetailViewModel.ts'
+    : 'src/features/workflow/TaskDetailScreen.tsx',
   /reminderStatusForTask/,
   'task detail must show task-linked reminder status.',
 );

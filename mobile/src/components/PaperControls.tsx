@@ -21,20 +21,36 @@ import {
   huaxiaRadiusTokens,
   huaxiaSpacingTokens,
   huaxiaTypographyTokens,
+  huaxiaTypographyWeightTokens,
 } from '../../tamagui.config';
 
 type ActivityIndicatorProps = ComponentProps<typeof PaperActivityIndicator>;
-type ButtonProps = ComponentProps<typeof PaperButton>;
+type SemanticTone =
+  | 'default'
+  | 'muted'
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'info'
+  | 'execution';
+type SemanticToneProps = {
+  semanticTone?: SemanticTone;
+};
+type ButtonProps = ComponentProps<typeof PaperButton> & SemanticToneProps;
 type CardProps = ComponentProps<typeof PaperCard>;
 type ChipProps = ComponentProps<typeof PaperChip>;
 type DividerProps = ComponentProps<typeof PaperDivider>;
-type ProgressBarProps = ComponentProps<typeof PaperProgressBar>;
+type ProgressBarProps = ComponentProps<typeof PaperProgressBar> & SemanticToneProps;
 type SnackbarProps = ComponentProps<typeof PaperSnackbar>;
 type SwitchProps = ComponentProps<typeof PaperSwitch>;
 type TextProps = ComponentProps<typeof PaperText>;
 type TextInputProps = ComponentProps<typeof PaperTextInput>;
 
 const RawPaperCard = PaperCard as unknown as (props: CardProps) => ReactElement | null;
+const MIN_TOUCH_TARGET = 44;
+const DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER = 1.8;
 
 export function ActivityIndicator({
   color = huaxiaColorTokens.primary,
@@ -50,13 +66,15 @@ export function Button({
   labelStyle,
   buttonColor,
   textColor,
+  semanticTone = 'primary',
   ...props
 }: ButtonProps) {
   const isContained = mode === 'contained';
+  const toneColors = resolveSemanticTone(semanticTone);
   const resolvedButtonColor =
-    buttonColor ?? (isContained ? huaxiaColorTokens.primary : undefined);
+    buttonColor ?? (isContained ? toneColors.color : undefined);
   const resolvedTextColor =
-    textColor ?? (isContained ? huaxiaColorTokens.surfaceRaised : huaxiaColorTokens.ink);
+    textColor ?? (isContained ? toneColors.contrastText : toneColors.text);
 
   return (
     <PaperButton
@@ -64,6 +82,7 @@ export function Button({
       mode={mode}
       buttonColor={resolvedButtonColor}
       textColor={resolvedTextColor}
+      maxFontSizeMultiplier={DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER}
       style={[styles.button, style]}
       contentStyle={[styles.buttonContent, contentStyle]}
       labelStyle={[styles.buttonLabel, labelStyle]}
@@ -97,14 +116,21 @@ export function Chip({
   compact = true,
   style,
   textStyle,
+  semanticTone = 'muted',
   ...props
-}: ChipProps) {
+}: ChipProps & SemanticToneProps) {
+  const toneColors = resolveSemanticTone(semanticTone);
   return (
     <PaperChip
       {...props}
       compact={compact}
-      style={[styles.chip, style]}
-      textStyle={[styles.chipText, textStyle]}
+      maxFontSizeMultiplier={DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER}
+      style={[
+        styles.chip,
+        { backgroundColor: toneColors.surface, borderColor: toneColors.border },
+        style,
+      ]}
+      textStyle={[styles.chipText, { color: toneColors.text }, textStyle]}
     />
   );
 }
@@ -129,11 +155,19 @@ export function Divider({ style, ...props }: DividerProps) {
 export const List = PaperList;
 
 export function ProgressBar({
-  color = huaxiaColorTokens.primary,
+  color,
+  semanticTone = 'primary',
   style,
   ...props
 }: ProgressBarProps) {
-  return <PaperProgressBar {...props} color={color} style={[styles.progressBar, style]} />;
+  const toneColors = resolveSemanticTone(semanticTone);
+  return (
+    <PaperProgressBar
+      {...props}
+      color={color ?? toneColors.color}
+      style={[styles.progressBar, style]}
+    />
+  );
 }
 
 export function Snackbar({ style, ...props }: SnackbarProps) {
@@ -148,7 +182,13 @@ export function Switch({
 }
 
 export function Text({ style, ...props }: TextProps) {
-  return <PaperText {...props} style={[styles.text, style]} />;
+  return (
+    <PaperText
+      {...props}
+      maxFontSizeMultiplier={props.maxFontSizeMultiplier ?? DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER}
+      style={[styles.text, style]}
+    />
+  );
 }
 
 export function TextInput({
@@ -168,6 +208,7 @@ export function TextInput({
       outlineColor={outlineColor}
       activeOutlineColor={activeOutlineColor}
       textColor={textColor}
+      maxFontSizeMultiplier={DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER}
       style={[styles.textInput, style]}
     />
   );
@@ -176,16 +217,17 @@ export function TextInput({
 const styles = StyleSheet.create({
   button: {
     borderRadius: huaxiaRadiusTokens.md,
-    minHeight: 44,
+    minHeight: MIN_TOUCH_TARGET,
   },
   buttonContent: {
-    minHeight: 44,
+    minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: huaxiaSpacingTokens.sm,
   },
   buttonLabel: {
-    fontSize: huaxiaTypographyTokens.body,
-    fontWeight: '700',
-    lineHeight: huaxiaTypographyTokens.bodyLine,
+    fontSize: huaxiaTypographyTokens.button,
+    fontWeight: huaxiaTypographyWeightTokens.button,
+    lineHeight: huaxiaTypographyTokens.buttonLine,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: huaxiaColorTokens.surfaceRaised,
@@ -202,8 +244,9 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: huaxiaColorTokens.ink,
-    fontSize: huaxiaTypographyTokens.caption,
-    fontWeight: '700',
+    fontSize: huaxiaTypographyTokens.metadata,
+    fontWeight: huaxiaTypographyWeightTokens.button,
+    lineHeight: huaxiaTypographyTokens.metadataLine,
   },
   dialog: {
     backgroundColor: huaxiaColorTokens.surfaceRaised,
@@ -229,3 +272,82 @@ const styles = StyleSheet.create({
     fontSize: huaxiaTypographyTokens.body,
   },
 });
+
+function resolveSemanticTone(semanticTone: SemanticTone): {
+  color: string;
+  surface: string;
+  border: string;
+  text: string;
+  contrastText: string;
+} {
+  if (semanticTone === 'secondary') {
+    return {
+      color: huaxiaColorTokens.secondary,
+      surface: huaxiaColorTokens.surface,
+      border: huaxiaColorTokens.secondaryLight,
+      text: huaxiaColorTokens.secondaryDark,
+      contrastText: huaxiaColorTokens.surfaceRaised,
+    };
+  }
+  if (semanticTone === 'success') {
+    return {
+      color: huaxiaColorTokens.success,
+      surface: huaxiaColorTokens.successSurface,
+      border: huaxiaColorTokens.successBorder,
+      text: huaxiaColorTokens.success,
+      contrastText: huaxiaColorTokens.surfaceRaised,
+    };
+  }
+  if (semanticTone === 'warning') {
+    return {
+      color: huaxiaColorTokens.warning,
+      surface: huaxiaColorTokens.warningSurface,
+      border: huaxiaColorTokens.warningBorder,
+      text: huaxiaColorTokens.warning,
+      contrastText: huaxiaColorTokens.surfaceRaised,
+    };
+  }
+  if (semanticTone === 'danger') {
+    return {
+      color: huaxiaColorTokens.danger,
+      surface: huaxiaColorTokens.dangerSurface,
+      border: huaxiaColorTokens.dangerBorder,
+      text: huaxiaColorTokens.danger,
+      contrastText: huaxiaColorTokens.surfaceRaised,
+    };
+  }
+  if (semanticTone === 'info') {
+    return {
+      color: huaxiaColorTokens.info,
+      surface: huaxiaColorTokens.infoSurface,
+      border: huaxiaColorTokens.infoBorder,
+      text: huaxiaColorTokens.info,
+      contrastText: huaxiaColorTokens.surfaceRaised,
+    };
+  }
+  if (semanticTone === 'execution') {
+    return {
+      color: huaxiaColorTokens.info,
+      surface: huaxiaColorTokens.executionSurface,
+      border: huaxiaColorTokens.executionBorder,
+      text: huaxiaColorTokens.executionText,
+      contrastText: huaxiaColorTokens.executionBg,
+    };
+  }
+  if (semanticTone === 'muted') {
+    return {
+      color: huaxiaColorTokens.mutedInk,
+      surface: huaxiaColorTokens.surfaceMuted,
+      border: huaxiaColorTokens.border,
+      text: huaxiaColorTokens.ink,
+      contrastText: huaxiaColorTokens.surfaceRaised,
+    };
+  }
+  return {
+    color: huaxiaColorTokens.primary,
+    surface: huaxiaColorTokens.primarySurface,
+    border: huaxiaColorTokens.primaryBorder,
+    text: huaxiaColorTokens.primaryPressed,
+    contrastText: huaxiaColorTokens.surfaceRaised,
+  };
+}
