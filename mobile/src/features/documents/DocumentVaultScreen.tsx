@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +24,7 @@ import {
 import { parseBookingMetadata, parseDocumentMetadata } from '../../schemas/documents';
 import type { TripBooking, TripBookingCategory, TripDocument } from '../../types/trip';
 import { DocumentAttachSheet } from './DocumentAttachSheet';
+import { isV7NativeFixtureModeEnabled } from '../../testing/nativeE2eFixtureRuntime';
 import {
   DOCUMENT_VAULT_PROOF_QUESTION_ZH,
   buildDocumentAttachDraft,
@@ -196,6 +197,7 @@ export function DocumentVaultScreen() {
   };
 
   const bookingFormReady = bookingTitle.trim().length > 0;
+  const showNativeFixtureShortcuts = isV7NativeFixtureModeEnabled();
 
   return (
     <Screen
@@ -209,6 +211,19 @@ export function DocumentVaultScreen() {
           action={<StatusChip label={phaseLabel(currentPhaseType)} tone="primary" />}
         />
         <DocumentVaultPrivacyNotice />
+        {showNativeFixtureShortcuts ? (
+          <View style={styles.actionRow}>
+            <Button
+              mode="outlined"
+              onPress={() => router.push(`/trips/${tripId}/modals/calendar/export`)}
+            >
+              日历导出
+            </Button>
+            <Button mode="outlined" onPress={() => router.push(`/trips/${tripId}/safety`)}>
+              安全与应急
+            </Button>
+          </View>
+        ) : null}
       </CommandCard>
 
       <Card>

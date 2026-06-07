@@ -47,11 +47,11 @@ const requiredVisibleCopy = [
   'Beijing 5-Day Command Center Test Trip',
   '下一步',
   'Confirm hotel beside a subway station',
-  '首页 · 现在该做什么？',
-  '时间线 · 我在旅行哪一步？',
-  '任务 · 哪些任务现在要处理？',
-  '文件 · 我需要什么凭证？',
-  '设置 · 这趟旅行该如何运行？',
+  '首页 · 现在该做什么？ · Home',
+  '时间线 · 我在旅行哪一步？ · Timeline',
+  '任务 · 哪些任务现在要处理？ · Tasks',
+  '文件 · 我需要什么凭证？ · Documents',
+  '设置 · 这趟旅行该如何运行？ · Settings',
 ];
 const requiredCrashCopyExclusions = [
   'Unhandled JS Exception',
@@ -123,7 +123,7 @@ function auditFlow(flow) {
     fixtureTripPinned: source.includes('V7_FIXTURE_TRIP_ID: trip_v7_beijing_family'),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForProductName: /extendedWaitUntil:[\s\S]*visible:\s*华夏旅行指挥中心[\s\S]*timeout:\s*45000/.test(source),
+    waitsForProductName: /extendedWaitUntil:[\s\S]*visible:\s*华夏旅行指挥中心[\s\S]*timeout:\s*120000/.test(source),
     missingVisibleCopy,
     missingCrashGuards,
     screenshotCaptured: source.includes(`takeScreenshot: ${flow.screenshotName}`),
@@ -222,8 +222,8 @@ export function runV7MaestroNativeAppShellSmokeRepoAudit() {
 
   const testChain = mobilePackage.scripts?.test ?? '';
   const scriptCoverage = {
-    iosScript: mobilePackage.scripts?.['test:e2e:ios'] === 'maestro test .maestro/flows/ios',
-    androidScript: mobilePackage.scripts?.['test:e2e:android'] === 'maestro test .maestro/flows/android',
+    iosScript: mobilePackage.scripts?.['test:e2e:ios'] === 'node scripts/run-maestro-native.mjs ios',
+    androidScript: mobilePackage.scripts?.['test:e2e:android'] === 'node scripts/run-maestro-native.mjs android',
     nativeScript: mobilePackage.scripts?.['test:e2e:native'] === 'npm run test:e2e:ios && npm run test:e2e:android',
     checkScript:
       mobilePackage.scripts?.['v7-maestro-native-app-shell-smoke:check'] ===

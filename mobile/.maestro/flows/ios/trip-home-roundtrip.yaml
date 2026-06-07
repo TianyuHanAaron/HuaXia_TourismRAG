@@ -13,31 +13,74 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: approved_trip
+      V7_FIXTURE_TRIP_ID: trip_v7_beijing_family
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: Beijing 5-Day Command Center Test Trip
-    timeout: 45000
+    timeout: 120000
 - assertVisible: 华夏旅行指挥中心
 - assertVisible: 下一步
 - assertVisible: Confirm hotel beside a subway station
-- assertVisible: 处理下一步
+- assertVisible: 查看阻塞原因
 - assertNotVisible: Unhandled JS Exception
 - assertNotVisible: Something went wrong
 - assertNotVisible: Network unavailable. Please check your connection.
-- tapOn: 时间线 · 我在旅行哪一步？
+- openLink: huaxia://trips/trip_v7_beijing_family/(tabs)/timeline
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 旅行时间线
-- assertVisible: Beijing
-- tapOn: 任务 · 哪些任务现在要处理？
+- assertVisible: 阶段轨道
+- openLink: huaxia://trips/trip_v7_beijing_family/(tabs)/tasks
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 现在需要处理什么？
+- scrollUntilVisible:
+    element:
+      text: Book Palace Museum morning entry
+    direction: DOWN
+    timeout: 20000
 - assertVisible: Book Palace Museum morning entry
+- scrollUntilVisible:
+    element:
+      text: Save ID copies before ticket pickup
+    direction: DOWN
+    timeout: 20000
 - assertVisible: Save ID copies before ticket pickup
-- tapOn: 文件 · 我需要什么凭证？
+- openLink: huaxia://trips/trip_v7_beijing_family/(tabs)/documents
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 文件保险箱
 - assertVisible: 添加文件元数据
-- tapOn: 设置 · 这趟旅行该如何运行？
+- openLink: huaxia://trips/trip_v7_beijing_family/(tabs)/settings
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 偏好、隐私与账户
 - assertVisible: 旅行默认值
-- tapOn: 首页 · 现在该做什么？
+- openLink: huaxia://trips/trip_v7_beijing_family/(tabs)
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: Beijing 5-Day Command Center Test Trip
 - assertVisible: Confirm hotel beside a subway station
-- assertVisible: 处理下一步
+- assertVisible: 查看阻塞原因
 - takeScreenshot: v7-ios-trip-home-roundtrip

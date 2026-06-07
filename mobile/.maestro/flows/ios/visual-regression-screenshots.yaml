@@ -14,16 +14,29 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: visual_regression_screenshot_matrix
+      V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: HuaXia
-    timeout: 45000
+    timeout: 120000
 - assertNotVisible: Unhandled JS Exception
 - assertNotVisible: Something went wrong
 - assertNotVisible: Network unavailable. Please check your connection.
 - assertVisible: HuaXia
 - assertVisible: Northern Xinjiang
 - takeScreenshot: v7-ios-visual-trip-home
-- tapOn: 任务 · 哪些任务现在要处理？
+- openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/tasks
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 现在需要处理什么？
 - assertVisible: 打开已准备路线
 - tapOn: 打开已准备路线

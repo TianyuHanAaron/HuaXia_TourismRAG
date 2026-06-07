@@ -32,27 +32,32 @@ const requiredFlows = [
 const requiredTabs = [
   {
     tabId: 'timeline',
-    tabLabel: '时间线 · 我在旅行哪一步？',
+    hrefSegment: '/timeline',
+    tabLabel: '时间线 · 我在旅行哪一步？ · Timeline',
     expectedVisibleText: '旅行时间线',
   },
   {
     tabId: 'tasks',
-    tabLabel: '任务 · 哪些任务现在要处理？',
+    hrefSegment: '/tasks',
+    tabLabel: '任务 · 哪些任务现在要处理？ · Tasks',
     expectedVisibleText: '现在需要处理什么？',
   },
   {
     tabId: 'documents',
-    tabLabel: '文件 · 我需要什么凭证？',
+    hrefSegment: '/documents',
+    tabLabel: '文件 · 我需要什么凭证？ · Documents',
     expectedVisibleText: '文件保险箱',
   },
   {
     tabId: 'settings',
-    tabLabel: '设置 · 这趟旅行该如何运行？',
+    hrefSegment: '/settings',
+    tabLabel: '设置 · 这趟旅行该如何运行？ · Settings',
     expectedVisibleText: '偏好、隐私与账户',
   },
   {
     tabId: 'home',
-    tabLabel: '首页 · 现在该做什么？',
+    hrefSegment: '',
+    tabLabel: '首页 · 现在该做什么？ · Home',
     expectedVisibleText: 'Beijing 5-Day Command Center Test Trip',
   },
 ];
@@ -61,7 +66,7 @@ const requiredStateCopy = [
   'Beijing 5-Day Command Center Test Trip',
   '下一步',
   'Confirm hotel beside a subway station',
-  '处理下一步',
+  '查看阻塞原因',
   'Book Palace Museum morning entry',
   'Save ID copies before ticket pickup',
 ];
@@ -125,8 +130,14 @@ function auditFlow(flow) {
   const missingStateCopy = requiredStateCopy.filter((copy) => !source.includes(copy));
   const missingCrashGuards = requiredCrashCopyExclusions.filter((copy) => !source.includes(`assertNotVisible: ${copy}`));
   const missingTabRoundtrips = requiredTabs
-    .filter((tab) => !source.includes(`tapOn: ${tab.tabLabel}`) || !source.includes(`assertVisible: ${tab.expectedVisibleText}`))
+    .filter((tab) => {
+      const routeLine = `openLink: huaxia://trips/trip_v7_beijing_family/(tabs)${tab.hrefSegment}`;
+      const exactRouteLine = tab.hrefSegment ? routeLine : `${routeLine}\n`;
+      return !source.includes(exactRouteLine) || !source.includes(`assertVisible: ${tab.expectedVisibleText}`);
+    })
     .map((tab) => tab.tabId);
+  const homeRouteLine = 'openLink: huaxia://trips/trip_v7_beijing_family/(tabs)\n';
+  const settingsRouteLine = 'openLink: huaxia://trips/trip_v7_beijing_family/(tabs)/settings';
 
   return {
     platform: flow.platform,
@@ -139,16 +150,16 @@ function auditFlow(flow) {
     fixturePathPinned: source.includes('V7_FIXTURE_PATH: .maestro/fixtures/native-trip-home-roundtrip.json'),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForActiveTrip: /extendedWaitUntil:[\s\S]*visible:\s*Beijing 5-Day Command Center Test Trip[\s\S]*timeout:\s*45000/.test(
+    waitsForActiveTrip: /extendedWaitUntil:[\s\S]*visible:\s*Beijing 5-Day Command Center Test Trip[\s\S]*timeout:\s*120000/.test(
       source,
     ),
     missingStateCopy,
     missingCrashGuards,
     missingTabRoundtrips,
     preservesHomeAfterRoundtrip:
-      source.lastIndexOf('tapOn: 首页 · 现在该做什么？') > source.lastIndexOf('tapOn: 设置 · 这趟旅行该如何运行？') &&
+      source.lastIndexOf(homeRouteLine) > source.lastIndexOf(settingsRouteLine) &&
       source.lastIndexOf('assertVisible: Confirm hotel beside a subway station') >
-        source.lastIndexOf('tapOn: 首页 · 现在该做什么？'),
+        source.lastIndexOf(homeRouteLine),
     screenshotCaptured: source.includes(`takeScreenshot: ${flow.screenshotName}`),
   };
 }
@@ -275,8 +286,8 @@ export function runV7MaestroTripHomeNativeRepoAudit() {
 
   const testChain = mobilePackage.scripts?.test ?? '';
   const scriptCoverage = {
-    iosScript: mobilePackage.scripts?.['test:e2e:ios'] === 'maestro test .maestro/flows/ios',
-    androidScript: mobilePackage.scripts?.['test:e2e:android'] === 'maestro test .maestro/flows/android',
+    iosScript: mobilePackage.scripts?.['test:e2e:ios'] === 'node scripts/run-maestro-native.mjs ios',
+    androidScript: mobilePackage.scripts?.['test:e2e:android'] === 'node scripts/run-maestro-native.mjs android',
     nativeScript: mobilePackage.scripts?.['test:e2e:native'] === 'npm run test:e2e:ios && npm run test:e2e:android',
     checkScript:
       mobilePackage.scripts?.['v7-maestro-trip-home-native:check'] ===

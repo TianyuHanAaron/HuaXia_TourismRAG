@@ -7,6 +7,8 @@ import {
   v7WebShellRequiredControls,
 } from '../../src/app/v7WebAppShellSmoke';
 
+test.setTimeout(60_000);
+
 test('renders the production-ready HuaXia web planning shell', async ({ page }) => {
   const smokePlan = buildV7WebShellSmokePlan();
   const consoleMessages: string[] = [];

@@ -30,6 +30,7 @@ import {
   type ProviderActionRecoveryAction,
   type ProviderActionSheetViewModel,
 } from './providerActionSheetViewModel';
+import { isV7NativeFixtureModeEnabled } from '../../testing/nativeE2eFixtureRuntime';
 
 type Props = {
   action: TripProviderAction;
@@ -91,6 +92,10 @@ export function ProviderActionSheet({
     });
     await onLaunch?.(action, followUp);
     setHasLaunched(true);
+    if (isV7NativeFixtureModeEnabled()) {
+      setLaunchMessage('V7 fixture recorded the provider launch without opening an external app.');
+      return;
+    }
 
     const launchUrl = optionToLaunch.url;
     if (!launchUrl) {

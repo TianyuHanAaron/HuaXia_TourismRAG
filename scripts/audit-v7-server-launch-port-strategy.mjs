@@ -150,7 +150,7 @@ export function runV7ServerLaunchPortStrategyRepoAudit() {
       readRepoFile(frontendPackagePath),
     ),
     expoWebPortConfigured: /npm run web -- --host localhost --port 8081/.test(expoConfig),
-    expoWebDefaultBaseUrlConfigured: /http:\/\/127\.0\.0\.1:8081/.test(expoConfig),
+    expoWebDefaultBaseUrlConfigured: /http:\/\/localhost:8081/.test(expoConfig),
     fixtureServerPortInNativeFixtures: maestroFixtureFiles.some((filePath) => /127\.0\.0\.1:8787/.test(readRepoFile(filePath))),
     androidFixtureServerInNativeFixtures: maestroFixtureFiles.some((filePath) => /10\.0\.2\.2:8787/.test(readRepoFile(filePath))),
   };

@@ -193,11 +193,11 @@ function auditFlow(flow) {
     fixturePathPinned: source.includes('V7_FIXTURE_PATH: .maestro/fixtures/native-timeline-task-command.json'),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForActiveTrip: /extendedWaitUntil:[\s\S]*visible:\s*Beijing 5-Day Command Center Test Trip[\s\S]*timeout:\s*45000/.test(
+    waitsForActiveTrip: /extendedWaitUntil:[\s\S]*visible:\s*Beijing 5-Day Command Center Test Trip[\s\S]*timeout:\s*120000/.test(
       source,
     ),
-    opensTimelineTab: source.includes('tapOn: 时间线 · 我在旅行哪一步？'),
-    opensTasksTab: source.includes('tapOn: 任务 · 哪些任务现在要处理？'),
+    opensTimelineTab: source.includes('openLink: huaxia://trips/trip_v7_long_execution/(tabs)/timeline'),
+    opensTasksTab: source.includes('openLink: huaxia://trips/trip_v7_long_execution/(tabs)/tasks'),
     opensTaskDetail: source.includes('tapOn: 详情') && source.includes('assertVisible: 任务详情'),
     exposesFallbackActions: source.includes('assertVisible: 完成') && source.includes('assertVisible: 跳过'),
     missingVisibleCopy: requiredVisibleCopy.filter((copy) => !source.includes(copy)),

@@ -213,10 +213,10 @@ export function runV7ProductionReadinessReleaseGateRepoAudit() {
     mobileScripts: {
       test: typeof mobilePackage.scripts?.test === 'string',
       typecheck: mobilePackage.scripts?.typecheck === 'tsc --noEmit',
-      e2eIos: mobilePackage.scripts?.['test:e2e:ios'] === 'maestro test .maestro/flows/ios',
+      e2eIos: mobilePackage.scripts?.['test:e2e:ios'] === 'node scripts/run-maestro-native.mjs ios',
       e2eAndroid:
         mobilePackage.scripts?.['test:e2e:android'] ===
-        'maestro test .maestro/flows/android',
+        'node scripts/run-maestro-native.mjs android',
     },
   };
 

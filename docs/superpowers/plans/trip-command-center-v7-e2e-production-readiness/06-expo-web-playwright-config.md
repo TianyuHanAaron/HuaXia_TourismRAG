@@ -10,7 +10,7 @@ Mobile command-center screens are tested in browser device profiles before nativ
 Expo Web tests use the same API fixture server and do not require live backend generation.
 
 ## Web UI Scope
-Create `frontend/playwright.expo.config.ts` to run Playwright against `EXPO_WEB_BASE_URL` or launch `cd ../mobile && npm run web -- --host localhost --port 8081`.
+Create `frontend/playwright.expo.config.ts` to run Playwright against `EXPO_WEB_BASE_URL` or launch `cd ../mobile && npm run web -- --host localhost --port 8081`, because Expo CLI accepts `localhost` as the local web host mode.
 
 ## Mobile UI Scope
 Projects use mobile Chrome, mobile Safari, and tablet-like viewport profiles. Routes include Trip Home, Timeline, Tasks, Documents, Settings, provider sheet, and offline conflict sheet.

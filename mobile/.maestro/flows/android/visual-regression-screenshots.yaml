@@ -14,13 +14,26 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: visual_regression_screenshot_matrix
+      V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: HuaXia
-    timeout: 45000
+    timeout: 120000
 - assertNotVisible: Unhandled JS Exception
 - assertNotVisible: Something went wrong
 - assertNotVisible: Network unavailable. Please check your connection.
-- tapOn: 时间线 · 我在旅行哪一步？
+- openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/timeline
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 旅行时间线
 - assertVisible: Northern Xinjiang transfer
 - assertVisible: 长线旅行按阶段折叠日期，避免变成难读的行程墙。

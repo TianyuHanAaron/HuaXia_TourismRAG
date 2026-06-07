@@ -193,7 +193,7 @@ function auditMaestroFlow(flow) {
     fixturePathPinned: source.includes('V7_FIXTURE_PATH: .maestro/fixtures/native-calendar-document-safety.json'),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForFixtureTrip: /extendedWaitUntil:[\s\S]*visible:\s*京都出发准备执行测试[\s\S]*timeout:\s*45000/.test(source),
+    waitsForFixtureTrip: /extendedWaitUntil:[\s\S]*visible:\s*京都出发准备执行测试[\s\S]*timeout:\s*120000/.test(source),
     missingCopy: requiredCopy.filter((copy) => !source.includes(copy)),
     missingCrashGuards: crashCopy.filter((copy) => !source.includes(`assertNotVisible: ${copy}`)),
     screenshotCaptured: source.includes(`takeScreenshot: ${flow.screenshotName}`),

@@ -1,6 +1,6 @@
 import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test';
 
-export const expoWebPlaywrightDefaultBaseURL = 'http://127.0.0.1:8081';
+export const expoWebPlaywrightDefaultBaseURL = 'http://localhost:8081';
 
 export type ExpoWebPlaywrightEnv = Partial<Record<'EXPO_WEB_BASE_URL' | 'CI', string | undefined>>;
 

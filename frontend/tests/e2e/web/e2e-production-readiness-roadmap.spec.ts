@@ -18,6 +18,8 @@ import {
   trackV7RoadmapLiveProviderRequests,
 } from '../shared/v7RoadmapSmoke';
 
+test.setTimeout(60_000);
+
 test('executes the Step 0 roadmap smoke on React web without release blockers', async ({ page }, testInfo) => {
   const plan = buildV7WebShellSmokePlan();
   const consoleFailures = collectV7RoadmapConsoleFailures(

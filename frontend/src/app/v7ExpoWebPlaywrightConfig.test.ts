@@ -25,10 +25,10 @@ describe('v7 expo web playwright config', () => {
     expect(config.testMatch).toEqual(['expo-web/**/*.spec.ts']);
     expect(config.webServer).toMatchObject({
       command: 'cd ../mobile && npm run web -- --host localhost --port 8081',
-      url: 'http://127.0.0.1:8081',
+      url: 'http://localhost:8081',
     });
     expect(config.use).toMatchObject({
-      baseURL: 'http://127.0.0.1:8081',
+      baseURL: 'http://localhost:8081',
       trace: 'on-first-retry',
       screenshot: 'only-on-failure',
       video: 'retain-on-failure',

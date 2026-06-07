@@ -117,11 +117,11 @@ export const v7MaestroNativeRequiredShellControls: V7MaestroNativeShellControl[]
     label: 'Confirm hotel beside a subway station',
     requiredOn: ['ios', 'android'],
   },
-  { controlId: 'home_tab', label: '首页 · 现在该做什么？', requiredOn: ['ios', 'android'] },
-  { controlId: 'timeline_tab', label: '时间线 · 我在旅行哪一步？', requiredOn: ['ios', 'android'] },
-  { controlId: 'tasks_tab', label: '任务 · 哪些任务现在要处理？', requiredOn: ['ios', 'android'] },
-  { controlId: 'documents_tab', label: '文件 · 我需要什么凭证？', requiredOn: ['ios', 'android'] },
-  { controlId: 'settings_tab', label: '设置 · 这趟旅行该如何运行？', requiredOn: ['ios', 'android'] },
+  { controlId: 'home_tab', label: '首页 · 现在该做什么？ · Home', requiredOn: ['ios', 'android'] },
+  { controlId: 'timeline_tab', label: '时间线 · 我在旅行哪一步？ · Timeline', requiredOn: ['ios', 'android'] },
+  { controlId: 'tasks_tab', label: '任务 · 哪些任务现在要处理？ · Tasks', requiredOn: ['ios', 'android'] },
+  { controlId: 'documents_tab', label: '文件 · 我需要什么凭证？ · Documents', requiredOn: ['ios', 'android'] },
+  { controlId: 'settings_tab', label: '设置 · 这趟旅行该如何运行？ · Settings', requiredOn: ['ios', 'android'] },
 ];
 
 export const v7MaestroNativeFixture: V7MaestroNativeFixture = {

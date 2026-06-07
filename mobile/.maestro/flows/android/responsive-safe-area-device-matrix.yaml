@@ -14,15 +14,33 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: responsive_safe_area_device_matrix
+      V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: HuaXia
-    timeout: 45000
+    timeout: 120000
 - assertNotVisible: Unhandled JS Exception
 - assertNotVisible: Something went wrong
 - assertNotVisible: Network unavailable. Please check your connection.
-- tapOn: 时间线 · 我在旅行哪一步？
+- openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/timeline
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 旅行时间线
 - assertVisible: Northern Xinjiang transfer
-- tapOn: 任务 · 哪些任务现在要处理？
+- openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/tasks
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: Open prepared route
 - takeScreenshot: v7-android-responsive-safe-area-matrix

@@ -58,7 +58,7 @@ for (const viewport of expoViewports) {
     await page.goto(v7ResponsiveSafeAreaDeviceMatrixScenarios.tasks.route);
 
     await expect(page.getByText('现在需要处理什么？').first()).toBeVisible();
-    await page.getByRole('button', { name: /现在 · 现在 · 1 个任务/ }).first().click();
+    await expandNowTaskGroup(page);
     await expect(page.getByText(v7ResponsiveSafeAreaDeviceMatrixFixture.longTrip.longTaskTitle).first()).toBeVisible();
     await expect(page.getByText('打开已准备路线').first()).toBeVisible();
     await assertReadableFirstViewport(page, 'tasks');
@@ -215,6 +215,15 @@ async function installResponsiveSafeAreaMocks(page: Page) {
       renewal_at: '2026-07-07T00:00:00+10:00',
     });
   });
+}
+
+async function expandNowTaskGroup(page: Page): Promise<void> {
+  const groupButton = page.getByRole('button', { name: /现在 · 现在 · 1 个任务/ }).first();
+  await expect(groupButton).toBeVisible();
+  const stateText = await groupButton.textContent();
+  if (!stateText?.includes('已展开')) {
+    await groupButton.click();
+  }
 }
 
 async function fulfillJson(route: Route, json: unknown) {

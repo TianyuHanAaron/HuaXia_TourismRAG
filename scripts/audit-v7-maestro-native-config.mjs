@@ -9,6 +9,7 @@ const configPath = 'mobile/.maestro/config.yaml';
 const fixtureRoot = 'mobile/.maestro/fixtures';
 const packagePath = 'mobile/package.json';
 const appConfigPath = 'mobile/app.json';
+const nativeRunnerPath = 'mobile/scripts/run-maestro-native.mjs';
 
 const requiredPlatforms = [
   {
@@ -27,6 +28,10 @@ const requiredPlatforms = [
 
 const requiredEnvKeys = ['V7_FIXTURE_SCENARIO_ID', 'V7_FIXTURE_TRIP_ID', 'EXPO_PUBLIC_API_BASE_URL'];
 const requiredScripts = ['test:e2e:ios', 'test:e2e:android', 'test:e2e:native'];
+const fixtureLaunchArgumentsPattern =
+  /launchApp:[\s\S]*arguments:[\s\S]*V7_FIXTURE_SCENARIO_ID:\s*[A-Za-z0-9_%-]+[\s\S]*V7_FIXTURE_TRIP_ID:\s*[A-Za-z0-9_%-]+/;
+const optionalSystemOpenPromptPattern =
+  /waitForAnimationToEnd:[\s\S]*timeout:\s*5000[\s\S]*tapOn:[\s\S]*text:\s*Open[\s\S]*optional:\s*true/;
 
 function repoPath(relativePath) {
   return path.join(repoRoot, relativePath);
@@ -127,10 +132,20 @@ export function runV7MaestroNativeConfigRepoAudit() {
         return !platform || !source.includes(platform.apiBaseUrl);
       })
       .map(({ flowPath }) => flowPath),
+    flowsMissingFixtureLaunchArguments: configuredFlowSources
+      .filter(({ source }) => !fixtureLaunchArgumentsPattern.test(source))
+      .map(({ flowPath }) => flowPath),
+    flowsMissingOptionalSystemOpenPromptDismissal: configuredFlowSources
+      .filter(({ source }) => !optionalSystemOpenPromptPattern.test(source))
+      .map(({ flowPath }) => flowPath),
+    flowsStillUsingFixtureDeepLink: configuredFlowSources
+      .filter(({ source }) => /openLink:\s*huaxia:\/\/\/native-e2e/.test(source))
+      .map(({ flowPath }) => flowPath),
   };
 
   const packageJson = JSON.parse(readRepoFile(packagePath));
   const appJson = JSON.parse(readRepoFile(appConfigPath));
+  const nativeRunnerSource = readRepoFile(nativeRunnerPath);
   const scriptCoverage = {
     missingScripts: requiredScripts.filter((scriptName) => !packageJson.scripts?.[scriptName]),
     iosCommand: packageJson.scripts?.['test:e2e:ios'],
@@ -138,6 +153,21 @@ export function runV7MaestroNativeConfigRepoAudit() {
     nativeCommand: packageJson.scripts?.['test:e2e:native'],
     aggregateRunsBothPlatforms:
       packageJson.scripts?.['test:e2e:native'] === 'npm run test:e2e:ios && npm run test:e2e:android',
+    iosUsesNativeRunner: packageJson.scripts?.['test:e2e:ios'] === 'node scripts/run-maestro-native.mjs ios',
+    androidUsesNativeRunner:
+      packageJson.scripts?.['test:e2e:android'] === 'node scripts/run-maestro-native.mjs android',
+    androidBuildUsesJavaRunner:
+      packageJson.scripts?.android === 'node scripts/run-expo-android.mjs' ||
+      packageJson.scripts?.['android:native'] === 'node scripts/run-expo-android.mjs',
+    postinstallPatchesFoojay: packageJson.scripts?.postinstall === 'node scripts/patch-react-native-gradle-foojay.mjs',
+    nativeRunnerPinsDriverStartupTimeout: /MAESTRO_DRIVER_STARTUP_TIMEOUT[\s\S]*120000/.test(nativeRunnerSource),
+    nativeRunnerSkipsIosDriverReinstall:
+      /--no-reinstall-driver/.test(nativeRunnerSource) &&
+      /platform\s*===\s*'ios'/.test(nativeRunnerSource) &&
+      /MAESTRO_REINSTALL_DRIVER/.test(nativeRunnerSource),
+    nativeRunnerSupportsTargetedFlows:
+      /flowTargets\s*=\s*process\.argv\.slice\(3\)/.test(nativeRunnerSource) &&
+      /flowTargets\.length\s*\?\s*flowTargets\s*:\s*\[`\.maestro\/flows\/\$\{platform\}`\]/.test(nativeRunnerSource),
   };
 
   const appIdCoverage = {
@@ -186,9 +216,17 @@ export function runV7MaestroNativeConfigRepoAudit() {
     launchEnvCoverage.flowsMissingRequiredEnv.length === 0 &&
     launchEnvCoverage.flowsMissingLaunchApp.length === 0 &&
     launchEnvCoverage.flowsMissingFixtureApiBaseUrl.length === 0 &&
+    launchEnvCoverage.flowsMissingFixtureLaunchArguments.length === 0 &&
+    launchEnvCoverage.flowsMissingOptionalSystemOpenPromptDismissal.length === 0 &&
+    launchEnvCoverage.flowsStillUsingFixtureDeepLink.length === 0 &&
     scriptCoverage.missingScripts.length === 0 &&
-    scriptCoverage.iosCommand === 'maestro test .maestro/flows/ios' &&
-    scriptCoverage.androidCommand === 'maestro test .maestro/flows/android' &&
+    scriptCoverage.iosUsesNativeRunner &&
+    scriptCoverage.androidUsesNativeRunner &&
+    scriptCoverage.androidBuildUsesJavaRunner &&
+    scriptCoverage.postinstallPatchesFoojay &&
+    scriptCoverage.nativeRunnerPinsDriverStartupTimeout &&
+    scriptCoverage.nativeRunnerSkipsIosDriverReinstall &&
+    scriptCoverage.nativeRunnerSupportsTargetedFlows &&
     scriptCoverage.aggregateRunsBothPlatforms &&
     appIdCoverage.iosMatchesExpoConfig &&
     appIdCoverage.androidMatchesExpoConfig &&
@@ -199,7 +237,7 @@ export function runV7MaestroNativeConfigRepoAudit() {
   return {
     step: 7,
     scenarioId: 'maestro_native_config_real_repo_scan',
-    auditedFiles: [configPath, packagePath, appConfigPath, ...configuredFlows],
+    auditedFiles: [configPath, packagePath, appConfigPath, nativeRunnerPath, ...configuredFlows],
     configCoverage,
     platformFlowCoverage,
     fixtureCoverage,

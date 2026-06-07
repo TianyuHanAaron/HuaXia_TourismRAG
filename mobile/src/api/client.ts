@@ -6,6 +6,7 @@ import {
   buildSensitiveAuthHeaders,
   clearSensitiveSession,
 } from '../storage/secureSession';
+import { getV7NativeFixtureResponse } from '../testing/nativeE2eFixtureRuntime';
 
 export const api = axios.create({
   baseURL: resolveApiBaseUrl(),
@@ -215,6 +216,18 @@ async function apiRequest<T>({
   parser: ResponseParser<T>;
   options?: ApiRequestOptions;
 }): Promise<T> {
+  const fixture = getV7NativeFixtureResponse({ method, url, data });
+  if (fixture.handled) {
+    if ('errorKind' in fixture) {
+      throw new MobileApiError({
+        kind: fixture.errorKind,
+        endpoint: url,
+        message: fixture.message,
+      });
+    }
+    return parseApiResponse(parser, fixture.data, url);
+  }
+
   try {
     const response = await api.request({
       method,

@@ -252,7 +252,12 @@ test('renders action-first task command groups and blocked reason in Expo Web', 
 });
 
 async function expandTaskGroup(page: Page, label: string) {
-  await page.getByRole('button', { name: new RegExp(`${label} · ${label} · 1 个任务`) }).click();
+  const groupButton = page.getByRole('button', { name: new RegExp(`${label} · ${label} · 1 个任务`) }).first();
+  await expect(groupButton).toBeVisible();
+  const stateText = await groupButton.textContent();
+  if (!stateText?.includes('已展开')) {
+    await groupButton.click();
+  }
 }
 
 async function installTimelineTaskMocks(page: Page, requestedPaths: string[]) {

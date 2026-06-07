@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -363,12 +363,16 @@ function EmptyStateActionButton({
   onRetry: () => void;
 }) {
   if (action.href) {
+    const href = action.href;
     return (
-      <Link href={action.href} asChild>
-        <Button mode={mode} semanticTone={action.tone} disabled={busy}>
-          {action.label}
-        </Button>
-      </Link>
+      <Button
+        mode={mode}
+        semanticTone={action.tone}
+        disabled={busy}
+        onPress={() => router.push(href)}
+      >
+        {action.label}
+      </Button>
     );
   }
   const onPress =
@@ -438,9 +442,9 @@ function SampleCommandCenterActionRow({
           </Text>
         ) : null}
         <View style={styles.actions}>
-          <Link href="/intake" asChild>
-            <Button mode="contained">创建我的真实旅行 Create my own trip</Button>
-          </Link>
+          <Button mode="contained" onPress={() => router.push('/intake')}>
+            创建我的真实旅行 Create my own trip
+          </Button>
           <Button mode="outlined" loading={deleting} disabled={deleting} onPress={onDeleteSample}>
             删除示例 Delete sample
           </Button>
@@ -519,11 +523,14 @@ function SecondaryActionRail({ viewModel }: { viewModel: TripHomeViewModel }) {
     <StickyActionBar>
       <View style={styles.actions}>
         {viewModel.secondaryActions.map((action) => (
-          <Link key={`${action.label}-${action.href}`} href={action.href} asChild>
-            <Button mode="outlined" semanticTone={action.semanticTone}>
-              {action.label}
-            </Button>
-          </Link>
+          <Button
+            key={`${action.label}-${action.href}`}
+            mode="outlined"
+            semanticTone={action.semanticTone}
+            onPress={() => router.push(action.href)}
+          >
+            {action.label}
+          </Button>
         ))}
       </View>
     </StickyActionBar>
@@ -576,11 +583,13 @@ function NextBestActionCard({
           <Text variant="bodySmall" numberOfLines={2} ellipsizeMode="tail">
             {action.body}
           </Text>
-          <Link href={viewModel.primaryCta.href} asChild>
-            <Button mode="contained" semanticTone={viewModel.primaryCta.semanticTone}>
-              {viewModel.primaryCta.label}
-            </Button>
-          </Link>
+          <Button
+            semanticTone={viewModel.primaryCta.semanticTone}
+            mode="contained"
+            onPress={() => router.push(viewModel.primaryCta.href)}
+          >
+            {viewModel.primaryCta.label}
+          </Button>
         </View>
       </Card.Content>
     </Card>

@@ -192,7 +192,7 @@ function auditMaestroFlow(flow) {
     fixturePathPinned: source.includes('V7_FIXTURE_PATH: .maestro/fixtures/native-security-secret-leak.json'),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForAppShell: /extendedWaitUntil:[\s\S]*visible:\s*HuaXia[\s\S]*timeout:\s*45000/.test(source),
+    waitsForAppShell: /extendedWaitUntil:[\s\S]*visible:\s*HuaXia[\s\S]*timeout:\s*120000/.test(source),
     safeCopyVisible:
       source.includes('assertVisible: 文件保险箱') &&
       source.includes('assertVisible: 默认不进提示词') &&

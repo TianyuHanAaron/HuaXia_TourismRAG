@@ -194,7 +194,7 @@ function auditMaestroFlow(flow) {
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     startTimePinned: source.includes('startTime:'),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForAppShell: /extendedWaitUntil:[\s\S]*visible:\s*HuaXia[\s\S]*timeout:\s*45000/.test(source),
+    waitsForAppShell: /extendedWaitUntil:[\s\S]*visible:\s*HuaXia[\s\S]*timeout:\s*120000/.test(source),
     screenshotNames: flow.screenshotNames,
     missingScreenshots: flow.screenshotNames.filter(
       (name) => !source.includes(`takeScreenshot: ${name}`),

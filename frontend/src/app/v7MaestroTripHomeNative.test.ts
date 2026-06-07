@@ -34,27 +34,27 @@ describe('v7 Maestro native Trip Home roundtrip contract', () => {
     expect(v7MaestroTripHomeRoundtripTabs).toEqual([
       {
         tabId: 'timeline',
-        tabLabel: '时间线 · 我在旅行哪一步？',
+        tabLabel: '时间线 · 我在旅行哪一步？ · Timeline',
         expectedVisibleText: '旅行时间线',
       },
       {
         tabId: 'tasks',
-        tabLabel: '任务 · 哪些任务现在要处理？',
+        tabLabel: '任务 · 哪些任务现在要处理？ · Tasks',
         expectedVisibleText: '现在需要处理什么？',
       },
       {
         tabId: 'documents',
-        tabLabel: '文件 · 我需要什么凭证？',
+        tabLabel: '文件 · 我需要什么凭证？ · Documents',
         expectedVisibleText: '文件保险箱',
       },
       {
         tabId: 'settings',
-        tabLabel: '设置 · 这趟旅行该如何运行？',
+        tabLabel: '设置 · 这趟旅行该如何运行？ · Settings',
         expectedVisibleText: '偏好、隐私与账户',
       },
       {
         tabId: 'home',
-        tabLabel: '首页 · 现在该做什么？',
+        tabLabel: '首页 · 现在该做什么？ · Home',
         expectedVisibleText: 'Beijing 5-Day Command Center Test Trip',
       },
     ]);
@@ -67,7 +67,7 @@ describe('v7 Maestro native Trip Home roundtrip contract', () => {
         'Beijing 5-Day Command Center Test Trip',
         '下一步',
         'Confirm hotel beside a subway station',
-        '处理下一步',
+        '查看阻塞原因',
         'Book Palace Museum morning entry',
         'Save ID copies before ticket pickup',
       ]),

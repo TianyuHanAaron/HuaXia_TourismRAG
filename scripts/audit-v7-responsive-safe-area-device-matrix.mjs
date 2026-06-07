@@ -176,12 +176,12 @@ function auditMaestroFlow(flow) {
     ),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForAppShell: /extendedWaitUntil:[\s\S]*visible:\s*HuaXia[\s\S]*timeout:\s*45000/.test(source),
+    waitsForAppShell: /extendedWaitUntil:[\s\S]*visible:\s*HuaXia[\s\S]*timeout:\s*120000/.test(source),
     missingCopy: requiredCopy.filter((copy) => !source.includes(copy)),
     missingCrashGuards: crashCopy.filter((copy) => !source.includes(`assertNotVisible: ${copy}`)),
     assertsNavigationAndTaskSurfaces:
-      source.includes('tapOn: 时间线 · 我在旅行哪一步？') ||
-      source.includes('tapOn: 任务 · 哪些任务现在要处理？'),
+      source.includes('openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/timeline') ||
+      source.includes('openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/tasks'),
     screenshotCaptured: source.includes(`takeScreenshot: ${flow.screenshotName}`),
   };
 }

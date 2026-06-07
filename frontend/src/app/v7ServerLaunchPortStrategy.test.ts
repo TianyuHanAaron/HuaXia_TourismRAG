@@ -27,7 +27,9 @@ describe('v7 server launch and port strategy', () => {
         }),
         expect.objectContaining({
           serviceId: 'expo_web',
+          host: 'localhost',
           port: 8081,
+          defaultBaseUrl: 'http://localhost:8081',
           launchCommand: 'cd mobile && npm run web -- --host localhost --port 8081',
         }),
         expect.objectContaining({
@@ -48,7 +50,7 @@ describe('v7 server launch and port strategy', () => {
     expect(strategy.ciMode).toBe(false);
     expect(strategy.reactWebBaseUrl).toBe('http://127.0.0.1:5173');
     expect(strategy.productionWebBaseUrl).toBe('http://127.0.0.1:8000');
-    expect(strategy.expoWebBaseUrl).toBe('http://127.0.0.1:8081');
+    expect(strategy.expoWebBaseUrl).toBe('http://localhost:8081');
     expect(strategy.fixtureServerBaseUrl).toBe('http://127.0.0.1:8787');
     expect(strategy.iosAndWebApiBaseUrl).toBe('http://127.0.0.1:8000');
     expect(strategy.androidApiBaseUrl).toBe('http://10.0.2.2:8000');
@@ -95,7 +97,7 @@ describe('v7 server launch and port strategy', () => {
       {
         laneId: 'playwright_expo_web',
         serviceId: 'expo_web',
-        url: 'http://127.0.0.1:8081',
+        url: 'http://localhost:8081',
         requiredBefore: 'Expo Web route assertions',
       },
       {

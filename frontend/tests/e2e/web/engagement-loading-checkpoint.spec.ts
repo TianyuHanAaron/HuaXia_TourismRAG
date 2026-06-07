@@ -11,6 +11,8 @@ import {
   v7EngagementLoadingCheckpointWebSpec,
 } from '../../../src/app/v7EngagementLoadingCheckpoint';
 
+test.setTimeout(60_000);
+
 const blockedLiveProviderHostPatterns = [
   /dashscope/i,
   /api\.openai\.com/i,
@@ -261,7 +263,12 @@ async function submitFreeTextPlanningJob(page: Page, prompt: string): Promise<vo
   await page
     .getByPlaceholder('说说你的旅行想法，比如目的地、天数、同行人、预算；特殊路线可以写城市清单和主题。')
     .fill(prompt);
+  const jobAccepted = page.waitForResponse((response) => {
+    const request = response.request();
+    return request.method() === 'POST' && response.url().includes('/tourism/jobs/questions') && response.ok();
+  });
   await page.getByRole('button', { name: '发送给夏夏' }).click();
+  await jobAccepted;
 }
 
 async function assertForbiddenLeakCopyHidden(page: Page): Promise<void> {

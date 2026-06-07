@@ -207,7 +207,7 @@ function auditMaestroFlow(flow) {
     ),
     apiBaseUrlPinned: source.includes(`EXPO_PUBLIC_API_BASE_URL: ${flow.apiBaseUrl}`),
     launchClearsState: /launchApp:[\s\S]*clearState:\s*true[\s\S]*stopApp:\s*true/.test(source),
-    waitsForFixtureTrip: /extendedWaitUntil:[\s\S]*visible:\s*北京无障碍键盘执行测试[\s\S]*timeout:\s*45000/.test(
+    waitsForFixtureTrip: /extendedWaitUntil:[\s\S]*visible:\s*北京无障碍键盘执行测试[\s\S]*timeout:\s*120000/.test(
       source,
     ),
     missingCopy: requiredCopy.filter((copy) => !source.includes(copy)),

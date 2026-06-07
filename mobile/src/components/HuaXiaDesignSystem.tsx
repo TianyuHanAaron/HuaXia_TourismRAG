@@ -98,6 +98,7 @@ type TimelineItemProps = {
 };
 
 const MIN_TOUCH_TARGET = 44;
+const TAB_BAR_SAFE_PADDING = 96;
 const DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER = 1.8;
 const dynamicTextProps = {
   maxFontSizeMultiplier: DYNAMIC_TEXT_MAX_FONT_SIZE_MULTIPLIER,
@@ -534,6 +535,7 @@ const styles = StyleSheet.create({
   content: {
     gap: huaxiaSpacingTokens.lg,
     padding: huaxiaSpacingTokens.lg,
+    paddingBottom: TAB_BAR_SAFE_PADDING,
   },
   screenHeader: {
     gap: huaxiaSpacingTokens.sm,

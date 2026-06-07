@@ -289,7 +289,7 @@ async function assertScenarioReady(
   }
   if (scenario.id === 'expo_task_command_groups') {
     await expect(page.getByText('现在需要处理什么？').first()).toBeVisible();
-    await page.getByRole('button', { name: /现在 · 现在 · 1 个任务/ }).first().click();
+    await expandNowTaskGroup(page);
     await expect(page.getByText('打开已准备路线').first()).toBeVisible();
     return;
   }
@@ -310,6 +310,15 @@ async function assertScenarioReady(
   }
   if (scenario.id === 'expo_error_recovery') {
     await expect(page.getByText('当前无法刷新服务器任务').first()).toBeVisible();
+  }
+}
+
+async function expandNowTaskGroup(page: Page): Promise<void> {
+  const groupButton = page.getByRole('button', { name: /现在 · 现在 · 1 个任务/ }).first();
+  await expect(groupButton).toBeVisible();
+  const stateText = await groupButton.textContent();
+  if (!stateText?.includes('已展开')) {
+    await groupButton.click();
   }
 }
 

@@ -60,7 +60,7 @@ assertRepoContains(
 );
 assertMobileContains(
   'src/features/v7/v7MaestroNativeAppShellSmoke.ts',
-  /v7MaestroNativeRequiredShellControls[\s\S]*华夏旅行指挥中心[\s\S]*Beijing 5-Day Command Center Test Trip[\s\S]*下一步[\s\S]*首页 · 现在该做什么？[\s\S]*设置 · 这趟旅行该如何运行？/,
+  /v7MaestroNativeRequiredShellControls[\s\S]*华夏旅行指挥中心[\s\S]*Beijing 5-Day Command Center Test Trip[\s\S]*下一步[\s\S]*首页 · 现在该做什么？ · Home[\s\S]*设置 · 这趟旅行该如何运行？ · Settings/,
   'mobile mirror must define native shell controls and tab accessibility labels.',
 );
 assertMobileContains(
@@ -102,13 +102,13 @@ assertMobileContains(
 );
 assertMobileContains(
   'package.json',
-  /"test:e2e:ios": "maestro test \.maestro\/flows\/ios"/,
-  'mobile package scripts must expose the iOS Maestro smoke command.',
+  /"test:e2e:ios": "node scripts\/run-maestro-native\.mjs ios"/,
+  'mobile package scripts must expose the iOS Maestro smoke command through the native runner.',
 );
 assertMobileContains(
   'package.json',
-  /"test:e2e:android": "maestro test \.maestro\/flows\/android"/,
-  'mobile package scripts must expose the Android Maestro smoke command.',
+  /"test:e2e:android": "node scripts\/run-maestro-native\.mjs android"/,
+  'mobile package scripts must expose the Android Maestro smoke command through the native runner.',
 );
 assertMobileContains(
   'package.json',

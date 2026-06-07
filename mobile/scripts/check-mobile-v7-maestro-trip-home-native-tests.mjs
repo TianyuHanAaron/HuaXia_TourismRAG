@@ -60,7 +60,7 @@ assertRepoContains(
 );
 assertMobileContains(
   'src/features/v7/v7MaestroTripHomeNative.ts',
-  /v7MaestroTripHomeRoundtripTabs[\s\S]*时间线 · 我在旅行哪一步？[\s\S]*旅行时间线[\s\S]*任务 · 哪些任务现在要处理？[\s\S]*现在需要处理什么？[\s\S]*文件 · 我需要什么凭证？[\s\S]*文件保险箱[\s\S]*设置 · 这趟旅行该如何运行？[\s\S]*偏好、隐私与账户/,
+  /v7MaestroTripHomeRoundtripTabs[\s\S]*时间线 · 我在旅行哪一步？ · Timeline[\s\S]*旅行时间线[\s\S]*任务 · 哪些任务现在要处理？ · Tasks[\s\S]*现在需要处理什么？[\s\S]*文件 · 我需要什么凭证？ · Documents[\s\S]*文件保险箱[\s\S]*设置 · 这趟旅行该如何运行？ · Settings[\s\S]*偏好、隐私与账户/,
   'mobile mirror must define native tab roundtrip labels and expected screen copy.',
 );
 assertMobileContains(
@@ -81,7 +81,7 @@ assertMobileContains(
 for (const platform of ['ios', 'android']) {
   assertMobileContains(
     `.maestro/flows/${platform}/trip-home-roundtrip.yaml`,
-    /appId: com\.huaxia\.tripcommandcenter[\s\S]*launchApp[\s\S]*extendedWaitUntil[\s\S]*Beijing 5-Day Command Center Test Trip[\s\S]*assertVisible: 处理下一步[\s\S]*tapOn: 时间线 · 我在旅行哪一步？[\s\S]*assertVisible: 旅行时间线[\s\S]*tapOn: 任务 · 哪些任务现在要处理？[\s\S]*assertVisible: 现在需要处理什么？[\s\S]*assertVisible: Book Palace Museum morning entry[\s\S]*assertVisible: Save ID copies before ticket pickup[\s\S]*tapOn: 文件 · 我需要什么凭证？[\s\S]*assertVisible: 文件保险箱[\s\S]*tapOn: 设置 · 这趟旅行该如何运行？[\s\S]*assertVisible: 偏好、隐私与账户[\s\S]*tapOn: 首页 · 现在该做什么？[\s\S]*assertVisible: Confirm hotel beside a subway station[\s\S]*takeScreenshot/,
+    /appId: com\.huaxia\.tripcommandcenter[\s\S]*launchApp[\s\S]*extendedWaitUntil[\s\S]*Beijing 5-Day Command Center Test Trip[\s\S]*assertVisible: 查看阻塞原因[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_beijing_family\/\(tabs\)\/timeline[\s\S]*assertVisible: 旅行时间线[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_beijing_family\/\(tabs\)\/tasks[\s\S]*assertVisible: 现在需要处理什么？[\s\S]*assertVisible: Book Palace Museum morning entry[\s\S]*assertVisible: Save ID copies before ticket pickup[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_beijing_family\/\(tabs\)\/documents[\s\S]*assertVisible: 文件保险箱[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_beijing_family\/\(tabs\)\/settings[\s\S]*assertVisible: 偏好、隐私与账户[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_beijing_family\/\(tabs\)[\s\S]*assertVisible: Confirm hotel beside a subway station[\s\S]*takeScreenshot/,
     `${platform} Trip Home flow must launch, roundtrip all tabs, preserve active trip state, and capture safe-area evidence.`,
   );
 }

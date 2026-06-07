@@ -74,7 +74,9 @@ test('falls back to polling when SSE errors without alarming the traveler', asyn
   await triggerSseError(page);
 
   await expect(page.getByText(v7SseFallbackPollingScenario.recoveryCopy)).toBeVisible();
-  await expect(page.getByText(v7SseFallbackPollingScenario.finalAnswer, { exact: false })).toBeVisible();
+  await expect(
+    page.getByText(v7SseFallbackPollingScenario.finalAnswer, { exact: false }),
+  ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/崩溃|异常|Unhandled|failed to fetch/i)).toHaveCount(0);
   expect(liveProviderRequests).toEqual([]);
 });

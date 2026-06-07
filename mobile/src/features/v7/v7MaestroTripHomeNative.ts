@@ -97,27 +97,27 @@ export const v7MaestroTripHomeNativeAuditEvidence: V7MaestroTripHomeNativeAuditE
 export const v7MaestroTripHomeRoundtripTabs: V7MaestroTripHomeRoundtripTab[] = [
   {
     tabId: 'timeline',
-    tabLabel: '时间线 · 我在旅行哪一步？',
+    tabLabel: '时间线 · 我在旅行哪一步？ · Timeline',
     expectedVisibleText: '旅行时间线',
   },
   {
     tabId: 'tasks',
-    tabLabel: '任务 · 哪些任务现在要处理？',
+    tabLabel: '任务 · 哪些任务现在要处理？ · Tasks',
     expectedVisibleText: '现在需要处理什么？',
   },
   {
     tabId: 'documents',
-    tabLabel: '文件 · 我需要什么凭证？',
+    tabLabel: '文件 · 我需要什么凭证？ · Documents',
     expectedVisibleText: '文件保险箱',
   },
   {
     tabId: 'settings',
-    tabLabel: '设置 · 这趟旅行该如何运行？',
+    tabLabel: '设置 · 这趟旅行该如何运行？ · Settings',
     expectedVisibleText: '偏好、隐私与账户',
   },
   {
     tabId: 'home',
-    tabLabel: '首页 · 现在该做什么？',
+    tabLabel: '首页 · 现在该做什么？ · Home',
     expectedVisibleText: 'Beijing 5-Day Command Center Test Trip',
   },
 ];
@@ -135,7 +135,7 @@ export const v7MaestroTripHomeStateAssertions: V7MaestroTripHomeStateAssertion[]
     label: 'Confirm hotel beside a subway station',
     requiredOn: ['ios', 'android'],
   },
-  { assertionId: 'primary_cta', label: '处理下一步', requiredOn: ['ios', 'android'] },
+  { assertionId: 'primary_cta', label: '查看阻塞原因', requiredOn: ['ios', 'android'] },
   {
     assertionId: 'ready_provider_action',
     label: 'Book Palace Museum morning entry',

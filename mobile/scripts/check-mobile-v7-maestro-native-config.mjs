@@ -76,8 +76,28 @@ assertMobileContains(
 );
 assertMobileContains(
   'package.json',
-  /"test:e2e:ios": "maestro test \.maestro\/flows\/ios"[\s\S]*"test:e2e:android": "maestro test \.maestro\/flows\/android"[\s\S]*"test:e2e:native": "npm run test:e2e:ios && npm run test:e2e:android"/,
-  'mobile package scripts must expose iOS, Android, and aggregate native Maestro commands.',
+  /"test:e2e:ios": "node scripts\/run-maestro-native\.mjs ios"[\s\S]*"test:e2e:android": "node scripts\/run-maestro-native\.mjs android"[\s\S]*"test:e2e:native": "npm run test:e2e:ios && npm run test:e2e:android"/,
+  'mobile package scripts must expose durable iOS, Android, and aggregate native Maestro commands.',
+);
+assertMobileContains(
+  'package.json',
+  /"postinstall": "node scripts\/patch-react-native-gradle-foojay\.mjs"[\s\S]*"android:native": "node scripts\/run-expo-android\.mjs"/,
+  'mobile package scripts must persist the Foojay fix and expose the Java-pinned Android runner.',
+);
+assertRepoContains(
+  'mobile/app/index.tsx',
+  /LaunchArguments[\s\S]*setV7NativeE2eFixture[\s\S]*writeSelectedTripIdToMmkv/,
+  'native app startup must activate V7 fixtures from Maestro launch arguments before onboarding queries run.',
+);
+assertRepoContains(
+  'mobile/src/testing/nativeE2eFixtureRuntime.ts',
+  /getV7NativeFixtureResponse[\s\S]*scenarioId[\s\S]*tripId/,
+  'native fixture runtime must map Maestro scenario and trip ids to app DTO responses.',
+);
+assertMobileContains(
+  'scripts/run-maestro-native.mjs',
+  /(?=[\s\S]*MAESTRO_DRIVER_STARTUP_TIMEOUT)(?=[\s\S]*--no-reinstall-driver)(?=[\s\S]*MAESTRO_REINSTALL_DRIVER)(?=[\s\S]*flowTargets\.length)/,
+  'native Maestro runner must pin driver startup timeout, skip repeated iOS driver reinstalls with an explicit override, and accept targeted flow files.',
 );
 
 if (!violations.length) {
@@ -106,8 +126,32 @@ if (!violations.length) {
   if (audit.launchEnvCoverage?.flowsMissingRequiredEnv?.length) {
     violations.push('scripts/audit-v7-maestro-native-config.mjs: flows must launch with fixture scenario, trip, and API base URL.');
   }
+  if (audit.launchEnvCoverage?.flowsMissingFixtureLaunchArguments?.length) {
+    violations.push('scripts/audit-v7-maestro-native-config.mjs: flows must pass fixture scenario and trip launch arguments.');
+  }
+  if (audit.launchEnvCoverage?.flowsMissingOptionalSystemOpenPromptDismissal?.length) {
+    violations.push('scripts/audit-v7-maestro-native-config.mjs: flows must dismiss the optional iOS Open system prompt before app assertions.');
+  }
+  if (audit.launchEnvCoverage?.flowsStillUsingFixtureDeepLink?.length) {
+    violations.push('scripts/audit-v7-maestro-native-config.mjs: flows must not depend on iOS fixture deep-link prompts.');
+  }
   if (audit.packageScriptCoverage?.missingScripts?.length) {
     violations.push('scripts/audit-v7-maestro-native-config.mjs: native Maestro package scripts are missing.');
+  }
+  if (!audit.packageScriptCoverage?.iosUsesNativeRunner || !audit.packageScriptCoverage?.androidUsesNativeRunner) {
+    violations.push('scripts/audit-v7-maestro-native-config.mjs: native Maestro scripts must use the platform-pinned runner.');
+  }
+  if (!audit.packageScriptCoverage?.androidBuildUsesJavaRunner || !audit.packageScriptCoverage?.postinstallPatchesFoojay) {
+    violations.push('scripts/audit-v7-maestro-native-config.mjs: Android Java/Foojay fixes must be durable package scripts.');
+  }
+  if (
+    !audit.packageScriptCoverage?.nativeRunnerPinsDriverStartupTimeout ||
+    !audit.packageScriptCoverage?.nativeRunnerSkipsIosDriverReinstall ||
+    !audit.packageScriptCoverage?.nativeRunnerSupportsTargetedFlows
+  ) {
+    violations.push(
+      'scripts/audit-v7-maestro-native-config.mjs: native runner must preserve iOS driver stability safeguards and targeted flow support.',
+    );
   }
   if (!audit.appIdCoverage?.iosMatchesExpoConfig || !audit.appIdCoverage?.androidMatchesExpoConfig) {
     violations.push('scripts/audit-v7-maestro-native-config.mjs: Maestro app ids must match Expo native identifiers.');

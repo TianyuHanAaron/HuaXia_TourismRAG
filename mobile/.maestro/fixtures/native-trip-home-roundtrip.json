@@ -12,27 +12,27 @@
     "Beijing 5-Day Command Center Test Trip",
     "下一步",
     "Confirm hotel beside a subway station",
-    "处理下一步"
+    "查看阻塞原因"
   ],
   "tab_roundtrip": [
     {
-      "tab": "时间线 · 我在旅行哪一步？",
+      "tab": "时间线 · 我在旅行哪一步？ · Timeline",
       "expected": "旅行时间线"
     },
     {
-      "tab": "任务 · 哪些任务现在要处理？",
+      "tab": "任务 · 哪些任务现在要处理？ · Tasks",
       "expected": "现在需要处理什么？"
     },
     {
-      "tab": "文件 · 我需要什么凭证？",
+      "tab": "文件 · 我需要什么凭证？ · Documents",
       "expected": "文件保险箱"
     },
     {
-      "tab": "设置 · 这趟旅行该如何运行？",
+      "tab": "设置 · 这趟旅行该如何运行？ · Settings",
       "expected": "偏好、隐私与账户"
     },
     {
-      "tab": "首页 · 现在该做什么？",
+      "tab": "首页 · 现在该做什么？ · Home",
       "expected": "Beijing 5-Day Command Center Test Trip"
     }
   ]

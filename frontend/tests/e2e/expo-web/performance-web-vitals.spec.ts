@@ -80,7 +80,7 @@ async function measureExpoScenario(
     await page.goto(`/trips/${tripId}/tasks`);
     await assertAppHealthy(page);
     await expect(page.getByText('现在需要处理什么？').first()).toBeVisible();
-    await page.getByRole('button', { name: /现在 · 现在 · 1 个任务/ }).first().click();
+    await expandNowTaskGroup(page);
     const preparedRouteButton = page.getByRole('button', { name: /打开已准备路线/ }).first();
     await expect(preparedRouteButton).toBeVisible();
 
@@ -204,6 +204,15 @@ async function measureExpoScenario(
   }
 
   return [];
+}
+
+async function expandNowTaskGroup(page: Page): Promise<void> {
+  const groupButton = page.getByRole('button', { name: /现在 · 现在 · 1 个任务/ }).first();
+  await expect(groupButton).toBeVisible();
+  const stateText = await groupButton.textContent();
+  if (!stateText?.includes('已展开')) {
+    await groupButton.click();
+  }
 }
 
 async function installExpoPerformanceMocks(page: Page): Promise<void> {

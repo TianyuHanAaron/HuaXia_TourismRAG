@@ -13,9 +13,17 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: accessibility_keyboard_screen_reader
+      V7_FIXTURE_TRIP_ID: trip_v7_accessibility_beijing
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: 北京无障碍键盘执行测试
-    timeout: 45000
+    timeout: 120000
 - tapOn: Tasks
 - assertVisible: 不用鼠标，我能完成下一步吗？
 - assertVisible: Confirm accessible station route

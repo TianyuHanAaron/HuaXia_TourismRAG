@@ -8,6 +8,8 @@ import {
 
 import { huaxiaSpacingTokens } from '../../tamagui.config';
 
+const TAB_BAR_SAFE_PADDING = 96;
+
 type VirtualizedCommandListProps<T> = {
   data: T[];
   keyExtractor: (item: T, index: number) => string;
@@ -80,6 +82,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: huaxiaSpacingTokens.lg,
+    paddingBottom: TAB_BAR_SAFE_PADDING,
   },
   contentPadding: {
     padding: huaxiaSpacingTokens.lg,

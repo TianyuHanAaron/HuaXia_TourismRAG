@@ -24,3 +24,5 @@ frontend/blob-report/
 mobile/artifacts/
 mobile/.expo/
 mobile/.tamagui/
+mobile/android/
+mobile/ios/

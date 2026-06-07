@@ -9,10 +9,10 @@
     "Beijing 5-Day Command Center Test Trip",
     "下一步",
     "Confirm hotel beside a subway station",
-    "首页 · 现在该做什么？",
-    "时间线 · 我在旅行哪一步？",
-    "任务 · 哪些任务现在要处理？",
-    "文件 · 我需要什么凭证？",
-    "设置 · 这趟旅行该如何运行？"
+    "首页 · 现在该做什么？ · Home",
+    "时间线 · 我在旅行哪一步？ · Timeline",
+    "任务 · 哪些任务现在要处理？ · Tasks",
+    "文件 · 我需要什么凭证？ · Documents",
+    "设置 · 这趟旅行该如何运行？ · Settings"
   ]
 }

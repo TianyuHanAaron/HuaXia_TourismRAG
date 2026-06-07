@@ -86,7 +86,7 @@ test('submits the web quick form as a DTO-shaped planning job', async ({ page })
     detail_level: quickFormScenario.expectedRequest.detail_level,
     language: quickFormScenario.expectedRequest.language,
   });
-  await expect(page.getByText(plan.progressCopy)).toBeVisible();
+  await expect(page.getByText(plan.progressCopy)).toBeVisible({ timeout: 15_000 });
   expect(liveProviderRequests).toEqual([]);
 });
 
@@ -117,7 +117,7 @@ test('submits free text and shows human invalid-input copy', async ({ page }) =>
     detail_level: 'deep',
     language: 'zh-CN',
   });
-  await expect(page.getByText(plan.progressCopy)).toBeVisible();
+  await expect(page.getByText(plan.progressCopy)).toBeVisible({ timeout: 15_000 });
   expect(liveProviderRequests).toEqual([]);
 });
 

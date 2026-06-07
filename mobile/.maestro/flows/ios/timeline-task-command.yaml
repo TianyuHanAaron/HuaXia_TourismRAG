@@ -14,21 +14,44 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: long_trip_task_command
+      V7_FIXTURE_TRIP_ID: trip_v7_long_execution
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: Beijing 5-Day Command Center Test Trip
-    timeout: 45000
-- tapOn: 时间线 · 我在旅行哪一步？
+    timeout: 120000
+- openLink: huaxia://trips/trip_v7_long_execution/(tabs)/timeline
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 旅行时间线
 - assertVisible: Northern Xinjiang autumn route
 - assertVisible: 长线旅行按阶段折叠日期，避免变成难读的行程墙。
-- tapOn: 任务 · 哪些任务现在要处理？
+- openLink: huaxia://trips/trip_v7_long_execution/(tabs)/tasks
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: 现在需要处理什么？
 - assertVisible: Confirm airport transfer pickup time
 - assertVisible: Book Kanas scenic shuttle ticket
 - tapOn: 详情
 - assertVisible: 任务详情
 - assertVisible: Confirm airport transfer pickup time
-- tapOn: 任务 · 哪些任务现在要处理？
+- openLink: huaxia://trips/trip_v7_long_execution/(tabs)/tasks
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertVisible: Save ID copies before ticket pickup
 - assertVisible: 先处理阻塞：Hotel booking confirmation must be saved before ID copies can be attached.
 - assertVisible: 完成

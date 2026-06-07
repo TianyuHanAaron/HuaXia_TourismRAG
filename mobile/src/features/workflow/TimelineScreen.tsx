@@ -1,7 +1,7 @@
-import { Link, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { tripQueries } from '../../api/queryOptions';
 import {
@@ -190,56 +190,55 @@ function PhaseRailRow({
   isLast: boolean;
   onToggle: (phaseId: string) => void;
 }) {
+  const nextAction = row.nextAction;
   return (
     <View style={styles.railRow}>
       <PhaseRailMarker marker={row.marker} isLast={isLast} />
       <View style={styles.rowContent}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          accessibilityLabel={`${row.title} · ${row.statusLabel}`}
-          onPress={() => onToggle(row.phaseId)}
+        <CommandCard
+          compact
+          referencePattern="rail"
+          tone={row.isCurrent ? 'primary' : row.statusTone}
         >
-          <CommandCard
-            compact
-            referencePattern="rail"
-            tone={row.isCurrent ? 'primary' : row.statusTone}
-          >
-            <View style={styles.rowTop}>
-              <View style={styles.rowTitleBlock}>
-                <Text style={styles.phaseTitle}>{row.title}</Text>
-                <Text style={styles.phaseMeta}>
-                  {row.dateRangeLabel} · {row.placeLabel}
-                </Text>
-              </View>
-              <StatusChip label={row.statusLabel} tone={row.statusTone} />
+          <View style={styles.rowTop}>
+            <View style={styles.rowTitleBlock}>
+              <Text style={styles.phaseTitle}>{row.title}</Text>
+              <Text style={styles.phaseMeta}>
+                {row.dateRangeLabel} · {row.placeLabel}
+              </Text>
             </View>
-            <View style={styles.chipGrid}>
-              <PhaseChip label={row.taskSummaryLabel} tone="muted" />
-              <PhaseChip label={row.documentSummaryLabel} tone="info" />
-              <PhaseChip label={row.providerSummaryLabel} tone="secondary" />
+            <StatusChip label={row.statusLabel} tone={row.statusTone} />
+          </View>
+          <View style={styles.chipGrid}>
+            <PhaseChip label={row.taskSummaryLabel} tone="muted" />
+            <PhaseChip label={row.documentSummaryLabel} tone="info" />
+            <PhaseChip label={row.providerSummaryLabel} tone="secondary" />
+          </View>
+          {row.blockedReason ? (
+            <View style={styles.blockedCallout}>
+              <Text style={styles.blockedText}>{row.blockedReason}</Text>
             </View>
-            {row.blockedReason ? (
-              <View style={styles.blockedCallout}>
-                <Text style={styles.blockedText}>{row.blockedReason}</Text>
-              </View>
+          ) : null}
+          {expanded ? <ExpandedPhaseContent row={row} /> : null}
+          <View style={styles.rowFooter}>
+            <Button
+              mode="text"
+              accessibilityLabel={`${expanded ? '收起阶段' : '展开阶段'}：${row.title}`}
+              onPress={() => onToggle(row.phaseId)}
+            >
+              {expanded ? '收起阶段' : '展开阶段'}
+            </Button>
+            {nextAction ? (
+              <Button
+                mode={nextAction.semanticTone === 'primary' ? 'contained' : 'outlined'}
+                semanticTone={nextAction.semanticTone}
+                onPress={() => router.push(nextAction.href)}
+              >
+                {nextAction.label}
+              </Button>
             ) : null}
-            {expanded ? <ExpandedPhaseContent row={row} /> : null}
-            <View style={styles.rowFooter}>
-              <Text variant="bodySmall">{expanded ? '收起阶段' : '展开阶段'}</Text>
-              {row.nextAction ? (
-                <Link href={row.nextAction.href} asChild>
-                  <Button
-                    mode={row.nextAction.semanticTone === 'primary' ? 'contained' : 'outlined'}
-                    semanticTone={row.nextAction.semanticTone}
-                  >
-                    {row.nextAction.label}
-                  </Button>
-                </Link>
-              ) : null}
-            </View>
-          </CommandCard>
-        </Pressable>
+          </View>
+        </CommandCard>
       </View>
     </View>
   );

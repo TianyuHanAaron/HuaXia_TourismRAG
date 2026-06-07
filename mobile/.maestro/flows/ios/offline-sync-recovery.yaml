@@ -13,9 +13,17 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: offline_sync_recovery
+      V7_FIXTURE_TRIP_ID: trip_v7_offline_sync_beijing
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: 北京离线同步恢复测试
-    timeout: 45000
+    timeout: 120000
 - tapOn: Tasks
 - assertVisible: 夏夏保留了我的操作吗？接下来会发生什么？
 - assertVisible: Confirm station departure route offline

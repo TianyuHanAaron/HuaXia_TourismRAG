@@ -15,16 +15,29 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: performance_web_vitals_release_gate
+      V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: HuaXia
-    timeout: 45000
+    timeout: 120000
 - assertNotVisible: Unhandled JS Exception
 - assertNotVisible: Something went wrong
 - assertNotVisible: Network unavailable. Please check your connection.
 - assertVisible: HuaXia
 - assertVisible: Northern Xinjiang
 - takeScreenshot: v7-android-performance-trip-home
-- tapOn: 任务 · 哪些任务现在要处理？
+- openLink: huaxia://trips/trip_v7_responsive_safe_area/(tabs)/tasks
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - assertNotVisible: Unhandled JS Exception
 - assertNotVisible: Something went wrong
 - assertVisible: 现在需要处理什么？

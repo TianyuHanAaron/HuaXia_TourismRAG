@@ -101,7 +101,7 @@ assertMobileContains(
 for (const platform of ['ios', 'android']) {
   assertMobileContains(
     `.maestro/flows/${platform}/timeline-task-command.yaml`,
-    /appId: com\.huaxia\.tripcommandcenter[\s\S]*tapOn: 时间线 · 我在旅行哪一步？[\s\S]*assertVisible: 旅行时间线[\s\S]*assertVisible: Northern Xinjiang autumn route[\s\S]*tapOn: 任务 · 哪些任务现在要处理？[\s\S]*assertVisible: 现在需要处理什么？[\s\S]*assertVisible: Confirm airport transfer pickup time[\s\S]*tapOn: 详情[\s\S]*assertVisible: 任务详情[\s\S]*tapOn: 任务 · 哪些任务现在要处理？[\s\S]*assertVisible: 先处理阻塞：Hotel booking confirmation must be saved before ID copies can be attached\.[\s\S]*takeScreenshot/,
+    /appId: com\.huaxia\.tripcommandcenter[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_long_execution\/\(tabs\)\/timeline[\s\S]*assertVisible: 旅行时间线[\s\S]*assertVisible: Northern Xinjiang autumn route[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_long_execution\/\(tabs\)\/tasks[\s\S]*assertVisible: 现在需要处理什么？[\s\S]*assertVisible: Confirm airport transfer pickup time[\s\S]*tapOn: 详情[\s\S]*assertVisible: 任务详情[\s\S]*openLink: huaxia:\/\/trips\/trip_v7_long_execution\/\(tabs\)\/tasks[\s\S]*assertVisible: 先处理阻塞：Hotel booking confirmation must be saved before ID copies can be attached\.[\s\S]*takeScreenshot/,
     `${platform} flow must cover timeline, task detail, blocked reason, and screenshot evidence.`,
   );
 }

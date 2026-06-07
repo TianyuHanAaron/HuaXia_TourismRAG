@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator } from '../src/components/PaperControls';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LaunchArguments } from 'react-native-launch-arguments';
 
 import { invalidateTripsOverview } from '../src/api/queryInvalidation';
 import { tripQueries, userQueries } from '../src/api/queryOptions';
@@ -12,10 +13,13 @@ import { Screen } from '../src/components/Screen';
 import { getV6MobileProductCopy } from '../src/features/v6/v6ProductionUi';
 import { buildV6ActiveTripTabHref } from '../src/features/v6/v6NavigationShell';
 import { useTripUiStore } from '../src/state/tripUiStore';
-import { readSelectedTripIdFromMmkv } from '../src/storage/mmkvStorage';
+import { readSelectedTripIdFromMmkv, writeSelectedTripIdToMmkv } from '../src/storage/mmkvStorage';
+import { setV7NativeE2eFixture } from '../src/testing/nativeE2eFixtureRuntime';
 import type { Trip } from '../src/types/trip';
 
 export default function IndexScreen() {
+  activateV7NativeFixtureFromLaunchArguments();
+
   const queryClient = useQueryClient();
   const [localReady, setLocalReady] = useState(false);
   const language = useTripUiStore((state) => state.language);
@@ -51,6 +55,40 @@ export default function IndexScreen() {
       }}
     />
   );
+}
+
+let hasCheckedV7NativeLaunchArguments = false;
+
+function activateV7NativeFixtureFromLaunchArguments() {
+  if (hasCheckedV7NativeLaunchArguments) {
+    return;
+  }
+  hasCheckedV7NativeLaunchArguments = true;
+
+  let launchArguments: Record<string, unknown>;
+  try {
+    launchArguments = LaunchArguments.value<Record<string, unknown>>();
+  } catch {
+    return;
+  }
+
+  const scenarioId = asLaunchArgument(launchArguments.V7_FIXTURE_SCENARIO_ID ?? launchArguments.scenarioId);
+  const tripId = asLaunchArgument(launchArguments.V7_FIXTURE_TRIP_ID ?? launchArguments.tripId);
+  if (!scenarioId && !tripId) {
+    return;
+  }
+
+  const fixture = setV7NativeE2eFixture({ scenarioId, tripId });
+  useTripUiStore.setState({
+    selectedTripId: fixture.tripId,
+    selectedTab: 'home',
+    language: 'zh-CN',
+  });
+  writeSelectedTripIdToMmkv(fixture.tripId);
+}
+
+function asLaunchArgument(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function ActiveTripEntryRouter() {

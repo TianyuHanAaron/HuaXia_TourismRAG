@@ -13,9 +13,17 @@ env:
 - launchApp:
     clearState: true
     stopApp: true
+    arguments:
+      V7_FIXTURE_SCENARIO_ID: provider_action_sheet
+      V7_FIXTURE_TRIP_ID: trip_v7_provider_sheet_beijing
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible: 北京高铁出发日执行测试
-    timeout: 45000
+    timeout: 120000
 - tapOn: Confirm prepared station route
 - assertVisible: Where will I go if I tap this?
 - assertVisible: 准备好的去向

@@ -167,7 +167,7 @@ export function runV7ExpoWebAppShellSmokeRepoAudit() {
     route: /route:\s*'\/'/.test(expoShellSource),
     expectedRedirectPath: /expectedRedirectPath:\s*'\/trips\/trip_v7_beijing_family'/.test(expoShellSource),
     assertsActiveTripRedirect: /toHaveURL[\s\S]*expectedRedirectPath/.test(expoShellSpecSource),
-    baseUrlConfigured: /expoWebPlaywrightDefaultBaseURL\s*=\s*'http:\/\/127\.0\.0\.1:8081'/.test(expoConfigSource),
+    baseUrlConfigured: /expoWebPlaywrightDefaultBaseURL\s*=\s*'http:\/\/localhost:8081'/.test(expoConfigSource),
     startsExpoWebServer: /npm run web -- --host localhost --port 8081/.test(expoConfigSource),
   };
 

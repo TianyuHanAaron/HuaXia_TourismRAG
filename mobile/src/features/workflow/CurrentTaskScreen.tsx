@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Chip, Text, TextInput } from '../../components/PaperControls';
@@ -68,6 +68,7 @@ export function CurrentTaskScreen() {
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<
     Partial<Record<TaskGroupKey, boolean>>
   >({});
+  const appliedTaskGroupDefaultsRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const providerActionSheet = useTripUiStore((state) => state.providerActionSheet);
   const openProviderActionSheet = useTripUiStore(
@@ -277,21 +278,30 @@ export function CurrentTaskScreen() {
     ],
   );
   const groupExpansionSignature = viewModel.taskGroups
-    .map((group) => `${group.key}:${group.collapsedByDefault}`)
+    .map((group) => `${group.key}:${group.collapsedByDefault}:${group.taskGroups.length}`)
     .join('|');
   useEffect(() => {
+    if (viewModel.visibleTaskCount <= 0) {
+      return;
+    }
+    const defaultsKey = `${tripId}:${groupExpansionSignature}`;
+    if (appliedTaskGroupDefaultsRef.current === defaultsKey) {
+      return;
+    }
     setExpandedGroupKeys((current) => {
       let changed = false;
       const next = { ...current };
       for (const group of viewModel.taskGroups) {
-        if (!(group.key in next)) {
-          next[group.key] = !group.collapsedByDefault;
+        const defaultExpanded = !group.collapsedByDefault;
+        if (next[group.key] !== defaultExpanded) {
+          next[group.key] = defaultExpanded;
           changed = true;
         }
       }
       return changed ? next : current;
     });
-  }, [groupExpansionSignature, viewModel.taskGroups]);
+    appliedTaskGroupDefaultsRef.current = defaultsKey;
+  }, [groupExpansionSignature, tripId, viewModel.taskGroups, viewModel.visibleTaskCount]);
   const visibleGroups = useMemo(
     () =>
       viewModel.taskGroups.filter(
@@ -400,49 +410,55 @@ export function CurrentTaskScreen() {
           />
         }
         empty={<Text variant="bodySmall">{viewModel.globalEmptyLabel}</Text>}
-        renderItem={({ item: group }) => (
-          <TaskCommandGroupSection
-            group={group}
-            tripId={tripId}
-            expanded={Boolean(expandedGroupKeys[group.key])}
-            completePending={mutation.isPending}
-            patchPending={patchMutation.isPending}
-            onToggleGroup={() =>
-              setExpandedGroupKeys((current) => ({
-                ...current,
-                [group.key]: !current[group.key],
-              }))
-            }
-            onComplete={(model) =>
-              mutation.mutate({
-                taskId: model.task.task_id,
-                expectedUpdatedAt: model.task.updated_at ?? null,
-              })
-            }
-            onSkip={(model) =>
-              patchMutation.mutate({
-                taskId: model.task.task_id,
-                patch: {
-                  status: 'skipped',
-                  expected_updated_at: model.task.updated_at ?? null,
-                },
-              })
-            }
-            onEdit={(model) =>
-              router.push({
-                pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
-                params: { tripId, taskId: model.task.task_id },
-              })
-            }
-            onSelectAction={(model, action, routeBundle) =>
-              openProviderActionSheet({
-                actionId: action.action_id,
-                routeBundleId: routeBundle?.route_id ?? null,
-                sourceTaskId: model.task.task_id,
-              })
-            }
-          />
-        )}
+        renderItem={({ item: group }) => {
+          const expanded = expandedGroupKeys[group.key] ?? !group.collapsedByDefault;
+          return (
+            <TaskCommandGroupSection
+              group={group}
+              tripId={tripId}
+              expanded={expanded}
+              completePending={mutation.isPending}
+              patchPending={patchMutation.isPending}
+              onToggleGroup={() =>
+                setExpandedGroupKeys((current) => {
+                  const currentExpanded = current[group.key] ?? !group.collapsedByDefault;
+                  return {
+                    ...current,
+                    [group.key]: !currentExpanded,
+                  };
+                })
+              }
+              onComplete={(model) =>
+                mutation.mutate({
+                  taskId: model.task.task_id,
+                  expectedUpdatedAt: model.task.updated_at ?? null,
+                })
+              }
+              onSkip={(model) =>
+                patchMutation.mutate({
+                  taskId: model.task.task_id,
+                  patch: {
+                    status: 'skipped',
+                    expected_updated_at: model.task.updated_at ?? null,
+                  },
+                })
+              }
+              onEdit={(model) =>
+                router.push({
+                  pathname: '/trips/[tripId]/modals/tasks/[taskId]/edit',
+                  params: { tripId, taskId: model.task.task_id },
+                })
+              }
+              onSelectAction={(model, action, routeBundle) =>
+                openProviderActionSheet({
+                  actionId: action.action_id,
+                  routeBundleId: routeBundle?.route_id ?? null,
+                  sourceTaskId: model.task.task_id,
+                })
+              }
+            />
+          );
+        }}
       />
     </Screen>
   );
