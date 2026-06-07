@@ -1,0 +1,32 @@
+{
+  "scenario_id": "visual_regression_screenshot_matrix",
+  "step": 25,
+  "frozen_now": "2026-06-07T00:00:00+10:00",
+  "fixture_hashes": [
+    "fixture:v7:step25:expo-trip-home-command-center",
+    "fixture:v7:step25:expo-provider-action-sheet",
+    "fixture:v7:step25:expo-timeline-long-trip",
+    "fixture:v7:step25:expo-document-vault"
+  ],
+  "native_policy": {
+    "artifact_only": true,
+    "pixel_baselines": false,
+    "reason": "Native simulator screenshots are kept as release artifacts in V7. Pixel thresholds are deferred until the simulator and font stack are fixed in CI."
+  },
+  "expected_screenshot_names": [
+    "v7-ios-visual-trip-home",
+    "v7-ios-visual-provider-sheet",
+    "v7-android-visual-timeline",
+    "v7-android-visual-documents"
+  ],
+  "required_states": [
+    "trip_home_command_center",
+    "provider_action_sheet",
+    "timeline_long_trip",
+    "document_vault"
+  ],
+  "notes": [
+    "Use the same Step 24 responsive safe-area fixture trip so native screenshots stress long labels and prepared route actions.",
+    "Do not capture live provider, payment, map, hotel, flight, or ticket web views in production readiness CI."
+  ]
+}

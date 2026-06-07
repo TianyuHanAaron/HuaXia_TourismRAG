@@ -1,0 +1,397 @@
+name: V7 E2E Production Readiness
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: v7-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+# Step 28 artifact contract:
+# actions/upload-artifact@v4 uploads frontend/playwright-report/web,
+# frontend/playwright-report/expo-web, mobile/artifacts,
+# artifacts/backend-logs, and artifacts/fixture-server-logs.
+#
+# Step 29 release-gate evidence:
+# writes v7-production-readiness-evidence.json for the V7 E2E Evidence
+# release notes section and runs npm run test:e2e:web:prod.
+
+jobs:
+  backend-quality:
+    name: Backend Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: Run backend Ruff
+        run: uv run ruff check src/huaxia_tourismrag tests
+      - name: Run backend pytest
+        run: uv run pytest -q
+
+  frontend-quality:
+    name: Frontend Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+      - name: Run frontend lint
+        run: cd frontend && npm run lint
+      - name: Run frontend unit tests
+        run: cd frontend && npm test
+      - name: Run frontend typecheck
+        run: cd frontend && npm run typecheck
+      - name: Run frontend production build
+        run: cd frontend && npm run build
+
+  playwright-web:
+    name: Playwright Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      V7_E2E_LANE: playwright_web
+      V7_E2E_SCENARIO_ID: ci_reporting_artifacts_debugging_release_gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+      - name: Install Playwright browsers
+        run: cd frontend && npx playwright install --with-deps
+      - name: Prepare log directories
+        run: mkdir -p artifacts/backend-logs artifacts/fixture-server-logs
+      - name: Run Playwright Web lane
+        run: cd frontend && npm run test:e2e:web
+      - name: Build React web assets for production SPA
+        run: cd frontend && npm run build
+      - name: Start FastAPI production SPA server
+        run: |
+          SERVE_REACT_FRONTEND=true uv run uvicorn huaxia_tourismrag.main:app --host 127.0.0.1 --port 8000 > artifacts/backend-logs/fastapi-spa.log 2>&1 &
+          echo $! > artifacts/backend-logs/fastapi-spa.pid
+          sleep 5
+      - name: Run production SPA Playwright lane
+        run: cd frontend && PLAYWRIGHT_BASE_URL=http://127.0.0.1:8000 npm run test:e2e:web:prod
+      - name: Write Playwright Web artifact manifest
+        if: always()
+        run: |
+          mkdir -p frontend/test-results/web
+          cat > frontend/test-results/web/v7-e2e-artifact-manifest.json <<EOF
+          {
+            "lane": "playwright_web",
+            "scenario_id": "ci_reporting_artifacts_debugging_release_gate",
+            "command": "cd frontend && npm run test:e2e:web",
+            "evidence": ["trace.zip", "screenshot.png", "video.webm", "html-report", "console-log", "network-summary", "fixture-scenario-id"],
+            "artifact_roots": ["frontend/test-results/web", "frontend/playwright-report/web", "artifacts/backend-logs", "artifacts/fixture-server-logs"]
+          }
+          EOF
+          cat > frontend/test-results/web/v7-e2e-failure-summary.md <<EOF
+          # V7 E2E Failure Summary
+
+          Lane: playwright_web
+          Scenario: ci_reporting_artifacts_debugging_release_gate
+          Reproduce: cd frontend && npm run test:e2e:web
+          Evidence: frontend/test-results/web, frontend/playwright-report/web, artifacts/backend-logs, artifacts/fixture-server-logs
+          Next step: Open the Playwright HTML report, then inspect backend and fixture server logs.
+          EOF
+      - name: Upload Playwright Web report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-web-report
+          path: |
+            frontend/playwright-report/web
+            frontend/test-results/web
+          retention-days: 30
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs
+          path: artifacts/backend-logs
+          retention-days: 30
+      - name: Upload fixture server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-server-logs
+          path: artifacts/fixture-server-logs
+          retention-days: 30
+
+  playwright-expo-web:
+    name: Playwright Expo Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      V7_E2E_LANE: playwright_expo_web
+      V7_E2E_SCENARIO_ID: ci_reporting_artifacts_debugging_release_gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            mobile/package-lock.json
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci
+      - name: Install Playwright browsers
+        run: cd frontend && npx playwright install --with-deps
+      - name: Prepare log directories
+        run: mkdir -p artifacts/backend-logs artifacts/fixture-server-logs
+      - name: Run Playwright Expo Web lane
+        run: cd frontend && npm run test:e2e:expo
+      - name: Write Playwright Expo Web artifact manifest
+        if: always()
+        run: |
+          mkdir -p frontend/test-results/expo-web
+          cat > frontend/test-results/expo-web/v7-e2e-artifact-manifest.json <<EOF
+          {
+            "lane": "playwright_expo_web",
+            "scenario_id": "ci_reporting_artifacts_debugging_release_gate",
+            "command": "cd frontend && npm run test:e2e:expo",
+            "evidence": ["trace.zip", "screenshot.png", "video.webm", "html-report", "console-log", "network-summary", "fixture-scenario-id"],
+            "artifact_roots": ["frontend/test-results/expo-web", "frontend/playwright-report/expo-web", "artifacts/fixture-server-logs"]
+          }
+          EOF
+          cat > frontend/test-results/expo-web/v7-e2e-failure-summary.md <<EOF
+          # V7 E2E Failure Summary
+
+          Lane: playwright_expo_web
+          Scenario: ci_reporting_artifacts_debugging_release_gate
+          Reproduce: cd frontend && npm run test:e2e:expo
+          Evidence: frontend/test-results/expo-web, frontend/playwright-report/expo-web, artifacts/fixture-server-logs
+          Next step: Open the Expo Web Playwright report and compare fixture scenario ids before rerunning.
+          EOF
+      - name: Upload Playwright Expo Web report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-expo-web-report
+          path: |
+            frontend/playwright-report/expo-web
+            frontend/test-results/expo-web
+          retention-days: 30
+      - name: Upload Expo Web logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-server-logs
+          path: artifacts/fixture-server-logs
+          retention-days: 30
+
+  mobile-quality:
+    name: Mobile Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci
+      - name: Run mobile guard tests
+        run: cd mobile && npm test
+      - name: Run mobile typecheck
+        run: cd mobile && npm run typecheck
+
+  maestro-ios:
+    name: Maestro iOS
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      V7_E2E_LANE: maestro_ios
+      V7_E2E_SCENARIO_ID: ci_reporting_artifacts_debugging_release_gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci
+      - name: Prepare native artifact directory
+        run: mkdir -p mobile/artifacts/ios
+      - name: Run Maestro iOS lane
+        run: cd mobile && npm run test:e2e:ios
+      - name: Write Maestro iOS artifact manifest
+        if: always()
+        run: |
+          mkdir -p mobile/artifacts/ios
+          cat > mobile/artifacts/ios/v7-e2e-artifact-manifest.json <<EOF
+          {
+            "lane": "maestro_ios",
+            "scenario_id": "ci_reporting_artifacts_debugging_release_gate",
+            "command": "cd mobile && npm run test:e2e:ios",
+            "evidence": ["maestro-screenshot", "maestro-log", "platform", "app-version", "simulator-or-emulator-name", "flow-name"],
+            "artifact_roots": ["mobile/artifacts/ios", "mobile/.maestro/flows/ios"]
+          }
+          EOF
+          cat > mobile/artifacts/ios/v7-e2e-failure-summary.md <<EOF
+          # V7 E2E Failure Summary
+
+          Lane: maestro_ios
+          Scenario: ci_reporting_artifacts_debugging_release_gate
+          Reproduce: cd mobile && npm run test:e2e:ios
+          Evidence: mobile/artifacts/ios, mobile/.maestro/flows/ios
+          Next step: Confirm the iOS simulator booted, then inspect Maestro screenshots and flow logs.
+          EOF
+      - name: Upload Maestro iOS artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-ios-artifacts
+          path: mobile/artifacts
+          retention-days: 30
+
+  maestro-android:
+    name: Maestro Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      V7_E2E_LANE: maestro_android
+      V7_E2E_SCENARIO_ID: ci_reporting_artifacts_debugging_release_gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci
+      - name: Prepare native artifact directory
+        run: mkdir -p mobile/artifacts/android
+      - name: Run Maestro Android lane
+        run: cd mobile && npm run test:e2e:android
+      - name: Write Maestro Android artifact manifest
+        if: always()
+        run: |
+          mkdir -p mobile/artifacts/android
+          cat > mobile/artifacts/android/v7-e2e-artifact-manifest.json <<EOF
+          {
+            "lane": "maestro_android",
+            "scenario_id": "ci_reporting_artifacts_debugging_release_gate",
+            "command": "cd mobile && npm run test:e2e:android",
+            "evidence": ["maestro-screenshot", "maestro-log", "platform", "app-version", "simulator-or-emulator-name", "flow-name"],
+            "artifact_roots": ["mobile/artifacts/android", "mobile/.maestro/flows/android"]
+          }
+          EOF
+          cat > mobile/artifacts/android/v7-e2e-failure-summary.md <<EOF
+          # V7 E2E Failure Summary
+
+          Lane: maestro_android
+          Scenario: ci_reporting_artifacts_debugging_release_gate
+          Reproduce: cd mobile && npm run test:e2e:android
+          Evidence: mobile/artifacts/android, mobile/.maestro/flows/android
+          Next step: Confirm the Android emulator booted, then inspect Maestro screenshots and flow logs.
+          EOF
+      - name: Upload Maestro Android artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-android-artifacts
+          path: mobile/artifacts
+          retention-days: 30
+
+  production-release-gate:
+    name: Production Readiness Release Gate
+    runs-on: ubuntu-latest
+    needs:
+      - backend-quality
+      - frontend-quality
+      - playwright-web
+      - playwright-expo-web
+      - mobile-quality
+      - maestro-ios
+      - maestro-android
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record V7 production readiness evidence
+        run: |
+          mkdir -p artifacts/release-gate
+          cat > artifacts/release-gate/v7-production-readiness-evidence.json <<EOF
+          {
+            "scenarioId": "production_readiness_release_gate",
+            "releaseNotesSection": "V7 E2E Evidence",
+            "commit_sha": "${GITHUB_SHA}",
+            "fixture_version": "fixture:v7:release-gate",
+            "app_version": "0.1.0",
+            "backend_settings_profile": "ci_mocked_providers",
+            "browser_versions": "playwright-managed",
+            "simulator_names": "ci-provided",
+            "emulator_names": "ci-provided",
+            "lane_results": {
+              "backend-quality": "${{ needs.backend-quality.result }}",
+              "frontend-quality": "${{ needs.frontend-quality.result }}",
+              "playwright-web": "${{ needs.playwright-web.result }}",
+              "playwright-expo-web": "${{ needs.playwright-expo-web.result }}",
+              "mobile-quality": "${{ needs.mobile-quality.result }}",
+              "maestro-ios": "${{ needs.maestro-ios.result }}",
+              "maestro-android": "${{ needs.maestro-android.result }}"
+            },
+            "release_note_evidence": ["command list", "artifact links", "known warnings", "owner", "expiry"],
+            "artifact_links": [
+              "playwright-web-report",
+              "playwright-expo-web-report",
+              "maestro-ios-artifacts",
+              "maestro-android-artifacts",
+              "backend-logs",
+              "fixture-server-logs",
+              "production-readiness-release-gate"
+            ]
+          }
+          EOF
+      - name: Evaluate V7 release gate lane results
+        run: |
+          if [ "${{ needs.backend-quality.result }}" != "success" ] || \
+             [ "${{ needs.frontend-quality.result }}" != "success" ] || \
+             [ "${{ needs.playwright-web.result }}" != "success" ] || \
+             [ "${{ needs.playwright-expo-web.result }}" != "success" ] || \
+             [ "${{ needs.mobile-quality.result }}" != "success" ] || \
+             [ "${{ needs.maestro-ios.result }}" != "success" ] || \
+             [ "${{ needs.maestro-android.result }}" != "success" ]; then
+            echo "V7 production readiness release gate failed. Inspect v7-production-readiness-evidence.json and upstream lane artifacts."
+            exit 1
+          fi
+      - name: Upload production readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-readiness-release-gate
+          path: artifacts/release-gate
+          retention-days: 30

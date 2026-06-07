@@ -75,6 +75,7 @@ export function TaskDetailScreen() {
   }, [tripId]);
 
   const completeMutation = useMutation({
+    networkMode: 'always',
     mutationFn: ({ expectedUpdatedAt }: { expectedUpdatedAt?: string | null }) =>
       patchTask(tripId, taskId, {
         status: 'completed',
@@ -104,6 +105,7 @@ export function TaskDetailScreen() {
     onSettled: invalidateTaskData,
   });
   const skipMutation = useMutation({
+    networkMode: 'always',
     mutationFn: ({ expectedUpdatedAt }: { expectedUpdatedAt?: string | null }) =>
       patchTask(tripId, taskId, {
         status: 'skipped',

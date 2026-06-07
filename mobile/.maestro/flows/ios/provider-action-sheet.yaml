@@ -1,0 +1,42 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 iOS provider action sheet
+tags:
+  - v7
+  - provider-action
+  - ios
+env:
+  V7_FIXTURE_SCENARIO_ID: provider_action_sheet
+  V7_FIXTURE_TRIP_ID: trip_v7_provider_sheet_beijing
+  V7_FIXTURE_PATH: .maestro/fixtures/native-provider-action-sheet.json
+  EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 北京高铁出发日执行测试
+    timeout: 45000
+- tapOn: Confirm prepared station route
+- assertVisible: Where will I go if I tap this?
+- assertVisible: 准备好的去向
+- assertVisible: Qianmen Hotel, Beijing
+- assertVisible: Beijing South Railway Station
+- assertVisible: Is this the route I am about to follow?
+- assertVisible: Open prepared route
+- tapOn: 备用选择
+- assertVisible: Google Maps
+- tapOn: Google Maps
+- assertVisible: 回到华夏后
+- assertVisible: 我已完成
+- assertVisible: 稍后提醒
+- assertVisible: 出了问题
+- tapOn: 出了问题
+- assertVisible: 不能安全打开时
+- tapOn: 刷新路线
+- assertVisible: This route is stale. Refresh before opening maps.
+- tapOn: 补齐路线信息
+- assertVisible: Destination is missing.
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- takeScreenshot: v7-ios-provider-action-sheet

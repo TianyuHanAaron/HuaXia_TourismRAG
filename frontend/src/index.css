@@ -2,6 +2,12 @@ html {
   min-height: 100%;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   min-height: 100%;
   margin: 0;
@@ -33,6 +39,7 @@ body::-webkit-scrollbar-thumb:hover {
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
+  overflow-x: clip;
 }
 
 .huaxia-surface,
@@ -41,11 +48,19 @@ body::-webkit-scrollbar-thumb:hover {
 .answer-panel,
 .checkpoint-panel,
 .engagement-room {
+  max-width: 100%;
   padding: 28px;
   border: 1px solid rgba(31, 41, 51, 0.12);
   background: rgba(255, 255, 255, 0.76);
   border-radius: 8px;
   box-shadow: 0 18px 48px rgba(31, 41, 51, 0.10);
+}
+
+.web-planning-shell,
+.web-planning-center,
+.web-planning-context,
+.web-planning-rail {
+  min-width: 0;
 }
 
 .huaxia-surface {

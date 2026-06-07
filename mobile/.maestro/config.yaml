@@ -1,0 +1,26 @@
+flows:
+  - flows/ios/app-shell.yaml
+  - flows/ios/trip-home-roundtrip.yaml
+  - flows/ios/timeline-task-command.yaml
+  - flows/ios/provider-action-sheet.yaml
+  - flows/ios/calendar-document-safety.yaml
+  - flows/ios/offline-sync-recovery.yaml
+  - flows/ios/accessibility-keyboard-screen-reader.yaml
+  - flows/ios/responsive-safe-area-device-matrix.yaml
+  - flows/ios/visual-regression-screenshots.yaml
+  - flows/ios/performance-web-vitals.yaml
+  - flows/ios/security-secret-leak.yaml
+  - flows/android/app-shell.yaml
+  - flows/android/trip-home-roundtrip.yaml
+  - flows/android/timeline-task-command.yaml
+  - flows/android/provider-action-sheet.yaml
+  - flows/android/calendar-document-safety.yaml
+  - flows/android/offline-sync-recovery.yaml
+  - flows/android/accessibility-keyboard-screen-reader.yaml
+  - flows/android/responsive-safe-area-device-matrix.yaml
+  - flows/android/visual-regression-screenshots.yaml
+  - flows/android/performance-web-vitals.yaml
+  - flows/android/security-secret-leak.yaml
+executionOrder:
+  continueOnFailure: false
+artifactsDir: artifacts

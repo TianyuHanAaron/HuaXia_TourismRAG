@@ -1,0 +1,36 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 iOS timeline and task command
+tags:
+  - v7
+  - timeline
+  - tasks
+  - ios
+env:
+  V7_FIXTURE_SCENARIO_ID: long_trip_task_command
+  V7_FIXTURE_TRIP_ID: trip_v7_long_execution
+  V7_FIXTURE_PATH: .maestro/fixtures/native-timeline-task-command.json
+  EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: Beijing 5-Day Command Center Test Trip
+    timeout: 45000
+- tapOn: 时间线 · 我在旅行哪一步？
+- assertVisible: 旅行时间线
+- assertVisible: Northern Xinjiang autumn route
+- assertVisible: 长线旅行按阶段折叠日期，避免变成难读的行程墙。
+- tapOn: 任务 · 哪些任务现在要处理？
+- assertVisible: 现在需要处理什么？
+- assertVisible: Confirm airport transfer pickup time
+- assertVisible: Book Kanas scenic shuttle ticket
+- tapOn: 详情
+- assertVisible: 任务详情
+- assertVisible: Confirm airport transfer pickup time
+- tapOn: 任务 · 哪些任务现在要处理？
+- assertVisible: Save ID copies before ticket pickup
+- assertVisible: 先处理阻塞：Hotel booking confirmation must be saved before ID copies can be attached.
+- assertVisible: 完成
+- assertVisible: 跳过
+- takeScreenshot: v7-ios-timeline-task-command

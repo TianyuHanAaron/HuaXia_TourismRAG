@@ -134,13 +134,14 @@ export function buildEmergencyActions({
   const providerActions = card.emergency_actions.map((action): SafetyEmergencyActionModel => {
     const requiresNetwork = actionRequiresNetwork(action);
     const disabled = requiresNetwork && !networkAvailable;
+    const url = urlForEmergencyAction(action);
     return {
       actionId: action.action_id,
       label: actionLabel(action.action_type),
       localizedLabel: localizedActionLabel(action.action_type, action.label),
       actionType: action.action_type,
       targetLabel: action.target ?? action.url ?? action.label,
-      url: action.url ?? action.target ?? null,
+      url,
       requiresNetwork,
       availableOffline: action.available_offline,
       disabled,
@@ -280,6 +281,13 @@ function localizedActionLabel(
 
 function actionRequiresNetwork(action: SafetyCardResponse['emergency_actions'][number]): boolean {
   return action.action_type === 'open_map_search' || action.action_type === 'open_url';
+}
+
+function urlForEmergencyAction(action: SafetyCardResponse['emergency_actions'][number]): string | null {
+  if (action.action_type === 'show_note') {
+    return null;
+  }
+  return action.url ?? action.target ?? null;
 }
 
 function toneForAction(actionType: SafetyEmergencyActionModel['actionType']): SafetyTone {

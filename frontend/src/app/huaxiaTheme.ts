@@ -109,6 +109,7 @@ export const huaxiaTheme = createTheme({
           fontSize: '0.95rem',
           fontWeight: 700,
           lineHeight: 1.35,
+          minHeight: 44,
           boxShadow: '0 4px 10px rgba(31, 41, 51, 0.08)',
           transition:
             `transform ${motionDurations.fast}ms ${motionEasings.standard}, box-shadow ${motionDurations.fast}ms ${motionEasings.standard}, background-color ${motionDurations.fast}ms ${motionEasings.standard}, border-color ${motionDurations.fast}ms ${motionEasings.standard}`,

@@ -1,0 +1,34 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 iOS visual regression screenshot artifacts
+tags:
+  - v7
+  - visual-regression
+  - screenshots
+  - ios
+env:
+  V7_FIXTURE_SCENARIO_ID: visual_regression_screenshot_matrix
+  V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+  V7_FIXTURE_PATH: .maestro/fixtures/native-visual-regression-screenshots.json
+  EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: HuaXia
+    timeout: 45000
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- assertVisible: HuaXia
+- assertVisible: Northern Xinjiang
+- takeScreenshot: v7-ios-visual-trip-home
+- tapOn: 任务 · 哪些任务现在要处理？
+- assertVisible: 现在需要处理什么？
+- assertVisible: 打开已准备路线
+- tapOn: 打开已准备路线
+- assertVisible: Where will I go if I tap this?
+- assertVisible: 准备好的去向
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- takeScreenshot: v7-ios-visual-provider-sheet

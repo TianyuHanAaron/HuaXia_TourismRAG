@@ -101,6 +101,7 @@ export function CurrentTaskScreen() {
     refreshQueuedCount();
   }, [tripId]);
   const mutation = useMutation({
+    networkMode: 'always',
     mutationFn: ({
       taskId,
       expectedUpdatedAt,
@@ -151,6 +152,7 @@ export function CurrentTaskScreen() {
     },
   });
   const patchMutation = useMutation({
+    networkMode: 'always',
     mutationFn: ({
       taskId,
       patch,

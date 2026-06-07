@@ -1,0 +1,47 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 Android calendar document safety
+tags:
+  - v7
+  - calendar-document-safety
+  - android
+env:
+  V7_FIXTURE_SCENARIO_ID: calendar_document_safety
+  V7_FIXTURE_TRIP_ID: trip_v7_calendar_document_safety_kyoto
+  V7_FIXTURE_PATH: .maestro/fixtures/native-calendar-document-safety.json
+  EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 京都出发准备执行测试
+    timeout: 45000
+- tapOn: Documents
+- assertVisible: 这一步需要什么凭证或预订信息？
+- assertVisible: 隐私默认保护
+- assertVisible: Passport metadata only
+- assertVisible: 默认不进提示词
+- assertVisible: KYO••••890
+- tapOn: 打开凭证
+- assertVisible: 已找到本地凭证引用。离线时优先使用本地文件。
+- back
+- tapOn: 日历导出
+- assertVisible: 先预览，再导出
+- assertVisible: 已选择 2 / 3 个事件
+- assertVisible: 京都酒店入住确认
+- assertVisible: 生成 .ics 文件
+- tapOn: 生成 .ics 文件
+- assertVisible: huaxia-v7-kyoto-command-center.ics
+- back
+- tapOn: 安全与应急
+- assertVisible: 如果出状况，我现在能用什么实际帮助？
+- assertVisible: 本地应急电话：119 / 110
+- assertVisible: This safety note may be stale. Check the official source before relying on it.
+- assertVisible: 查看说明
+- assertVisible: 查看保险说明
+- tapOn: 查看说明
+- assertVisible: Policy hotline: +81-3-0000-0000. Coverage summary stored as metadata only.
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- takeScreenshot: v7-android-calendar-document-safety

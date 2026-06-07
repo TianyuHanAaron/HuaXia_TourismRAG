@@ -29,10 +29,13 @@ export default function ActiveTripTabsLayout() {
   const selectedTab = useTripUiStore((state) => state.selectedTab);
   const setSelectedTab = useTripUiStore((state) => state.setSelectedTab);
   const selectedRouteName = getV6ActiveTripTabRouteName(selectedTab);
+  const routeTab = getV6ActiveTripTabFromPath(pathname);
 
   useEffect(() => {
-    setSelectedTab(getV6ActiveTripTabFromPath(pathname));
-  }, [pathname, setSelectedTab]);
+    if (selectedTab !== routeTab) {
+      setSelectedTab(routeTab);
+    }
+  }, [routeTab, selectedTab, setSelectedTab]);
 
   return (
     <Tabs

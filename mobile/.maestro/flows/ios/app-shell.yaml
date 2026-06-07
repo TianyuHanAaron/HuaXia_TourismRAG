@@ -1,0 +1,29 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 iOS native app shell smoke
+tags:
+  - v7
+  - smoke
+  - ios
+env:
+  V7_FIXTURE_SCENARIO_ID: approved_trip
+  V7_FIXTURE_TRIP_ID: trip_v7_beijing_family
+  EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 华夏旅行指挥中心
+    timeout: 45000
+- assertVisible: Beijing 5-Day Command Center Test Trip
+- assertVisible: 下一步
+- assertVisible: Confirm hotel beside a subway station
+- assertVisible: 首页 · 现在该做什么？
+- assertVisible: 时间线 · 我在旅行哪一步？
+- assertVisible: 任务 · 哪些任务现在要处理？
+- assertVisible: 文件 · 我需要什么凭证？
+- assertVisible: 设置 · 这趟旅行该如何运行？
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- takeScreenshot: v7-ios-native-app-shell

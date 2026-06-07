@@ -1,0 +1,40 @@
+{
+  "scenario_id": "provider_action_sheet",
+  "trip_id": "trip_v7_provider_sheet_beijing",
+  "source_task_id": "task_v7_station_route",
+  "ios_api_base_url": "http://127.0.0.1:8787",
+  "android_api_base_url": "http://10.0.2.2:8787",
+  "live_provider_calls_allowed": false,
+  "ready_action_id": "action_v7_ready_station_route",
+  "stale_action_id": "action_v7_stale_station_route",
+  "invalid_action_id": "action_v7_missing_destination_route",
+  "fallback_action_id": "action_v7_fallback_station_route",
+  "context_question": "Where will I go if I tap this?",
+  "prepared_context": "准备好的去向",
+  "route_preview": "Is this the route I am about to follow?",
+  "origin": "Qianmen Hotel, Beijing",
+  "destination": "Beijing South Railway Station",
+  "confidence": "high",
+  "freshness": "fresh",
+  "invalid_reason": "Destination is missing.",
+  "stale_recovery": "刷新路线",
+  "invalid_recovery": "补齐路线信息",
+  "fallback_provider": "Google Maps",
+  "fallback_launch_target": "https://www.google.com/maps/dir/?api=1&origin=Qianmen%20Hotel%2C%20Beijing&destination=Beijing%20South%20Railway%20Station&travelmode=transit",
+  "post_launch_heading": "回到华夏后",
+  "follow_up_actions": [
+    "我已完成",
+    "稍后提醒",
+    "出了问题"
+  ],
+  "expected_copy": [
+    "Where will I go if I tap this?",
+    "准备好的去向",
+    "Qianmen Hotel, Beijing",
+    "Beijing South Railway Station",
+    "Destination is missing.",
+    "刷新路线",
+    "Google Maps",
+    "回到华夏后"
+  ]
+}

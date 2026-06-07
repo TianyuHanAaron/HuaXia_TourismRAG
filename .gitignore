@@ -11,3 +11,16 @@ build/
 .streamlit/secrets.toml
 tmp/
 UI/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+mobile/artifacts/
+mobile/.expo/
+mobile/.tamagui/

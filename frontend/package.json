@@ -13,6 +13,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:web": "playwright test --config playwright.web.config.ts",
+    "test:e2e:web:prod": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:8000} playwright test --config playwright.web.config.ts",
+    "test:e2e:expo": "playwright test --config playwright.expo.config.ts",
+    "test:e2e:expo:list": "playwright test --config playwright.expo.config.ts --list",
     "typecheck": "tsc -b"
   },
   "dependencies": {

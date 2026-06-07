@@ -1,0 +1,25 @@
+{
+  "scenario_id": "long_trip_task_command",
+  "trip_id": "trip_v7_long_execution",
+  "day_count": 20,
+  "ios_api_base_url": "http://127.0.0.1:8787",
+  "android_api_base_url": "http://10.0.2.2:8787",
+  "live_provider_calls_allowed": false,
+  "current_phase": "Northern Xinjiang autumn route",
+  "ready_provider_action_task": "Confirm airport transfer pickup time",
+  "today_task": "Book Kanas scenic shuttle ticket",
+  "blocked_task": "Save ID copies before ticket pickup",
+  "blocked_reason": "Hotel booking confirmation must be saved before ID copies can be attached.",
+  "completed_task": "Review autumn weather window",
+  "timeline_expected_copy": [
+    "旅行时间线",
+    "长线旅行按阶段折叠日期，避免变成难读的行程墙。",
+    "Northern Xinjiang autumn route"
+  ],
+  "task_expected_copy": [
+    "现在需要处理什么？",
+    "Confirm airport transfer pickup time",
+    "Book Kanas scenic shuttle ticket",
+    "Save ID copies before ticket pickup"
+  ]
+}

@@ -1,0 +1,37 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 Android performance and Web Vitals duration artifacts
+tags:
+  - v7
+  - performance
+  - web-vitals
+  - android
+env:
+  V7_FIXTURE_SCENARIO_ID: performance_web_vitals_release_gate
+  V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+  V7_FIXTURE_PATH: .maestro/fixtures/native-performance-web-vitals.json
+  EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:8787
+  startTime: v7-android-performance-start
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: HuaXia
+    timeout: 45000
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- assertVisible: HuaXia
+- assertVisible: Northern Xinjiang
+- takeScreenshot: v7-android-performance-trip-home
+- tapOn: 任务 · 哪些任务现在要处理？
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertVisible: 现在需要处理什么？
+- assertVisible: 打开已准备路线
+- takeScreenshot: v7-android-performance-task-command
+- tapOn: 打开已准备路线
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertVisible: Where will I go if I tap this?
+- assertVisible: 准备好的去向

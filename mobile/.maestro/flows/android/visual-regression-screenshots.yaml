@@ -1,0 +1,33 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 Android visual regression screenshot artifacts
+tags:
+  - v7
+  - visual-regression
+  - screenshots
+  - android
+env:
+  V7_FIXTURE_SCENARIO_ID: visual_regression_screenshot_matrix
+  V7_FIXTURE_TRIP_ID: trip_v7_responsive_safe_area
+  V7_FIXTURE_PATH: .maestro/fixtures/native-visual-regression-screenshots.json
+  EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: HuaXia
+    timeout: 45000
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- tapOn: 时间线 · 我在旅行哪一步？
+- assertVisible: 旅行时间线
+- assertVisible: Northern Xinjiang transfer
+- assertVisible: 长线旅行按阶段折叠日期，避免变成难读的行程墙。
+- takeScreenshot: v7-android-visual-timeline
+- tapOn: 文件 · 哪些凭证要用？
+- assertVisible: 文件与预订
+- assertVisible: 文件保险箱
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- takeScreenshot: v7-android-visual-documents

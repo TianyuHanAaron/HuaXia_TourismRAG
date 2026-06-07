@@ -363,7 +363,7 @@ export function StickyActionBar({ children }: { children: ReactNode }) {
 function DesignChip({ label, tone = 'muted', accessibilityLabel }: ChipProps) {
   const colors = chipColors(tone);
   return (
-    <XStack
+    <View
       accessible
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="text"
@@ -373,7 +373,7 @@ function DesignChip({ label, tone = 'muted', accessibilityLabel }: ChipProps) {
       ]}
     >
       <Text {...dynamicTextProps} style={[styles.designChipText, { color: colors.text }]}>{label}</Text>
-    </XStack>
+    </View>
   );
 }
 

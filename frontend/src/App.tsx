@@ -154,6 +154,9 @@ export default function App() {
 
   const currentJob = streamedJob?.job_id === activeJobId ? streamedJob : jobQuery.data;
   const waitingActive = Boolean(activeJobId && currentJob?.status !== 'completed');
+  const showSseFallbackRecovery = Boolean(
+    sseFailedJobId && (!activeJobId || sseFailedJobId === activeJobId),
+  );
   const contextSummary = useMemo(
     () => buildWebPlanningContextSummary({ job: currentJob, answer: latestAnswer }),
     [currentJob, latestAnswer],
@@ -356,6 +359,25 @@ export default function App() {
               </HuaxiaSurface>
 
               <JobProgressPanel job={currentJob ?? undefined} language={language} />
+              {showSseFallbackRecovery ? (
+                <HuaxiaSurface
+                  className="animated-presence"
+                  role="status"
+                  sx={{ p: 2 }}
+                  v6Pattern="operational_group"
+                >
+                  <Typography sx={{ fontWeight: 850 }}>
+                    {language === 'zh-CN'
+                      ? '实时进度暂时不可用，正在用备用方式刷新。'
+                      : 'Live progress is temporarily unavailable. We are refreshing another way.'}
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2" sx={{ mt: 0.6, lineHeight: 1.6 }}>
+                    {language === 'zh-CN'
+                      ? '已生成的内容会保留；完成后会自动展示最终方案。'
+                      : 'Generated content is preserved; the final plan will appear automatically.'}
+                  </Typography>
+                </HuaxiaSurface>
+              ) : null}
               <EngagementWaitingRoom
                 feed={currentJob?.engagement_feed}
                 language={language}

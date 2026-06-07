@@ -63,8 +63,10 @@ const initialTripUiState = {
 
 export const useTripUiStore = create<TripUiState>((set) => ({
   ...initialTripUiState,
-  setSelectedTripId: (selectedTripId) => set({ selectedTripId }),
-  setSelectedTab: (selectedTab) => set({ selectedTab }),
+  setSelectedTripId: (selectedTripId) =>
+    set((state) => (state.selectedTripId === selectedTripId ? state : { selectedTripId })),
+  setSelectedTab: (selectedTab) =>
+    set((state) => (state.selectedTab === selectedTab ? state : { selectedTab })),
   setLanguage: (language) => set({ language }),
   setDisplayDensity: (displayDensity) => set({ displayDensity }),
   setOnboardingStage: (onboardingStage) => set({ onboardingStage }),

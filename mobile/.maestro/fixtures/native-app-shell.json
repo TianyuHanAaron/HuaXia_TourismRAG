@@ -1,0 +1,18 @@
+{
+  "scenario_id": "approved_trip",
+  "trip_id": "trip_v7_beijing_family",
+  "ios_api_base_url": "http://127.0.0.1:8787",
+  "android_api_base_url": "http://10.0.2.2:8787",
+  "live_provider_calls_allowed": false,
+  "expected_visible_copy": [
+    "华夏旅行指挥中心",
+    "Beijing 5-Day Command Center Test Trip",
+    "下一步",
+    "Confirm hotel beside a subway station",
+    "首页 · 现在该做什么？",
+    "时间线 · 我在旅行哪一步？",
+    "任务 · 哪些任务现在要处理？",
+    "文件 · 我需要什么凭证？",
+    "设置 · 这趟旅行该如何运行？"
+  ]
+}

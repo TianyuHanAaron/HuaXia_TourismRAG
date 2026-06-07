@@ -1,0 +1,39 @@
+{
+  "scenario_id": "performance_web_vitals_release_gate",
+  "step": 26,
+  "frozen_now": "2026-06-07T00:00:00+10:00",
+  "fixture_hashes": [
+    "fixture:v7:step26:expo-trip-home-first-render",
+    "fixture:v7:step26:expo-task-command-first-rows",
+    "fixture:v7:step26:expo-timeline-first-rows",
+    "fixture:v7:step26:expo-provider-sheet-open"
+  ],
+  "native_policy": {
+    "artifact_only": true,
+    "pixel_baselines": false,
+    "duration_gate": "Native flows capture release artifacts and smoke-duration context. Strict native timing thresholds start after simulator hardware is pinned in CI.",
+    "live_provider_calls_allowed": false
+  },
+  "expected_duration_artifact_names": [
+    "v7-ios-performance-trip-home",
+    "v7-ios-performance-task-command",
+    "v7-android-performance-trip-home",
+    "v7-android-performance-task-command"
+  ],
+  "required_states": [
+    "trip_home_first_render",
+    "task_command_first_rows",
+    "timeline_first_rows",
+    "provider_sheet_open"
+  ],
+  "thresholds": {
+    "trip_home_first_meaningful_ms": 2000,
+    "task_command_first_rows_ms": 2000,
+    "timeline_first_rows_ms": 2000,
+    "provider_sheet_open_ms": 300
+  },
+  "notes": [
+    "Use the same Step 24 responsive safe-area trip fixture so native timing artifacts stress long labels, route bundles, and provider handoff affordances.",
+    "Do not call live Qwen, Tavily, Firecrawl, map, hotel, flight, ticket, or booking providers in production readiness CI."
+  ]
+}

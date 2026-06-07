@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "scenario_id": "calendar_document_safety",
+  "step": 21,
+  "trip_id": "trip_v7_calendar_document_safety_kyoto",
+  "title": "京都出发准备执行测试",
+  "live_provider_calls_allowed": false,
+  "sensitive_document_contents_in_fixture": false,
+  "calendar": {
+    "screen_question": "先预览，再导出",
+    "selected_count": "已选择 2 / 3 个事件",
+    "export_button": "生成 .ics 文件",
+    "export_audit_event_id": "audit_v7_calendar_export_ics",
+    "ics_filename": "huaxia-v7-kyoto-command-center.ics"
+  },
+  "documents": {
+    "screen_question": "这一步需要什么凭证或预订信息？",
+    "privacy_title": "隐私默认保护",
+    "privacy_copy": "HuaXia 不会读取证件、保险或订单正文，除非你为某一个任务明确授权。",
+    "sensitive_document_title": "Passport metadata only",
+    "prompt_policy": "默认不进提示词",
+    "booking_title": "Kyoto Higashiyama Hotel reservation",
+    "masked_booking_code": "KYO••••890",
+    "metadata_mode": "metadata-only"
+  },
+  "safety": {
+    "screen_question": "如果出状况，我现在能用什么实际帮助？",
+    "destination": "Kyoto",
+    "emergency_numbers": ["119", "110"],
+    "offline_chip": "应急信息已保存，可离线使用",
+    "stale_warning": "This safety note may be stale. Check the official source before relying on it.",
+    "insurance_note": "Policy hotline: +81-3-0000-0000. Coverage summary stored as metadata only."
+  }
+}

@@ -152,14 +152,14 @@ export function ProviderActionSheet({
       travelFlowMood={viewModel.travelFlowMood}
     >
       <ProviderActionHeader viewModel={viewModel} />
+      <ProviderRiskNote viewModel={viewModel} launchMessage={launchMessage} />
+      <ProviderPrimaryLaunch viewModel={viewModel} onLaunch={launchOption} />
       <RoutePreviewCard
         viewModel={viewModel}
         onEditContext={onEditContext}
         onRefreshRoute={onRefreshRoute}
       />
       <ProviderPreparedContextCard viewModel={viewModel} />
-      <ProviderRiskNote viewModel={viewModel} launchMessage={launchMessage} />
-      <ProviderPrimaryLaunch viewModel={viewModel} onLaunch={launchOption} />
       <ProviderAlternativeLaunches viewModel={viewModel} onLaunch={launchOption} />
       <ProviderRecoveryActions
         actions={viewModel.recoveryActions}

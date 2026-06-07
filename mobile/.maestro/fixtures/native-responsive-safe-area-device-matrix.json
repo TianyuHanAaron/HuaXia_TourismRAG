@@ -1,0 +1,33 @@
+{
+  "scenario_id": "responsive_safe_area_device_matrix",
+  "trip_id": "trip_v7_responsive_safe_area",
+  "day_count": 20,
+  "ios_api_base_url": "http://127.0.0.1:8787",
+  "android_api_base_url": "http://10.0.2.2:8787",
+  "live_provider_calls_allowed": false,
+  "viewport_targets": [
+    "narrow_phone",
+    "standard_phone",
+    "tablet_portrait"
+  ],
+  "minimum_touch_target_px": 44,
+  "expected_home_copy": [
+    "HuaXia",
+    "Northern Xinjiang"
+  ],
+  "timeline_expected_copy": [
+    "旅行时间线",
+    "长线旅行按阶段折叠日期，避免变成难读的行程墙。",
+    "Northern Xinjiang transfer"
+  ],
+  "task_expected_copy": [
+    "现在需要处理什么？",
+    "Confirm the long cross-city transfer route",
+    "打开已准备路线"
+  ],
+  "provider_expected_copy": [
+    "Where will I go if I tap this?",
+    "准备好的去向",
+    "Open prepared route"
+  ]
+}

@@ -8,9 +8,11 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.huaxia.tripcommandcenter"
     },
     "android": {
+      "package": "com.huaxia.tripcommandcenter",
       "adaptiveIcon": {
         "backgroundColor": "#f8f3ec"
       }

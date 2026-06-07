@@ -1,0 +1,48 @@
+{
+  "scenario_id": "accessibility_keyboard_screen_reader",
+  "trip_id": "trip_v7_accessibility_beijing",
+  "task_id": "task_v7_accessibility_station_route",
+  "blocked_task_id": "task_v7_accessibility_missing_document",
+  "provider_action_id": "action_v7_accessible_station_route",
+  "route_bundle_id": "route_v7_accessible_station_route",
+  "ios_api_base_url": "http://127.0.0.1:8787",
+  "android_api_base_url": "http://10.0.2.2:8787",
+  "live_provider_calls_allowed": false,
+  "trip_endpoint": "/trips/trip_v7_accessibility_beijing",
+  "route_bundle_endpoint": "/trips/trip_v7_accessibility_beijing/route-bundles",
+  "task_patch_endpoint": "/trips/trip_v7_accessibility_beijing/tasks/task_v7_accessibility_station_route",
+  "provider_launch_endpoint": "/trips/trip_v7_accessibility_beijing/provider-actions/action_v7_accessible_station_route/launch",
+  "expected_keyboard_controls": [
+    "打开路线：Accessible station route",
+    "标记完成",
+    "跳过任务",
+    "编辑任务"
+  ],
+  "expected_screen_reader_labels": [
+    "Where will I go if I tap this?",
+    "Is this the route I am about to follow?",
+    "Qianmen Hotel",
+    "Beijing South Railway Station",
+    "Apple Maps"
+  ],
+  "expected_copy": [
+    "北京无障碍键盘执行测试",
+    "不用鼠标，我能完成下一步吗？",
+    "Confirm accessible station route",
+    "打开路线：Accessible station route",
+    "Where will I go if I tap this?",
+    "准备好的去向",
+    "Is this the route I am about to follow?",
+    "Qianmen Hotel",
+    "Beijing South Railway Station",
+    "Apple Maps",
+    "回到华夏后",
+    "我已完成",
+    "稍后提醒",
+    "出了问题",
+    "Upload ID copy before ticket pickup",
+    "Upload ID copy before ticket pickup.",
+    "上传或关联文件",
+    "Large text keeps task cards readable."
+  ]
+}

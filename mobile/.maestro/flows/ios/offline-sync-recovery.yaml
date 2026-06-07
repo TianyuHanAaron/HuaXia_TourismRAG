@@ -1,0 +1,45 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 iOS offline sync recovery
+tags:
+  - v7
+  - offline-sync-recovery
+  - ios
+env:
+  V7_FIXTURE_SCENARIO_ID: offline_sync_recovery
+  V7_FIXTURE_TRIP_ID: trip_v7_offline_sync_beijing
+  V7_FIXTURE_PATH: .maestro/fixtures/native-offline-sync-recovery.json
+  EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 北京离线同步恢复测试
+    timeout: 45000
+- tapOn: Tasks
+- assertVisible: 夏夏保留了我的操作吗？接下来会发生什么？
+- assertVisible: Confirm station departure route offline
+- tapOn: 标记完成
+- assertVisible: 已保存到本机
+- assertVisible: 已保存在你的手机上，联网后会自动同步。
+- assertVisible: 1 个任务操作已保存
+- assertVisible: 立即同步
+- tapOn: 立即同步
+- assertVisible: 有 1 个保存的操作需要确认
+- assertVisible: 需要确认
+- assertVisible: 去复核
+- tapOn: 去复核
+- assertVisible: 离线差异复核
+- assertVisible: 这项离线操作需要复核
+- assertVisible: 这项任务在你离线时发生了变化。请先复核，再决定是否应用本机操作。
+- assertVisible: 打开任务详情
+- assertVisible: 重新同步
+- assertVisible: 应用本机保存的操作
+- assertVisible: 保留服务器最新版本
+- tapOn: 保留服务器最新版本
+- assertVisible: 已保留服务器上的最新任务状态
+- assertVisible: 已没有需要复核的操作
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- takeScreenshot: v7-ios-offline-sync-recovery

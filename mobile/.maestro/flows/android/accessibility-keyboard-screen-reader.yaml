@@ -1,0 +1,50 @@
+appId: com.huaxia.tripcommandcenter
+name: V7 Android accessibility keyboard screen reader
+tags:
+  - v7
+  - accessibility-keyboard-screen-reader
+  - android
+env:
+  V7_FIXTURE_SCENARIO_ID: accessibility_keyboard_screen_reader
+  V7_FIXTURE_TRIP_ID: trip_v7_accessibility_beijing
+  V7_FIXTURE_PATH: .maestro/fixtures/native-accessibility-keyboard-screen-reader.json
+  EXPO_PUBLIC_API_BASE_URL: http://10.0.2.2:8787
+---
+- launchApp:
+    clearState: true
+    stopApp: true
+- extendedWaitUntil:
+    visible: 北京无障碍键盘执行测试
+    timeout: 45000
+- tapOn: Tasks
+- assertVisible: 不用鼠标，我能完成下一步吗？
+- assertVisible: Confirm accessible station route
+- tapOn: Confirm accessible station route
+- assertVisible: 打开路线：Accessible station route
+- assertVisible: 标记完成
+- assertVisible: 跳过任务
+- assertVisible: 编辑任务
+- tapOn: 打开路线：Accessible station route
+- assertVisible: Where will I go if I tap this?
+- assertVisible: 准备好的去向
+- assertVisible: Is this the route I am about to follow?
+- assertVisible: Qianmen Hotel
+- assertVisible: Beijing South Railway Station
+- assertVisible: Apple Maps
+- tapOn: Apple Maps
+- assertVisible: 回到华夏后
+- assertVisible: 我已完成
+- assertVisible: 稍后提醒
+- assertVisible: 出了问题
+- tapOn: 出了问题
+- assertVisible: 不能安全打开时
+- tapOn: Tasks
+- assertVisible: Upload ID copy before ticket pickup
+- tapOn: Upload ID copy before ticket pickup
+- assertVisible: Upload ID copy before ticket pickup.
+- assertVisible: 上传或关联文件
+- assertVisible: Large text keeps task cards readable.
+- assertNotVisible: Unhandled JS Exception
+- assertNotVisible: Something went wrong
+- assertNotVisible: Network unavailable. Please check your connection.
+- takeScreenshot: v7-android-accessibility-keyboard-screen-reader

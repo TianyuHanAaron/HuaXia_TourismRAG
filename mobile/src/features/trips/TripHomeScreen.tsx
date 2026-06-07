@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Chip, ProgressBar, Text } from '../../components/PaperControls';
@@ -52,6 +52,7 @@ export function TripHomeScreen() {
   const [cachedTrip, setCachedTrip] = useState<Trip | null>(null);
   const [cachedSummary, setCachedSummary] = useState<TripSummaryResponse | null>(null);
   const [selectedTripHydrated, setSelectedTripHydrated] = useState(false);
+  const selectedTripHydrationStarted = useRef(false);
   const [sampleFeedback, setSampleFeedback] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const selectedTripId = useTripUiStore((state) => state.selectedTripId);
@@ -102,6 +103,10 @@ export function TripHomeScreen() {
     tripQueries.offlineSnapshot(remoteActiveTrip?.trip_id),
   );
   useEffect(() => {
+    if (selectedTripHydrationStarted.current) {
+      return;
+    }
+    selectedTripHydrationStarted.current = true;
     const persistedTripId = readSelectedTripIdFromMmkv();
     if (persistedTripId && !selectedTripId) {
       setSelectedTripId(persistedTripId);
@@ -465,13 +470,15 @@ function ActiveTripSummaryCard({
         <SectionHeader title={viewModel.title} />
         <StatusChip label={viewModel.status} />
       </View>
-      <Text variant="bodyMedium">{viewModel.destination}</Text>
+      <Text variant="bodyMedium" numberOfLines={2} ellipsizeMode="tail">
+        {viewModel.destination}
+      </Text>
       <View style={styles.phaseFocus}>
         <View style={styles.row}>
           <Text variant="labelSmall">{viewModel.phaseQuestion}</Text>
           <Chip compact>{viewModel.travelFlowMood.moodLabel}</Chip>
         </View>
-        <Text variant="bodySmall">
+        <Text variant="bodySmall" numberOfLines={2} ellipsizeMode="tail">
           {viewModel.phasePrimaryAction} · {viewModel.phaseSecondaryFocus}
         </Text>
       </View>
@@ -562,9 +569,13 @@ function NextBestActionCard({
             <Text variant="labelLarge">{copy.nextActionLabel}</Text>
             <Chip compact>{action.urgencyLabel}</Chip>
           </View>
-          <Text variant="titleMedium">{action.title}</Text>
+          <Text variant="titleMedium" numberOfLines={2} ellipsizeMode="tail">
+            {action.title}
+          </Text>
           {action.dueLabel ? <Text variant="labelSmall">截止：{action.dueLabel}</Text> : null}
-          <Text variant="bodySmall">{action.body}</Text>
+          <Text variant="bodySmall" numberOfLines={2} ellipsizeMode="tail">
+            {action.body}
+          </Text>
           <Link href={viewModel.primaryCta.href} asChild>
             <Button mode="contained" semanticTone={viewModel.primaryCta.semanticTone}>
               {viewModel.primaryCta.label}
